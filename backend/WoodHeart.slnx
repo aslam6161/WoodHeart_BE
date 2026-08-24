@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WoodHeart.Api/WoodHeart.Api.csproj" />
+    <Project Path="src/WoodHeart.Application/WoodHeart.Application.csproj" />
+    <Project Path="src/WoodHeart.Domain/WoodHeart.Domain.csproj" />
+    <Project Path="src/WoodHeart.Infrastructure/WoodHeart.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WoodHeart.Api.IntegrationTests/WoodHeart.Api.IntegrationTests.csproj" />
+    <Project Path="tests/WoodHeart.Application.UnitTests/WoodHeart.Application.UnitTests.csproj" />
+    <Project Path="tests/WoodHeart.ArchitectureTests/WoodHeart.ArchitectureTests.csproj" />
+    <Project Path="tests/WoodHeart.Domain.UnitTests/WoodHeart.Domain.UnitTests.csproj" />
+  </Folder>
+</Solution>

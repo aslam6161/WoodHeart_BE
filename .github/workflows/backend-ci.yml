@@ -1,0 +1,135 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['backend/**', '.github/workflows/backend-ci.yml']
+  pull_request:
+    branches: [main, develop]
+    paths: ['backend/**', '.github/workflows/backend-ci.yml']
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      # A real PostgreSQL, not the EF in-memory provider. In-memory does not
+      # enforce unique indexes, does not run our filtered indexes, and silently
+      # accepts SQL that Postgres rejects — so it proves nothing about the code
+      # that will actually run in production.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: woodheart_test
+          POSTGRES_USER: woodheart
+          POSTGRES_PASSWORD: woodheart
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U woodheart"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        working-directory: backend
+        run: dotnet restore
+
+      - name: Build
+        working-directory: backend
+        run: dotnet build --no-restore -c Release
+
+      # Run first and separately: if the layering is broken, the other results
+      # do not matter and this failure is the one worth reading.
+      - name: Architecture tests
+        working-directory: backend
+        run: dotnet test tests/WoodHeart.ArchitectureTests --no-build -c Release --logger "console;verbosity=normal"
+
+      - name: Unit tests
+        working-directory: backend
+        run: |
+          dotnet test tests/WoodHeart.Domain.UnitTests --no-build -c Release \
+            --logger trx --results-directory ../TestResults \
+            --collect:"XPlat Code Coverage"
+          dotnet test tests/WoodHeart.Application.UnitTests --no-build -c Release \
+            --logger trx --results-directory ../TestResults \
+            --collect:"XPlat Code Coverage"
+
+      - name: Integration tests
+        working-directory: backend
+        env:
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Database=woodheart_test;Username=woodheart;Password=woodheart"
+          Jwt__SigningKey: "ci-only-signing-key-not-used-anywhere-else-32chars"
+          ASPNETCORE_ENVIRONMENT: Testing
+        run: dotnet test tests/WoodHeart.Api.IntegrationTests --no-build -c Release --logger trx --results-directory ../TestResults
+
+      - name: Verify migrations apply to an empty database
+        working-directory: backend
+        env:
+          WOODHEART_MIGRATIONS_CONNECTION: "Host=localhost;Port=5432;Database=woodheart_migrations;Username=woodheart;Password=woodheart"
+        run: |
+          dotnet tool install --global dotnet-ef --version 10.0.* || dotnet tool update --global dotnet-ef --version 10.0.*
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          # Catches the migration that works on a developer's existing database
+          # but fails from scratch — which is exactly what production is.
+          dotnet ef database update \
+            --project src/WoodHeart.Infrastructure \
+            --startup-project src/WoodHeart.Infrastructure \
+            --context WoodHeartDbContext
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/**/*.trx
+          retention-days: 14
+
+  security-scan:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Check for vulnerable packages
+        working-directory: backend
+        run: |
+          dotnet restore
+          # Transitive included: the Hangfire → Newtonsoft.Json chain is exactly
+          # the kind of thing a direct-only scan misses.
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee audit.log
+          if grep -q "has the following vulnerable packages" audit.log; then
+            echo "::error::Vulnerable NuGet packages detected — see the log above."
+            exit 1
+          fi
+
+      - name: Check for deprecated packages
+        working-directory: backend
+        continue-on-error: true
+        run: dotnet list package --deprecated

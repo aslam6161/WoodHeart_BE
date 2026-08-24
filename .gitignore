@@ -1,0 +1,58 @@
+# ---------- .NET ----------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+[Ll]ogs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.log
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+project.lock.json
+project.fragment.lock.json
+artifacts/
+TestResults/
+coverage/
+*.coverage
+*.trx
+BenchmarkDotNet.Artifacts/
+
+# ---------- Secrets ----------
+appsettings.Local.json
+appsettings.*.Local.json
+*.pfx
+*.p12
+.env
+.env.*
+!.env.example
+secrets.json
+
+# ---------- Node / Angular ----------
+node_modules/
+dist/
+.angular/
+.nx/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Local data ----------
+/data/
+/uploads/
+/media/
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,55 @@
+# -----------------------------------------------------------------------------
+# WoodHeart API — production image.
+# Build from the repo root:
+#   docker build -f deploy/docker/Dockerfile.api -t woodheart-api .
+# -----------------------------------------------------------------------------
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+WORKDIR /src
+
+# Copy only the project and props files first, so `restore` is cached and does
+# not re-run every time a .cs file changes. This is the single biggest win in
+# .NET image build time.
+COPY backend/Directory.Build.props backend/Directory.Packages.props ./backend/
+COPY backend/WoodHeart.slnx ./backend/
+COPY backend/src/WoodHeart.Domain/*.csproj                    ./backend/src/WoodHeart.Domain/
+COPY backend/src/WoodHeart.Application/*.csproj               ./backend/src/WoodHeart.Application/
+COPY backend/src/WoodHeart.Infrastructure/*.csproj            ./backend/src/WoodHeart.Infrastructure/
+COPY backend/src/WoodHeart.Api/*.csproj                       ./backend/src/WoodHeart.Api/
+COPY backend/tests/WoodHeart.Domain.UnitTests/*.csproj        ./backend/tests/WoodHeart.Domain.UnitTests/
+COPY backend/tests/WoodHeart.Application.UnitTests/*.csproj   ./backend/tests/WoodHeart.Application.UnitTests/
+COPY backend/tests/WoodHeart.Api.IntegrationTests/*.csproj    ./backend/tests/WoodHeart.Api.IntegrationTests/
+COPY backend/tests/WoodHeart.ArchitectureTests/*.csproj       ./backend/tests/WoodHeart.ArchitectureTests/
+
+RUN dotnet restore backend/src/WoodHeart.Api/WoodHeart.Api.csproj
+
+COPY .editorconfig ./
+COPY backend/ ./backend/
+
+RUN dotnet publish backend/src/WoodHeart.Api/WoodHeart.Api.csproj \
+        -c Release -o /app/publish \
+        --no-restore \
+        /p:UseAppHost=false
+
+# -----------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
+WORKDIR /app
+
+# ICU and the tz database: without tzdata the container cannot resolve
+# "Asia/Dhaka", and every consultation slot would be computed in UTC.
+RUN apk add --no-cache icu-libs tzdata curl
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+ENV TZ=Asia/Dhaka
+
+# Never run as root. The image ships a non-root user for exactly this.
+USER $APP_UID
+
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://localhost:8080/health/live || exit 1
+
+ENTRYPOINT ["dotnet", "WoodHeart.Api.dll"]
