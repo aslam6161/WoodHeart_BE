@@ -1,0 +1,60 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['frontend/**', '.github/workflows/frontend-ci.yml']
+  pull_request:
+    branches: [main, develop]
+    paths: ['frontend/**', '.github/workflows/frontend-ci.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: frontend/woodheart-web
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Reads .nvmrc, so CI and every developer machine track one version.
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: frontend/woodheart-web/package-lock.json
+
+      # `npm ci` not `npm install`: it installs exactly what the lockfile says
+      # and fails if package.json and the lockfile disagree, which is what you
+      # want in CI and never what you want locally.
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Unit tests
+        run: npm test -- --watch=false --browsers=ChromeHeadless
+
+      - name: Build (production, with SSR)
+        run: npm run build -- --configuration production
+
+      # The storefront is served over 4G to customers on mid-range phones. A
+      # bundle that quietly grows past budget is a conversion problem, so the
+      # budgets in angular.json are enforced here rather than merely declared.
+      - name: Check bundle budgets
+        run: |
+          echo "Budgets are enforced by the production build above."
+          du -sh dist/ || true
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/woodheart-web/dist/
+          retention-days: 7

@@ -1,16 +1,17 @@
 # WoodHeart — Interior Commerce & Consultation Platform
+
 ### Architecture & Implementation Plan
 
-| | |
-|---|---|
-| **Product** | Online store for home interior items + interior consultation booking |
-| **Market** | Bangladesh (BDT, Bangla/English, bKash + Cash on Delivery) |
-| **Backend** | .NET 10 (ASP.NET Core Web API), Onion Architecture, modular monolith |
-| **Frontend** | Angular 22 (standalone, signals, zoneless, SSR for public pages) |
-| **Database** | PostgreSQL 16+ via EF Core 10 |
-| **Repo root** | `D:\Personal_Projects\WoodHeart` |
-| **Status** | Planning — no code written yet |
-| **Last updated** | 2026-08-24 |
+|                  |                                                                      |
+| ---------------- | -------------------------------------------------------------------- |
+| **Product**      | Online store for home interior items + interior consultation booking |
+| **Market**       | Bangladesh (BDT, Bangla/English, bKash + Cash on Delivery)           |
+| **Backend**      | .NET 10 (ASP.NET Core Web API), Onion Architecture, modular monolith |
+| **Frontend**     | Angular 22 (standalone, signals, zoneless, SSR for public pages)     |
+| **Database**     | PostgreSQL 16+ via EF Core 10                                        |
+| **Repo root**    | `D:\Personal_Projects\WoodHeart`                                     |
+| **Status**       | **Phase 0 backend complete** — 88 tests passing. Frontend pending a Node upgrade (§17). |
+| **Last updated** | 2026-08-24                                                           |
 
 ---
 
@@ -22,14 +23,14 @@ WoodHeart sells **home interior products** and sells **interior consultation as 
 
 **Product catalog (initial categories)**
 
-| Group | Items |
-|---|---|
-| Bedroom | Bed, dressing table, dress closet / wardrobe, side table |
-| Dining | Dining table, dining wagon, dining chairs |
-| Living | Mirror, showcase, sofa, centre table |
-| Bath | Basin cabinet, vanity, mirror cabinet |
-| Lighting | Ceiling lighting, pendant, wall light |
-| Decor | Handicraft items, wall art, planters |
+| Group    | Items                                                    |
+| -------- | -------------------------------------------------------- |
+| Bedroom  | Bed, dressing table, dress closet / wardrobe, side table |
+| Dining   | Dining table, dining wagon, dining chairs                |
+| Living   | Mirror, showcase, sofa, centre table                     |
+| Bath     | Basin cabinet, vanity, mirror cabinet                    |
+| Lighting | Ceiling lighting, pendant, wall light                    |
+| Decor    | Handicraft items, wall art, planters                     |
 
 The category tree must be **admin-managed and unlimited-depth** — the list above is seed data, not a hardcoded enum.
 
@@ -56,19 +57,19 @@ All deliberately deferred. The architecture leaves a seam for each one.
 
 These are not afterthoughts; they shape the domain model.
 
-| Concern | Decision |
-|---|---|
-| **Currency** | `BDT` only in v1. Money stored as `decimal(18,2)` plus an ISO currency code. Never `float`/`double`. |
-| **Address model** | Division → District → Upazila/Thana → Area → street line. **Not** the Western `state / zip` shape. Seeded reference data (8 divisions, 64 districts, ~495 upazilas). Postcode optional. |
-| **Phone** | The primary identity handle. Store E.164 (`+8801XXXXXXXXX`), display local (`01XXXXXXXXX`). Phone beats email for reachability in this market; OTP login is a Phase 3 item. |
-| **Delivery zones** | `Inside Dhaka` / `Dhaka Suburb` / `Outside Dhaka` bands, plus per-district overrides and a per-product surcharge for bulky furniture. Free-delivery threshold configurable. |
-| **Courier** | `ICourierProvider` port. Manual / own-delivery in v1; Pathao, Steadfast, RedX adapters later. Furniture is usually self-delivered, so manual must be first-class, not a fallback. |
-| **Payments** | COD (with optional partial advance for made-to-order), bKash Tokenized Checkout. Nagad / Rocket / SSLCOMMERZ as future providers behind the same port. |
-| **COD risk** | COD carries real refusal risk here. The order model supports an **advance payment percentage** on custom or large items, and a **customer risk flag** (repeat-refuser detection) from day one. |
-| **VAT** | Configurable rate plus a VAT-inclusive/exclusive pricing switch. Do **not** hardcode a rate — confirm with your accountant (see §16). |
-| **Language** | English first, Bangla second, via translatable content columns. Bengali numerals as a display-only toggle. |
-| **Timezone** | All timestamps stored `timestamptz` in UTC, presented in `Asia/Dhaka` (+06, no DST). Consultation slots are computed in Dhaka time, stored in UTC. |
-| **Holidays** | Consultation availability must respect the Friday/Saturday weekend and a configurable holiday calendar (Eid, Pohela Boishakh, and so on). |
+| Concern            | Decision                                                                                                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Currency**       | `BDT` only in v1. Money stored as `decimal(18,2)` plus an ISO currency code. Never `float`/`double`.                                                                                           |
+| **Address model**  | Division → District → Upazila/Thana → Area → street line. **Not** the Western `state / zip` shape. Seeded reference data (8 divisions, 64 districts, ~495 upazilas). Postcode optional.        |
+| **Phone**          | The primary identity handle. Store E.164 (`+8801XXXXXXXXX`), display local (`01XXXXXXXXX`). Phone beats email for reachability in this market; OTP login is a Phase 3 item.                    |
+| **Delivery zones** | `Inside Dhaka` / `Dhaka Suburb` / `Outside Dhaka` bands, plus per-district overrides and a per-product surcharge for bulky furniture. Free-delivery threshold configurable.                    |
+| **Courier**        | `ICourierProvider` port. Manual / own-delivery in v1; Pathao, Steadfast, RedX adapters later. Furniture is usually self-delivered, so manual must be first-class, not a fallback.              |
+| **Payments**       | COD (with optional partial advance for made-to-order), bKash Tokenized Checkout. Nagad / Rocket / SSLCOMMERZ as future providers behind the same port.                                         |
+| **COD risk**       | COD carries real refusal risk here. The order model supports an **advance payment percentage** on custom or large items, and a **customer risk flag** (repeat-refuser detection) from day one. |
+| **VAT**            | Configurable rate plus a VAT-inclusive/exclusive pricing switch. Do **not** hardcode a rate — confirm with your accountant (see §16).                                                          |
+| **Language**       | English first, Bangla second, via translatable content columns. Bengali numerals as a display-only toggle.                                                                                     |
+| **Timezone**       | All timestamps stored `timestamptz` in UTC, presented in `Asia/Dhaka` (+06, no DST). Consultation slots are computed in Dhaka time, stored in UTC.                                             |
+| **Holidays**       | Consultation availability must respect the Friday/Saturday weekend and a configurable holiday calendar (Eid, Pohela Boishakh, and so on).                                                      |
 
 ---
 
@@ -76,34 +77,34 @@ These are not afterthoughts; they shape the domain model.
 
 ### 3.1 Backend
 
-| Choice | Version | Why | Rejected alternative |
-|---|---|---|---|
-| **.NET** | 10 (LTS) | Already installed here (`10.0.301`). LTS = three years of support. | .NET 8 — older, no reason to start there. |
-| **ASP.NET Core Web API** | 10 | Controller-based, not Minimal APIs — better fit for a large command/query surface, cleaner filters and conventions, easier for a growing team. | Minimal APIs — excellent for small services, verbose at this endpoint count. |
-| **PostgreSQL** | 16+ | Free, strong JSONB (variant attributes), full-text search plus `pg_trgm`, cheap on any VPS. | SQL Server — licence cost on a VPS; use it only if you already own one. |
-| **EF Core** | 10 (`dotnet-ef 10.0.7` already installed) | Migrations, LINQ, compiled queries. | Dapper — added as a *supplement* for heavy report queries, not as the primary ORM. |
-| **Mediator** (martinothamar) | latest | Source-generated, reflection-free CQRS dispatch, **MIT licensed**. | **MediatR** — commercial from v13. Avoid the licence trap up front. |
-| **Mapperly** | latest | Source-generated mapping, compile-time safe, **MIT**. | **AutoMapper** — also commercial now. |
-| **FluentValidation** | 11.x | Request/command validation in a pipeline behaviour. | DataAnnotations — too weak for conditional rules. |
-| **Serilog** + **OpenTelemetry** | latest | Structured logs (file/Seq) plus traces and metrics. | Bare `ILogger` — no correlation across a checkout flow. |
-| **Built-in OpenAPI + Scalar UI** | .NET 10 in-box | `Microsoft.AspNetCore.OpenApi` ships in the box now; Scalar renders the browsable UI. | Swashbuckle — no longer necessary. |
-| **Hangfire** | latest | Persistent background jobs with a dashboard: reservation expiry, notification retries, abandoned cart, low-stock digest, payment reconciliation. | Quartz (no dashboard) or a bare `BackgroundService` (no persistence, no retry). |
-| **HybridCache** | .NET 10 in-box | L1 in-memory now, L2 Redis later with no code change. | Bare `IMemoryCache`. |
-| **ImageSharp** | latest | Server-side thumbnail and WebP/AVIF pipeline. Note the Six Labors split licence — free below the revenue threshold, worth reviewing as you scale. | Client-only resizing — bad for SEO and LCP. |
-| **xUnit + Shouldly + NSubstitute** | latest | Testing. **Shouldly, not FluentAssertions** — FA v8 went commercial. | — |
-| **Testcontainers** | latest | Real PostgreSQL in integration tests. **Requires Docker, which is not installed yet.** | The EF in-memory provider — it lies about SQL behaviour. |
+| Choice                             | Version                                   | Why                                                                                                                                               | Rejected alternative                                                               |
+| ---------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **.NET**                           | 10 (LTS)                                  | Already installed here (`10.0.301`). LTS = three years of support.                                                                                | .NET 8 — older, no reason to start there.                                          |
+| **ASP.NET Core Web API**           | 10                                        | Controller-based, not Minimal APIs — better fit for a large command/query surface, cleaner filters and conventions, easier for a growing team.    | Minimal APIs — excellent for small services, verbose at this endpoint count.       |
+| **PostgreSQL**                     | 16+                                       | Free, strong JSONB (variant attributes), full-text search plus `pg_trgm`, cheap on any VPS.                                                       | SQL Server — licence cost on a VPS; use it only if you already own one.            |
+| **EF Core**                        | 10 (`dotnet-ef 10.0.7` already installed) | Migrations, LINQ, compiled queries.                                                                                                               | Dapper — added as a _supplement_ for heavy report queries, not as the primary ORM. |
+| **Mediator** (martinothamar)       | latest                                    | Source-generated, reflection-free CQRS dispatch, **MIT licensed**.                                                                                | **MediatR** — commercial from v13. Avoid the licence trap up front.                |
+| **Mapperly**                       | latest                                    | Source-generated mapping, compile-time safe, **MIT**.                                                                                             | **AutoMapper** — also commercial now.                                              |
+| **FluentValidation**               | 11.x                                      | Request/command validation in a pipeline behaviour.                                                                                               | DataAnnotations — too weak for conditional rules.                                  |
+| **Serilog** + **OpenTelemetry**    | latest                                    | Structured logs (file/Seq) plus traces and metrics.                                                                                               | Bare `ILogger` — no correlation across a checkout flow.                            |
+| **Built-in OpenAPI + Scalar UI**   | .NET 10 in-box                            | `Microsoft.AspNetCore.OpenApi` ships in the box now; Scalar renders the browsable UI.                                                             | Swashbuckle — no longer necessary.                                                 |
+| **Hangfire**                       | latest                                    | Persistent background jobs with a dashboard: reservation expiry, notification retries, abandoned cart, low-stock digest, payment reconciliation.  | Quartz (no dashboard) or a bare `BackgroundService` (no persistence, no retry).    |
+| **HybridCache**                    | .NET 10 in-box                            | L1 in-memory now, L2 Redis later with no code change.                                                                                             | Bare `IMemoryCache`.                                                               |
+| **ImageSharp**                     | latest                                    | Server-side thumbnail and WebP/AVIF pipeline. Note the Six Labors split licence — free below the revenue threshold, worth reviewing as you scale. | Client-only resizing — bad for SEO and LCP.                                        |
+| **xUnit + Shouldly + NSubstitute** | latest                                    | Testing. **Shouldly, not FluentAssertions** — FA v8 went commercial.                                                                              | —                                                                                  |
+| **Testcontainers**                 | latest                                    | Real PostgreSQL in integration tests. **Requires Docker, which is not installed yet.**                                                            | The EF in-memory provider — it lies about SQL behaviour.                           |
 
 ### 3.2 Frontend
 
-| Choice | Why |
-|---|---|
-| **Angular 22** | Latest (`@angular/cli 22.1.5` on npm). Standalone components throughout, **signals** for state, **zoneless** change detection, the `@if` / `@for` control flow, `inject()` over constructor injection. |
-| **Angular SSR (`@angular/ssr`)** | **Non-negotiable for the public site.** Furniture shopping starts on Google and Facebook. SSR plus prerendering gives crawlable product pages, correct OG tags on shares, and a fast LCP over 4G. Admin and customer dashboards stay client-rendered. |
-| **Tailwind CSS v4** + **Angular CDK** | WoodHeart is a *design* brand — the storefront has to look bespoke, not like a component-library demo. Tailwind carries the design system; CDK supplies accessible primitives (overlay, a11y, drag-drop in admin). |
-| **@ngrx/signals (SignalStore)** | Only for genuinely shared state: cart, auth/session, wishlist, admin filters. Everything else is local signals plus `httpResource`/`resource()`. **No full NgRx Store + Effects** — the ceremony is not worth it at this size. |
-| **Transloco** | Runtime EN/BN switching without a second build (native Angular i18n requires one build per locale). |
-| **Playwright** | E2E on the three journeys that must never break: guest checkout, member checkout, consultation booking. |
-| **Nx workspace** *(deferred)* | Only worth it if a second app appears (say a delivery-rider PWA). Start with a plain Angular workspace and well-drawn internal boundaries. |
+| Choice                                | Why                                                                                                                                                                                                                                                   |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Angular 22**                        | Latest (`@angular/cli 22.1.5` on npm). Standalone components throughout, **signals** for state, **zoneless** change detection, the `@if` / `@for` control flow, `inject()` over constructor injection.                                                |
+| **Angular SSR (`@angular/ssr`)**      | **Non-negotiable for the public site.** Furniture shopping starts on Google and Facebook. SSR plus prerendering gives crawlable product pages, correct OG tags on shares, and a fast LCP over 4G. Admin and customer dashboards stay client-rendered. |
+| **Tailwind CSS v4** + **Angular CDK** | WoodHeart is a _design_ brand — the storefront has to look bespoke, not like a component-library demo. Tailwind carries the design system; CDK supplies accessible primitives (overlay, a11y, drag-drop in admin).                                    |
+| **@ngrx/signals (SignalStore)**       | Only for genuinely shared state: cart, auth/session, wishlist, admin filters. Everything else is local signals plus `httpResource`/`resource()`. **No full NgRx Store + Effects** — the ceremony is not worth it at this size.                        |
+| **Transloco**                         | Runtime EN/BN switching without a second build (native Angular i18n requires one build per locale).                                                                                                                                                   |
+| **Playwright**                        | E2E on the three journeys that must never break: guest checkout, member checkout, consultation booking.                                                                                                                                               |
+| **Nx workspace** _(deferred)_         | Only worth it if a second app appears (say a delivery-rider PWA). Start with a plain Angular workspace and well-drawn internal boundaries.                                                                                                            |
 
 ---
 
@@ -171,10 +172,10 @@ D:\Personal_Projects\WoodHeart\
    Dependency direction: ALWAYS inward.  Domain depends on NOTHING.
 ```
 
-**The rule, stated once:** *no outer layer's type may appear in an inner layer's signature, and no inner layer may reference an outer assembly.* This is enforced mechanically by `WoodHeart.ArchitectureTests` — a build failure, not a code-review opinion. Concretely:
+**The rule, stated once:** _no outer layer's type may appear in an inner layer's signature, and no inner layer may reference an outer assembly._ This is enforced mechanically by `WoodHeart.ArchitectureTests` — a build failure, not a code-review opinion. Concretely:
 
 - `Domain` references **no NuGet packages at all** — no EF, no JSON attributes, no mediator types.
-- `Application` *declares* ports (`IOrderRepository`, `IPaymentProvider`, `ISmsSender`, `IUnitOfWork`, `IDateTime`, `ICurrentUser`) and never implements them.
+- `Application` _declares_ ports (`IOrderRepository`, `IPaymentProvider`, `ISmsSender`, `IUnitOfWork`, `IDateTime`, `ICurrentUser`) and never implements them.
 - `Infrastructure` implements those ports and is referenced **only** by `Api`, and only at DI-registration time.
 - `Api` holds **no business logic**. A controller action builds a command, dispatches it, maps the result to an HTTP response. If a controller contains an `if` about pricing, it is in the wrong layer.
 
@@ -215,7 +216,7 @@ POST /api/v1/orders
    → 201 Created + OrderDto
 ```
 
-- **Commands** return `Result<T>`. Business failures are *values*, not exceptions — exceptions are reserved for bugs and infrastructure faults.
+- **Commands** return `Result<T>`. Business failures are _values_, not exceptions — exceptions are reserved for bugs and infrastructure faults.
 - **Queries** may bypass repositories and project straight to DTOs with EF `.Select()` or Dapper. Read models are allowed to be pragmatic; write models are not.
 - Business failures surface as **RFC 9457 `ProblemDetails`** with a stable machine-readable `type` (`woodheart/insufficient-stock`, `woodheart/coupon-expired`) so Angular can branch on a code instead of string-matching a message.
 
@@ -285,7 +286,7 @@ Payment status is **separate and orthogonal**: `Unpaid | AdvancePaid | Paid | Pa
 
 Every transition writes an `OrderTimelineEntry` (who, when, from, to, note). Admins will ask "who cancelled this order", and there has to be an answer.
 
-**Line-item snapshotting is mandatory.** An order line stores the price, product name and applied discount *as they were at placement*. If it joins live to `Product`, then editing a price next month silently rewrites last month's invoices and your accounts stop reconciling.
+**Line-item snapshotting is mandatory.** An order line stores the price, product name and applied discount _as they were at placement_. If it joins live to `Product`, then editing a price next month silently rewrites last month's invoices and your accounts stop reconciling.
 
 ### 6.4 Payments — the configurable provider registry
 
@@ -311,7 +312,7 @@ public interface IPaymentProvider
 }
 ```
 
-`IPaymentProviderResolver` returns only providers that are (a) registered in DI, (b) enabled in `PaymentMethodConfig`, and (c) eligible for *this* cart (amount band, zone, customer group). The admin toggles bKash on or off, swaps sandbox for live credentials, and sets a COD advance rule — **all without a redeploy**. That is precisely the "admin can configure the payment system" requirement.
+`IPaymentProviderResolver` returns only providers that are (a) registered in DI, (b) enabled in `PaymentMethodConfig`, and (c) eligible for _this_ cart (amount band, zone, customer group). The admin toggles bKash on or off, swaps sandbox for live credentials, and sets a COD advance rule — **all without a redeploy**. That is precisely the "admin can configure the payment system" requirement.
 
 **COD provider** — `InitiateAsync` simply returns `Confirmed`; no external call. Optionally it requires an advance through another provider when the order total exceeds a configured threshold or the order contains a made-to-order line.
 
@@ -338,7 +339,7 @@ The **discount engine** is a pure, deterministic function living in the Domain l
 DiscountEngine.Evaluate(cart, candidateDiscounts, customerContext) → DiscountResult[]
 ```
 
-No database access, no clock, no randomness — therefore exhaustively unit-testable, and the *same* engine runs at cart preview and at order placement, so the two can never disagree. Non-stackable discounts resolve by `Priority`, then by best value to the customer. **Discount amounts are always recomputed server-side at placement and snapshotted onto the order** — a client-supplied total is never trusted.
+No database access, no clock, no randomness — therefore exhaustively unit-testable, and the _same_ engine runs at cart preview and at order placement, so the two can never disagree. Non-stackable discounts resolve by `Priority`, then by best value to the customer. **Discount amounts are always recomputed server-side at placement and snapshotted onto the order** — a client-supplied total is never trusted.
 
 ### 6.6 Consultations
 
@@ -374,7 +375,7 @@ NotificationMessage   TemplateCode, Channel, Recipient, RenderedSubject, Rendere
 
 **Flow:** domain event → handler builds a `NotificationRequest` → a row is written to the **outbox inside the same database transaction as the business change** → a Hangfire worker renders the template and calls `IEmailSender` / `ISmsSender` → exponential-backoff retry → final status recorded.
 
-The outbox is the entire point: an order is never confirmed without its notification being *guaranteed* to eventually send, and an SMS-gateway outage never rolls back an order. SMS costs real money in Bangladesh (roughly 0.25–0.45 BDT per message), so each template is individually toggleable and previewable by an admin before it goes live.
+The outbox is the entire point: an order is never confirmed without its notification being _guaranteed_ to eventually send, and an SMS-gateway outage never rolls back an order. SMS costs real money in Bangladesh (roughly 0.25–0.45 BDT per message), so each template is individually toggleable and previewable by an admin before it goes live.
 
 Event → notification map for v1:
 
@@ -384,18 +385,18 @@ Event → notification map for v1:
 
 ## 7. Cross-cutting concerns
 
-| Concern | Approach |
-|---|---|
-| **Domain events** | Raised on the aggregate, collected by `SaveChangesAsync`, dispatched **after** the transaction commits. In-process now; a message broker later needs only a new dispatcher. |
-| **Transactional outbox** | One `OutboxMessage` table for both notifications and future integration events. Guarantees "business change and its side effect succeed or fail together". |
-| **Auditing** | `ICurrentUser` + an EF interceptor stamps `CreatedBy/At`, `ModifiedBy/At`. A separate `AuditLog` records before/after JSON for sensitive entities: prices, stock, discounts, payment config, roles. |
-| **Soft delete** | `ISoftDeletable` plus a global query filter. Products and orders are *never* hard-deleted; reference data may be. |
-| **Concurrency** | `xmin` as the row version on Order, StockItem and Booking. A concurrency conflict returns `409` with a clear message rather than silently overwriting. |
-| **Idempotency** | An `Idempotency-Key` header on `POST /orders`, `/payments/*` and `/bookings`. Keys stored with the response for 24h; a replay returns the original response instead of creating a duplicate order. Essential on flaky mobile networks where users double-tap. |
-| **Caching** | `HybridCache` for the category tree, active discounts, payment config and CMS content. Keys are tagged by module and evicted on the relevant domain event. |
-| **Rate limiting** | ASP.NET Core built-in limiter: strict on auth, OTP, coupon validation and checkout; relaxed on catalog browsing. |
-| **Correlation** | A `X-Correlation-Id` flows Angular → API → logs → outbound gateway calls. Non-negotiable for debugging a payment that "just failed". |
-| **Feature flags** | Simple DB-backed flags (`bkash.enabled`, `reviews.enabled`, `consultation.deposit.required`) read through `IFeatureManager`. |
+| Concern                  | Approach                                                                                                                                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Domain events**        | Raised on the aggregate, collected by `SaveChangesAsync`, dispatched **after** the transaction commits. In-process now; a message broker later needs only a new dispatcher.                                                                                   |
+| **Transactional outbox** | One `OutboxMessage` table for both notifications and future integration events. Guarantees "business change and its side effect succeed or fail together".                                                                                                    |
+| **Auditing**             | `ICurrentUser` + an EF interceptor stamps `CreatedBy/At`, `ModifiedBy/At`. A separate `AuditLog` records before/after JSON for sensitive entities: prices, stock, discounts, payment config, roles.                                                           |
+| **Soft delete**          | `ISoftDeletable` plus a global query filter. Products and orders are _never_ hard-deleted; reference data may be.                                                                                                                                             |
+| **Concurrency**          | `xmin` as the row version on Order, StockItem and Booking. A concurrency conflict returns `409` with a clear message rather than silently overwriting.                                                                                                        |
+| **Idempotency**          | An `Idempotency-Key` header on `POST /orders`, `/payments/*` and `/bookings`. Keys stored with the response for 24h; a replay returns the original response instead of creating a duplicate order. Essential on flaky mobile networks where users double-tap. |
+| **Caching**              | `HybridCache` for the category tree, active discounts, payment config and CMS content. Keys are tagged by module and evicted on the relevant domain event.                                                                                                    |
+| **Rate limiting**        | ASP.NET Core built-in limiter: strict on auth, OTP, coupon validation and checkout; relaxed on catalog browsing.                                                                                                                                              |
+| **Correlation**          | A `X-Correlation-Id` flows Angular → API → logs → outbound gateway calls. Non-negotiable for debugging a payment that "just failed".                                                                                                                          |
+| **Feature flags**        | Simple DB-backed flags (`bkash.enabled`, `reviews.enabled`, `consultation.deposit.required`) read through `IFeatureManager`.                                                                                                                                  |
 
 ---
 
@@ -404,6 +405,7 @@ Event → notification map for v1:
 Base path `/api/v1`. JSON, cursor or page/size pagination, RFC 9457 errors, ETag on catalog reads.
 
 **Public — no auth**
+
 ```
 GET  /catalog/categories                 tree
 GET  /catalog/products                   filter, sort, facets, search, paging
@@ -425,6 +427,7 @@ POST /newsletter/subscribe
 ```
 
 **Auth**
+
 ```
 POST /auth/register  /login  /refresh  /logout
 POST /auth/forgot-password  /reset-password
@@ -432,6 +435,7 @@ POST /auth/otp/request  /otp/verify      (Phase 3)
 ```
 
 **Customer — role: Customer**
+
 ```
 GET  /me  /me/orders  /me/orders/{id}  /me/bookings
 GET/POST/PUT/DELETE  /me/addresses
@@ -442,6 +446,7 @@ GET  /me/notifications
 ```
 
 **Admin — role: Admin | Manager | StaffScoped**
+
 ```
 /admin/products  /variants  /categories  /brands  /collections  /media   CRUD + bulk
 /admin/inventory/stock  /movements  /adjustments  /low-stock
@@ -505,16 +510,16 @@ frontend/woodheart-web/src/app/
 - **Typed API client generated from the OpenAPI spec** (`openapi-typescript` or NSwag) as a CI step. Hand-written DTO interfaces drift from the backend within weeks — generated ones cannot.
 - **Route-level SEO:** each public route sets title, meta description, canonical URL, OG tags and JSON-LD (`Product`, `Offer`, `BreadcrumbList`, `LocalBusiness`). This is direct revenue for a furniture brand, not a nicety.
 - **Performance budget:** initial public JS ≤ 250 KB gzipped, LCP ≤ 2.5s on a simulated 4G connection. Enforced in CI via a bundle-budget check and Lighthouse CI.
-- **Images:** `NgOptimizedImage`, AVIF/WebP with fallbacks, explicit width and height on every image, blur-up placeholders. A furniture site is 80% photography — this *is* the performance work.
+- **Images:** `NgOptimizedImage`, AVIF/WebP with fallbacks, explicit width and height on every image, blur-up placeholders. A furniture site is 80% photography — this _is_ the performance work.
 - **Accessibility:** keyboard-navigable, visible focus rings, labelled controls, `aria-live` on cart updates. Target WCAG 2.1 AA.
 
 ### 9.3 The three surfaces
 
-| Surface | Rendering | Auth | Notes |
-|---|---|---|---|
-| Public site | SSR + prerender | Anonymous or optional login | SEO-critical. Product, category and collection pages prerendered where possible and revalidated on publish. |
-| Customer dashboard | CSR | Customer role | Orders, bookings, addresses, wishlist, reviews. |
-| Admin dashboard | CSR | Admin/Manager role | Dense data tables, bulk actions, inline edit, drag-drop ordering, image upload with crop, rich text, chart-based reports. |
+| Surface            | Rendering       | Auth                        | Notes                                                                                                                     |
+| ------------------ | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Public site        | SSR + prerender | Anonymous or optional login | SEO-critical. Product, category and collection pages prerendered where possible and revalidated on publish.               |
+| Customer dashboard | CSR             | Customer role               | Orders, bookings, addresses, wishlist, reviews.                                                                           |
+| Admin dashboard    | CSR             | Admin/Manager role          | Dense data tables, bulk actions, inline edit, drag-drop ordering, image upload with crop, rich text, chart-based reports. |
 
 ---
 
@@ -612,33 +617,33 @@ No deployment, no config-file edit, no developer involvement. That is the requir
 
 ## 12. Security
 
-| Area | Measure |
-|---|---|
-| **AuthN** | ASP.NET Core Identity + JWT access token (15 min) and refresh token (14 days, rotated, stored hashed, revocable). Refresh token in an `HttpOnly` `Secure` `SameSite=Strict` cookie; access token in memory only — never `localStorage`. |
-| **AuthZ** | Roles (Admin, Manager, Staff, Customer) plus permission claims for finer control (`orders.refund`, `products.publish`, `settings.payments`). Policy-based, checked in an Application pipeline behaviour so it cannot be bypassed by a controller that forgets the attribute. |
-| **Secrets** | User Secrets in dev; environment variables or a secret store in production. Gateway credentials encrypted at rest with ASP.NET Data Protection, and **never** returned by any API — write-only fields in the admin UI. |
-| **Transport** | HTTPS enforced, HSTS, TLS 1.2+. |
-| **Input** | FluentValidation on every command; HTML sanitisation on all rich-text fields; EF parameterisation everywhere (no string-concatenated SQL). |
-| **Uploads** | Extension and magic-byte validation, size caps, re-encode images through ImageSharp to strip payloads, store outside the web root, serve via a controlled endpoint or CDN. |
-| **Rate limiting / abuse** | Per-IP and per-account limits on login, OTP, coupon validation and checkout. Lockout after repeated failures. |
-| **Web** | CORS restricted to known origins; CSP, `X-Content-Type-Options`, `Referrer-Policy` headers; antiforgery on cookie-based flows. |
-| **PCI** | No card data ever touches our servers — bKash is a hosted redirect. This is a deliberate scope-reduction decision. |
-| **Privacy** | Customer data export and delete endpoints. Phone numbers masked in logs. Payment payloads redacted before logging. |
-| **Admin** | Every privileged action audit-logged with actor, IP and timestamp. |
+| Area                      | Measure                                                                                                                                                                                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AuthN**                 | ASP.NET Core Identity + JWT access token (15 min) and refresh token (14 days, rotated, stored hashed, revocable). Refresh token in an `HttpOnly` `Secure` `SameSite=Strict` cookie; access token in memory only — never `localStorage`.                                      |
+| **AuthZ**                 | Roles (Admin, Manager, Staff, Customer) plus permission claims for finer control (`orders.refund`, `products.publish`, `settings.payments`). Policy-based, checked in an Application pipeline behaviour so it cannot be bypassed by a controller that forgets the attribute. |
+| **Secrets**               | User Secrets in dev; environment variables or a secret store in production. Gateway credentials encrypted at rest with ASP.NET Data Protection, and **never** returned by any API — write-only fields in the admin UI.                                                       |
+| **Transport**             | HTTPS enforced, HSTS, TLS 1.2+.                                                                                                                                                                                                                                              |
+| **Input**                 | FluentValidation on every command; HTML sanitisation on all rich-text fields; EF parameterisation everywhere (no string-concatenated SQL).                                                                                                                                   |
+| **Uploads**               | Extension and magic-byte validation, size caps, re-encode images through ImageSharp to strip payloads, store outside the web root, serve via a controlled endpoint or CDN.                                                                                                   |
+| **Rate limiting / abuse** | Per-IP and per-account limits on login, OTP, coupon validation and checkout. Lockout after repeated failures.                                                                                                                                                                |
+| **Web**                   | CORS restricted to known origins; CSP, `X-Content-Type-Options`, `Referrer-Policy` headers; antiforgery on cookie-based flows.                                                                                                                                               |
+| **PCI**                   | No card data ever touches our servers — bKash is a hosted redirect. This is a deliberate scope-reduction decision.                                                                                                                                                           |
+| **Privacy**               | Customer data export and delete endpoints. Phone numbers masked in logs. Payment payloads redacted before logging.                                                                                                                                                           |
+| **Admin**                 | Every privileged action audit-logged with actor, IP and timestamp.                                                                                                                                                                                                           |
 
 ---
 
 ## 13. Testing strategy
 
-| Layer | Type | What is actually tested |
-|---|---|---|
-| Domain | Unit, no mocks | Discount engine (the largest suite), order status transitions, stock ledger arithmetic, slot generation, `Money` arithmetic. |
-| Application | Unit, mocked ports | Handler orchestration, validation rules, authorization decisions, `Result` failure paths. |
-| Infrastructure | Integration, Testcontainers Postgres | EF mappings, migrations apply cleanly, query correctness, concurrency behaviour. |
-| API | Integration, `WebApplicationFactory` | Auth, routing, status codes, ProblemDetails shape, idempotency replay. |
-| Architecture | NetArchTest | The layer rules from §5.1 — build fails on a violation. |
-| Frontend | Vitest / Karma | Signal stores, pipes, guards, pure components. |
-| E2E | Playwright | Guest checkout, member checkout, consultation booking, admin order transition, coupon apply. |
+| Layer          | Type                                 | What is actually tested                                                                                                      |
+| -------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Domain         | Unit, no mocks                       | Discount engine (the largest suite), order status transitions, stock ledger arithmetic, slot generation, `Money` arithmetic. |
+| Application    | Unit, mocked ports                   | Handler orchestration, validation rules, authorization decisions, `Result` failure paths.                                    |
+| Infrastructure | Integration, Testcontainers Postgres | EF mappings, migrations apply cleanly, query correctness, concurrency behaviour.                                             |
+| API            | Integration, `WebApplicationFactory` | Auth, routing, status codes, ProblemDetails shape, idempotency replay.                                                       |
+| Architecture   | NetArchTest                          | The layer rules from §5.1 — build fails on a violation.                                                                      |
+| Frontend       | Vitest / Karma                       | Signal stores, pipes, guards, pure components.                                                                               |
+| E2E            | Playwright                           | Guest checkout, member checkout, consultation booking, admin order transition, coupon apply.                                 |
 
 **Non-negotiable coverage:** the discount engine, the checkout total calculation, and stock reservation. Those three are where money is lost silently. Everything else is judgement.
 
@@ -687,15 +692,15 @@ Serilog → file plus Seq (or Grafana Loki). OpenTelemetry traces on the checkou
 
 Each phase ends with something demonstrable. Sequenced so revenue arrives as early as possible.
 
-| Phase | Goal | Deliverables |
-|---|---|---|
-| **0 — Foundation** | Skeleton that builds and deploys | Solution + all four projects, Onion + arch tests wired, Docker Compose (Postgres + API + web), EF context, Identity, JWT, logging, error handling, OpenAPI, Angular workspace with layouts, Tailwind theme, CI pipeline. |
-| **1 — Catalog** | Products visible to the public | Category tree, products, variants, media pipeline, admin product CRUD, public listing with filters/search/sort, product detail page, SSR + SEO, seed data for real WoodHeart products. |
-| **2 — Commerce core** | **First real order — revenue starts** | Cart (guest + member), delivery zones and fees, VAT, checkout flow, COD provider, order placement, order confirmation, customer order history, admin order management, invoice PDF, basic email + SMS. |
-| **3 — Inventory & Discounts** | Operations become manageable | Stock ledger, reservations, low-stock alerts, stock-in/adjustment screens, full discount engine, coupon codes, automatic promotions, campaign scheduling, usage reports. |
-| **4 — Consultation** | Second revenue line live | Services, consultants, availability rules and exceptions, slot generation, booking wizard, deposits, admin calendar, reminders, quotation → order conversion. |
-| **5 — bKash & Notifications** | Digital payments and full comms | bKash tokenized checkout, reconciliation job, refunds, admin payment-method configuration UI, notification template manager, full event coverage, in-app notification centre, abandoned-cart recovery. |
-| **6 — Growth & polish** | Convert better, operate better | Reviews with photos, wishlist, related and recently-viewed products, room-based collections, reports dashboard, customer groups, returns/refund workflow, Bangla localisation, courier integration, performance and a11y pass. |
+| Phase                         | Goal                                  | Deliverables                                                                                                                                                                                                                   |
+| ----------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **0 — Foundation**            | Skeleton that builds and deploys      | Solution + all four projects, Onion + arch tests wired, Docker Compose (Postgres + API + web), EF context, Identity, JWT, logging, error handling, OpenAPI, Angular workspace with layouts, Tailwind theme, CI pipeline.       |
+| **1 — Catalog**               | Products visible to the public        | Category tree, products, variants, media pipeline, admin product CRUD, public listing with filters/search/sort, product detail page, SSR + SEO, seed data for real WoodHeart products.                                         |
+| **2 — Commerce core**         | **First real order — revenue starts** | Cart (guest + member), delivery zones and fees, VAT, checkout flow, COD provider, order placement, order confirmation, customer order history, admin order management, invoice PDF, basic email + SMS.                         |
+| **3 — Inventory & Discounts** | Operations become manageable          | Stock ledger, reservations, low-stock alerts, stock-in/adjustment screens, full discount engine, coupon codes, automatic promotions, campaign scheduling, usage reports.                                                       |
+| **4 — Consultation**          | Second revenue line live              | Services, consultants, availability rules and exceptions, slot generation, booking wizard, deposits, admin calendar, reminders, quotation → order conversion.                                                                  |
+| **5 — bKash & Notifications** | Digital payments and full comms       | bKash tokenized checkout, reconciliation job, refunds, admin payment-method configuration UI, notification template manager, full event coverage, in-app notification centre, abandoned-cart recovery.                         |
+| **6 — Growth & polish**       | Convert better, operate better        | Reviews with photos, wishlist, related and recently-viewed products, room-based collections, reports dashboard, customer groups, returns/refund workflow, Bangla localisation, courier integration, performance and a11y pass. |
 
 **Dependencies worth naming now:** Phase 5 is blocked by bKash merchant onboarding, which takes real calendar time — **start that paperwork during Phase 1**, not when the code is ready. An SMS gateway account (Alpha SMS, BulkSMSBD or SSL Wireless) is needed in Phase 2.
 
@@ -705,32 +710,53 @@ Each phase ends with something demonstrable. Sequenced so revenue arrives as ear
 
 These change the model, so answering them early avoids rework. Where an answer does not arrive, I will build the assumption noted and flag it in code.
 
-1. **VAT** — what rate applies to your products, and are your displayed prices VAT-inclusive or exclusive? *(Assumption: configurable rate, prices displayed VAT-inclusive.)*
-2. **Delivery pricing** — actual charges for inside Dhaka vs outside, and how bulky furniture is priced. Is there a free-delivery threshold? *(Assumption: zone-based table plus per-product surcharge, admin-editable.)*
-3. **Made-to-order** — which categories are built to order rather than stocked, and what lead times? Do you require an advance payment on those? *(Assumption: `MadeToOrder` product type with a configurable advance percentage.)*
-4. **Consultation commercials** — free, paid, or free-then-adjusted-against-an-order? What duration and what fee? *(Assumption: per-service fee, `0` allowed, optional deposit.)*
-5. **Delivery operations** — own vehicle and team, or third-party courier? This decides whether courier integration is Phase 6 or never. *(Assumption: own delivery first, manual status updates.)*
-6. **Installation/assembly** — is it a chargeable line item, a free service, or out of scope? *(Assumption: a per-product `AssemblyRequired` flag plus an optional service fee.)*
-7. **Returns policy** — what window, who pays return delivery, are custom items non-returnable? *(Assumption: 7-day window on stocked items, custom items non-returnable.)*
+1. **VAT** — what rate applies to your products, and are your displayed prices VAT-inclusive or exclusive? _(Assumption: configurable rate, prices displayed VAT-inclusive.)_
+2. **Delivery pricing** — actual charges for inside Dhaka vs outside, and how bulky furniture is priced. Is there a free-delivery threshold? _(Assumption: zone-based table plus per-product surcharge, admin-editable.)_
+3. **Made-to-order** — which categories are built to order rather than stocked, and what lead times? Do you require an advance payment on those? _(Assumption: `MadeToOrder` product type with a configurable advance percentage.)_
+4. **Consultation commercials** — free, paid, or free-then-adjusted-against-an-order? What duration and what fee? _(Assumption: per-service fee, `0` allowed, optional deposit.)_
+5. **Delivery operations** — own vehicle and team, or third-party courier? This decides whether courier integration is Phase 6 or never. _(Assumption: own delivery first, manual status updates.)_
+6. **Installation/assembly** — is it a chargeable line item, a free service, or out of scope? _(Assumption: a per-product `AssemblyRequired` flag plus an optional service fee.)_
+7. **Returns policy** — what window, who pays return delivery, are custom items non-returnable? _(Assumption: 7-day window on stocked items, custom items non-returnable.)_
 8. **bKash merchant status** — do you already have a merchant account, or does onboarding need to start? This directly gates Phase 5.
-9. **Bangla** — full Bangla UI, or English UI with Bangla product content? Full bilingual roughly doubles the content-entry effort. *(Assumption: English UI in v1, bilingual product content, full Bangla UI in Phase 6.)*
+9. **Bangla** — full Bangla UI, or English UI with Bangla product content? Full bilingual roughly doubles the content-entry effort. _(Assumption: English UI in v1, bilingual product content, full Bangla UI in Phase 6.)_
 10. **Team** — solo build or a team? A team changes how aggressively the modules should be split and how strict the CI gates should be.
 
 ---
 
 ## 17. Immediate next steps
 
-**Environment gaps found on this machine**
+**Environment status**
 
-| Item | Status | Action |
-|---|---|---|
-| .NET SDK 10.0.301 | ✅ installed | — |
-| `dotnet-ef` 10.0.7 | ✅ installed | — |
-| Node 22.12.0 / npm 10.9.0 | ✅ installed | npm 12 is available; optional upgrade |
-| Angular CLI | ❌ not installed | `npm i -g @angular/cli@22` (or use `npx`) |
-| Docker Desktop | ❌ not installed | **Needed** for local Postgres and Testcontainers integration tests |
-| Git repository | ❌ not initialised | `git init` at the repo root, add `.gitignore`, first commit |
-| PostgreSQL | ❓ unknown | Via Docker (preferred) or a local install |
+| Item                | Status                    | Action                                                                     |
+| ------------------- | ------------------------- | -------------------------------------------------------------------------- |
+| .NET SDK 10.0.301   | ✅ installed              | —                                                                          |
+| `dotnet-ef` 10.0.7  | ✅ installed              | Tools lag the 10.0.11 runtime; `dotnet tool update -g dotnet-ef` when convenient |
+| Git repository      | ✅ initialised            | Phase 0 committed                                                          |
+| PostgreSQL          | ⏳ via Docker             | `docker compose -f deploy/docker/docker-compose.yml up -d`                 |
+| Docker Desktop      | ❌ **not installed**      | **Needed** for local Postgres and Testcontainers. Install from docker.com   |
+| Node.js             | ⚠️ 22.12.0 — too old      | Angular 22 needs ≥ 22.22.3. `winget install OpenJS.NodeJS.LTS` → Node 24    |
+| Angular CLI         | ⏳ pending Node           | `npx @angular/cli@22 new woodheart-web --ssr --style=scss --zoneless`      |
+
+**Phase 0 — delivered**
+
+| Item | Status |
+| ---- | ------ |
+| Solution, four projects, onion dependency direction | ✅ |
+| `WoodHeart.ArchitectureTests` enforcing the layer rules | ✅ 6 tests |
+| Domain building blocks — `Entity`, `AggregateRoot`, `ValueObject`, `Result<T>`, `Error` | ✅ |
+| Bangladesh value objects — `Money`, `PhoneNumber`, `LocalizedText`, `Slug`, `EmailAddress` | ✅ 64 tests |
+| Mediator pipeline — logging, validation, unit-of-work/transaction | ✅ |
+| `WoodHeartDbContext` — snake_case, soft delete, audit stamping, `xmin` concurrency, outbox, post-commit domain events | ✅ |
+| Initial migration — 11 tables | ✅ |
+| ASP.NET Identity (phone as login handle), JWT + rotating refresh tokens | ✅ |
+| RFC 9457 problem details with stable error codes | ✅ |
+| Correlation ids, tiered rate limiting, health checks, Serilog, Scalar | ✅ |
+| Walking skeleton (`/diagnostics/ping`, `/echo`) verified end to end | ✅ 9 integration tests |
+| Docker Compose (Postgres + pgAdmin), production `Dockerfile.api` | ✅ |
+| GitHub Actions CI — build, arch, unit, integration, migration verification, vulnerability audit | ✅ |
+| Angular workspace | ⏳ blocked on Node |
+
+**Total: 88 tests passing.**
 
 **Build order for Phase 0**
 
