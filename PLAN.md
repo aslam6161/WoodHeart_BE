@@ -7,10 +7,10 @@
 | **Product**      | Online store for home interior items + interior consultation booking |
 | **Market**       | Bangladesh (BDT, Bangla/English, bKash + Cash on Delivery)           |
 | **Backend**      | .NET 10 (ASP.NET Core Web API), layered: Domain / Repository / Service / Presentation |
-| **Frontend**     | Angular 22 (standalone, signals, zoneless, SSR for public pages)     |
+| **Frontend**     | Angular 21 (standalone, signals, zoneless, SSR) + Bootstrap 5, structured after IMSAnuglar |
 | **Database**     | PostgreSQL 16+ via EF Core 10                                        |
 | **Repo root**    | `D:\Personal_Projects\WoodHeart`                                     |
-| **Status**       | **Phase 0 backend complete**, restructured to follow Bento_BE — 73 tests passing. Frontend pending a Node upgrade (§17). |
+| **Status**       | **Phase 0 complete except the database run** — 73 backend + 8 frontend tests passing. Blocked only on Docker (§17). |
 | **Last updated** | 2026-08-30                                                           |
 
 ---
@@ -98,9 +98,9 @@ These are not afterthoughts; they shape the domain model.
 
 | Choice                                | Why                                                                                                                                                                                                                                                   |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Angular 22**                        | Latest (`@angular/cli 22.1.5` on npm). Standalone components throughout, **signals** for state, **zoneless** change detection, the `@if` / `@for` control flow, `inject()` over constructor injection.                                                |
+| **Angular 21** | Standalone components throughout, **signals** for state, **zoneless** change detection, the `@if` / `@for` control flow, `inject()` over constructor injection. Chosen over 22 because 21 runs on Node `^20.19 \|\| ^22.12 \|\| >=24`, which this machine already satisfies; 22 requires Node 22.22.3+ for nothing this project uses. |
 | **Angular SSR (`@angular/ssr`)**      | **Non-negotiable for the public site.** Furniture shopping starts on Google and Facebook. SSR plus prerendering gives crawlable product pages, correct OG tags on shares, and a fast LCP over 4G. Admin and customer dashboards stay client-rendered. |
-| **Tailwind CSS v4** + **Angular CDK** | WoodHeart is a _design_ brand — the storefront has to look bespoke, not like a component-library demo. Tailwind carries the design system; CDK supplies accessible primitives (overlay, a11y, drag-drop in admin).                                    |
+| **Bootstrap 5 + Angular CDK** | Matches IMSAnuglar, so markup and conventions carry across. Bootstrap 5 drops the jQuery dependency that Bootstrap 4 carries. CDK supplies the accessible primitives (overlay, a11y, drag-drop) Bootstrap does not. |
 | **@ngrx/signals (SignalStore)**       | Only for genuinely shared state: cart, auth/session, wishlist, admin filters. Everything else is local signals plus `httpResource`/`resource()`. **No full NgRx Store + Effects** — the ceremony is not worth it at this size.                        |
 | **Transloco**                         | Runtime EN/BN switching without a second build (native Angular i18n requires one build per locale).                                                                                                                                                   |
 | **Playwright**                        | E2E on the three journeys that must never break: guest checkout, member checkout, consultation booking.                                                                                                                                               |
@@ -134,7 +134,7 @@ D:\Personal_Projects\WoodHeart\
 │   └─ WoodHeart.Tests/          ← one project, feature folders
 │
 ├─ frontend/
-│   └─ woodheart-web/             ← Angular 22 workspace (public + customer + admin)
+│   └─ woodheart-web/             ← Angular 21 workspace (public + customer + admin)
 │
 └─ deploy/
     ├─ docker/                    Dockerfile.api, Dockerfile.web, compose files
@@ -484,58 +484,71 @@ GET  /me/notifications
 
 ## 9. Frontend architecture
 
+Modelled on `D:\Personal_Projects\IMSAnuglar`, so that navigating one Angular project teaches the other. Folder names, the underscore-prefixed shared directories, and the shared contract types are all carried across verbatim.
+
 ### 9.1 Structure
 
 ```
-frontend/woodheart-web/src/app/
-├─ core/                       singletons, provided once
-│   ├─ api/                    generated typed clients (from OpenAPI) + wrappers
-│   ├─ auth/                   session store, guards, JWT + refresh interceptor
-│   ├─ interceptors/           error, correlation-id, loading, retry
-│   ├─ config/                 environment, feature flags, runtime config
-│   └─ services/               seo, analytics, toast, currency, breakpoint
-│
-├─ shared/                     dumb, reusable, no business rules
-│   ├─ ui/                     button, input, modal, drawer, badge, skeleton,
-│   │                          price, rating, image, pagination, empty-state
-│   ├─ pipes/                  bdtCurrency, banglaNumber, timeAgo, safeHtml
-│   └─ directives/             lazyImg, clickOutside, infiniteScroll
-│
-├─ layouts/                    public-layout · account-layout · admin-layout · auth-layout
-│
-├─ features/
-│   ├─ home/  catalog/  product/  collection/          public storefront
-│   ├─ cart/  checkout/                                the money path
-│   ├─ consultation/                                   booking wizard
-│   ├─ account/     orders · bookings · addresses · wishlist · profile
-│   ├─ auth/
-│   └─ admin/       dashboard · products · inventory · orders · payments ·
-│                   discounts · consultations · customers · notifications ·
-│                   content · settings · reports
-│
-└─ styles/                     tokens.css, tailwind config, brand theme
+frontend/woodheart-web/src/
+├─ environments/            environment.ts + environment.prod.ts (apiUrl)
+├─ styles.scss             Bootstrap 5 + brand tokens
+└─ app/
+    ├─ _directives/         hasRole, onlyNumber, lazyImg
+    ├─ _forms/              reusable form-control components
+    ├─ _guards/             auth, admin, staff, preventUnsavedChanges
+    ├─ _interceptors/       jwt, error, loading
+    ├─ _layout/
+    │   ├─ default-layout/      storefront shell (nav + footer)
+    │   ├─ admin-layout/        admin shell (sidebar + navbar + footer)
+    │   └─ adminComponents/     admin-navbar, admin-sidebar, admin-footer
+    ├─ _models/             one interface per model, + dtos/
+    │                       generalResponse.ts, pagination.ts, user.ts…
+    ├─ _resolvers/
+    ├─ _services/           one per feature + paginationHelper, busy, toast
+    │
+    ├─ home/  nav/  footer/  errors/  search/
+    ├─ Items/               product-list, product-detail, product-card,
+    │                       product-filter, user-cart, checkout
+    ├─ User/                account dashboard, orders, addresses, wishlist
+    ├─ authentication/      login, register, phone-verify
+    └─ admin/               dashboard, products, categories, orders,
+                            inventory, discounts, consultations, settings
 ```
 
 ### 9.2 Conventions
 
-- **Standalone components only.** No `NgModule` anywhere.
-- **Signals for state; `httpResource` / `resource()` for server data.** RxJS stays for genuine event streams (search typeahead debounce, websocket) rather than as the default idiom.
+Carried over from IMSAngular:
+
+- **`_`-prefixed folders for shared concerns**, feature folders for everything else. The prefix sorts them to the top, which is the whole point.
+- **One service per feature**, `providedIn: 'root'`, built on `environment.apiUrl`.
+- **`GeneralResponse` is the response envelope**, and `Pagination` / `PaginatedResult` / `PaginationParams` the paging contract — matching the backend types of the same names. `paginationHelper` reads the counts from the `X-Pagination` header.
+- **Three interceptors**: jwt, error, loading. Same names, same jobs.
+- **Guards per role**: auth, admin, staff, plus preventUnsavedChanges.
+
+Modernised, because the Angular 12 idioms no longer apply on 21:
+
+- **Standalone components.** No `NgModule` anywhere, so there is no `shared.module.ts` to keep in sync.
+- **Signals rather than `BehaviorSubject` + `take(1)`.** IMSAngular's jwt interceptor subscribes to `currentUser$` and reads the value out of the callback — correct, but it reads as async code that only works because the subject happens to be synchronous. A signal is simply read.
+- **Functional interceptors and guards** (`HttpInterceptorFn`, `CanActivateFn`) rather than class-based.
 - **Zoneless change detection** from day one. Retrofitting it later is a slog.
-- **Smart vs dumb split.** Route components fetch and orchestrate; `shared/ui` components take inputs and emit outputs, and never inject a service.
+- **Bootstrap 5, no jQuery.** Bootstrap 4 in IMSAngular needs jQuery and Popper; 5 needs neither, and that is ~90 KB of JavaScript a customer never downloads.
+- **SSR for the storefront.** This is the commercially significant one: a client-rendered catalog is one Google cannot index, and organic search is how a furniture brand is found.
 - **Every route lazy-loaded** via `loadComponent` / `loadChildren`. The admin bundle must never reach a public visitor.
-- **Typed API client generated from the OpenAPI spec** (`openapi-typescript` or NSwag) as a CI step. Hand-written DTO interfaces drift from the backend within weeks — generated ones cannot.
-- **Route-level SEO:** each public route sets title, meta description, canonical URL, OG tags and JSON-LD (`Product`, `Offer`, `BreadcrumbList`, `LocalBusiness`). This is direct revenue for a furniture brand, not a nicety.
-- **Performance budget:** initial public JS ≤ 250 KB gzipped, LCP ≤ 2.5s on a simulated 4G connection. Enforced in CI via a bundle-budget check and Lighthouse CI.
-- **Images:** `NgOptimizedImage`, AVIF/WebP with fallbacks, explicit width and height on every image, blur-up placeholders. A furniture site is 80% photography — this _is_ the performance work.
+
+### 9.3 Performance
+
+- **Budget:** initial bundle 600 KB raw / 700 KB error, enforced by the production build in CI. The figure that actually matters is the **gzipped transfer size** — currently ~105 KB — because Bootstrap's CSS is 227 KB raw but ~23 KB over the wire. Raw-byte budgets systematically overstate CSS.
+- **Images:** `NgOptimizedImage`, AVIF/WebP with fallbacks, explicit width and height, blur-up placeholders. A furniture site is 80% photography — this *is* the performance work.
+- **Route-level SEO:** each public route sets title, meta description, canonical URL, OG tags and JSON-LD (`Product`, `Offer`, `BreadcrumbList`, `LocalBusiness`).
 - **Accessibility:** keyboard-navigable, visible focus rings, labelled controls, `aria-live` on cart updates. Target WCAG 2.1 AA.
 
-### 9.3 The three surfaces
+### 9.4 The three surfaces
 
-| Surface            | Rendering       | Auth                        | Notes                                                                                                                     |
-| ------------------ | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Public site        | SSR + prerender | Anonymous or optional login | SEO-critical. Product, category and collection pages prerendered where possible and revalidated on publish.               |
-| Customer dashboard | CSR             | Customer role               | Orders, bookings, addresses, wishlist, reviews.                                                                           |
-| Admin dashboard    | CSR             | Admin/Manager role          | Dense data tables, bulk actions, inline edit, drag-drop ordering, image upload with crop, rich text, chart-based reports. |
+| Surface            | Rendering       | Auth                        | Notes                                                                                                       |
+| ------------------ | --------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Public site        | SSR + prerender | Anonymous or optional login | SEO-critical. Product and category pages prerendered where possible, revalidated on publish.                |
+| Customer dashboard | CSR             | Customer role               | Orders, bookings, addresses, wishlist, reviews.                                                             |
+| Admin dashboard    | CSR             | Admin/Manager/Staff role    | Dense tables, bulk actions, inline edit, image upload with crop, chart-based reports. Lazy-loaded behind a role guard, so it costs a public visitor zero bytes. |
 
 ---
 
@@ -738,7 +751,7 @@ Each phase ends with something demonstrable. Sequenced so revenue arrives as ear
 
 | Phase                         | Goal                                  | Deliverables                                                                                                                                                                                                                   |
 | ----------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **0 — Foundation**            | Skeleton that builds and deploys      | Solution + all four projects, layering + arch tests wired, Docker Compose (Postgres + API + web), EF context, Identity, JWT, logging, error handling, OpenAPI, Angular workspace with layouts, Tailwind theme, CI pipeline.       |
+| **0 — Foundation**            | Skeleton that builds and deploys      | Solution + all four projects, layering + arch tests wired, Docker Compose (Postgres + API + web), EF context, Identity, JWT, logging, error handling, OpenAPI, Angular workspace with layouts, Bootstrap 5 brand theme, CI pipeline.       |
 | **1 — Catalog**               | Products visible to the public        | Category tree, products, variants, media pipeline, admin product CRUD, public listing with filters/search/sort, product detail page, SSR + SEO, seed data for real WoodHeart products.                                         |
 | **2 — Commerce core**         | **First real order — revenue starts** | Cart (guest + member), delivery zones and fees, VAT, checkout flow, COD provider, order placement, order confirmation, customer order history, admin order management, invoice PDF, basic email + SMS.                         |
 | **3 — Inventory & Discounts** | Operations become manageable          | Stock ledger, reservations, low-stock alerts, stock-in/adjustment screens, full discount engine, coupon codes, automatic promotions, campaign scheduling, usage reports.                                                       |
@@ -778,8 +791,8 @@ These change the model, so answering them early avoids rework. Where an answer d
 | Git repository      | ✅ initialised            | Phase 0 committed                                                          |
 | PostgreSQL          | ⏳ via Docker             | `docker compose -f deploy/docker/docker-compose.yml up -d`                 |
 | Docker Desktop      | ❌ **not installed**      | **Needed** for local Postgres and Testcontainers. Install from docker.com   |
-| Node.js             | ⚠️ 22.12.0 — too old      | Angular 22 needs ≥ 22.22.3. `winget install OpenJS.NodeJS.LTS` → Node 24    |
-| Angular CLI         | ⏳ pending Node           | `npx @angular/cli@22 new woodheart-web --ssr --style=scss --zoneless`      |
+| Node.js             | ✅ 22.12.0                | Satisfies Angular 21. An upgrade is optional, not blocking.                    |
+| Angular CLI         | ✅ 21.2                   | Workspace scaffolded, builds with SSR, 8 tests passing.                          |
 
 **Phase 0 — delivered**
 
@@ -800,9 +813,9 @@ These change the model, so answering them early avoids rework. Where an answer d
 | Walking skeleton (`/api/diagnostics/ping`, `/echo`) | ✅ 9 integration tests |
 | Docker Compose (Postgres + pgAdmin), production `Dockerfile.api` | ✅ |
 | GitHub Actions CI — build, arch, tests, migration verification, vulnerability audit | ✅ |
-| Angular workspace | ⏳ blocked on Node |
+| Angular workspace — Angular 21, SSR, Bootstrap 5, IMSAnuglar structure | ✅ 8 tests |
 
-**Total: 73 tests passing, zero build warnings.**
+**Total: 73 backend + 8 frontend tests passing, zero build warnings on either side.**
 
 ### 17.1 Where this deliberately differs from Bento_BE
 
@@ -821,7 +834,7 @@ Everything else follows Bento: the four projects and their names, feature folder
 ### 17.2 What happens next
 
 1. **Install Docker Desktop**, then apply the migration and confirm the schema. Until that runs, the migration is a hypothesis rather than a fact.
-2. **Install Node 24** (`winget install OpenJS.NodeJS.LTS`), then scaffold the Angular 22 workspace — the last outstanding Phase 0 item.
+2. ~~Scaffold the Angular workspace.~~ **Done** — Angular 21 on the existing Node, so the upgrade turned out not to be needed.
 3. **Phase 1 — Catalog.** Category tree, products, variants, media, admin CRUD, public listing and detail pages, SSR and SEO, seed data from real WoodHeart products. Neither blocker above stops this starting.
 
 Answering §16 questions 1, 2 and 8 — VAT, delivery charges, bKash merchant status — matters before Phase 2, which is where money starts arriving. Question 8 in particular has a long calendar lead time, so the paperwork is worth starting during Phase 1.

@@ -1,0 +1,58 @@
+// -----------------------------------------------------------------------------
+// WoodHeart global styles.
+//
+// Bootstrap is imported through SCSS rather than linked in angular.json, so the
+// brand variables below actually override Bootstrap's defaults. Setting them
+// after a compiled CSS import would do nothing.
+// -----------------------------------------------------------------------------
+
+// Brand tokens. Overriding Bootstrap's own variables here means every button,
+// link and badge picks up the palette without a single override rule.
+$primary: #6b4423; // walnut
+$secondary: #8c7b6b; // warm grey
+$dark: #2e2622;
+$light: #f7f4f0; // warm off-white, not Bootstrap's cool grey
+$body-color: #2e2622;
+$border-radius: 0.375rem;
+
+$font-family-sans-serif:
+  'Segoe UI',
+  system-ui,
+  -apple-system,
+  'Helvetica Neue',
+  // Bengali fallbacks, so Bangla product names render properly rather than
+  // dropping to a default that mangles conjuncts.
+  'Noto Sans Bengali',
+  'SolaimanLipi',
+  sans-serif;
+
+@use 'bootstrap/scss/bootstrap' with (
+  $primary: $primary,
+  $secondary: $secondary,
+  $dark: $dark,
+  $light: $light,
+  $body-color: $body-color,
+  $border-radius: $border-radius,
+  $font-family-sans-serif: $font-family-sans-serif
+);
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+// Product imagery is the whole storefront, so images never overflow their column.
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+// Wide admin tables scroll inside their own container rather than making the
+// whole page scroll sideways.
+.table-responsive {
+  overflow-x: auto;
+}

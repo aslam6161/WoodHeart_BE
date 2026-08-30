@@ -7,7 +7,7 @@ Interior commerce and consultation platform — home interior products plus inte
 | | |
 |---|---|
 | Backend | .NET 10 · ASP.NET Core Web API · layered (Domain / Repository / Service / Presentation) |
-| Frontend | Angular · SSR for the public storefront |
+| Frontend | Angular 21 · standalone + signals + zoneless · SSR · Bootstrap 5 |
 | Database | PostgreSQL 17 · EF Core 10 — swappable, see [PLAN.md §11.1](PLAN.md#111-changing-the-database-provider-later) |
 | Market | Bangladesh — BDT, Bangla/English, Cash on Delivery + bKash |
 
@@ -166,7 +166,32 @@ genuinely needs the database belongs in a Testcontainers-backed fixture.
 
 ## Frontend
 
-Not yet scaffolded — Angular 22 needs Node 22.22.3+ and this machine has 22.12.0. See [PLAN.md §17](PLAN.md#17-immediate-next-steps).
+```bash
+cd frontend/woodheart-web
+npm install
+npm start           # http://localhost:4200, proxying nothing — it calls the API directly
+npm test -- --watch=false
+npm run build       # production, with SSR
+```
+
+The API must be running on `localhost:5199` for the home page to show "Connected".
+
+**Angular 21**, not 22: 21 runs on Node `^20.19 || ^22.12 || >=24`, which the current machine already satisfies. Angular 22 requires 22.22.3+ and offers nothing this project uses.
+
+Structure follows `D:\Personal_Projects\IMSAnuglar`:
+
+```
+src/app/
+├─ _directives/   _forms/   _guards/   _interceptors/   _resolvers/
+├─ _layout/       default-layout (storefront), admin-layout + adminComponents
+├─ _models/       one interface per model, + dtos/
+├─ _services/     one service per feature, + paginationHelper
+└─ home/  errors/  nav/  footer/   (admin/, Items/, User/ arrive in Phase 1)
+```
+
+`environment.apiUrl`, `GeneralResponse`, `Pagination`/`PaginatedResult`/`PaginationParams` and the `X-Pagination` header all match the backend contract exactly.
+
+Modernised where Angular 12 idioms no longer apply: standalone components rather than NgModules, signals rather than `BehaviorSubject` + `take(1)`, functional interceptors and guards, Bootstrap 5 (no jQuery), and SSR — which matters commercially, because a client-rendered catalog is one Google cannot index.
 
 ---
 

@@ -38,19 +38,21 @@ jobs:
       - name: Lint
         run: npm run lint --if-present
 
+      # Angular 21 runs unit tests on Vitest, not Karma — there is no
+      # --browsers flag, and passing one fails the step.
       - name: Unit tests
-        run: npm test -- --watch=false --browsers=ChromeHeadless
+        run: npm test -- --watch=false
 
       - name: Build (production, with SSR)
         run: npm run build -- --configuration production
 
-      # The storefront is served over 4G to customers on mid-range phones. A
-      # bundle that quietly grows past budget is a conversion problem, so the
-      # budgets in angular.json are enforced here rather than merely declared.
-      - name: Check bundle budgets
-        run: |
-          echo "Budgets are enforced by the production build above."
-          du -sh dist/ || true
+      # The production build above already fails on a budget breach, so this
+      # step only reports. The figure worth watching is the gzipped transfer
+      # size rather than the raw total: Bootstrap's CSS is ~227 kB raw but
+      # ~23 kB over the wire, and this storefront is served to mid-range
+      # phones on 4G.
+      - name: Report bundle size
+        run: du -sh dist/ || true
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
