@@ -9,7 +9,7 @@
 | **Backend**      | .NET 10 (ASP.NET Core Web API), layered: Domain / Repository / Service / Presentation |
 | **Frontend**     | Angular 21 (standalone, signals, zoneless, SSR) + Bootstrap 5, structured after IMSAnuglar |
 | **Database**     | PostgreSQL 16+ via EF Core 10                                        |
-| **Repos**        | `WoodHeart` (backend) + `WoodHeart_Web` (frontend), siblings in `D:\Personal_Projects` |
+| **Repos**        | `WoodHeart` (backend) + `WoodHeart_FE` (frontend), siblings in `D:\Personal_Projects` |
 | **Status**       | **Phase 0 complete except the database run** — 73 backend + 8 frontend tests passing. Blocked only on Docker (§17). |
 | **Last updated** | 2026-08-30                                                           |
 
@@ -114,18 +114,18 @@ These are not afterthoughts; they shape the domain model.
 
 ```
 D:\Personal_Projects\
-├─ WoodHeart\          ← backend repo (this document lives here)
-└─ WoodHeart_Web\      ← frontend repo
+├─ WoodHeart\          ← backend   · github.com/aslam6161/WoodHeart_BE
+└─ WoodHeart_Web\      ← frontend  · github.com/aslam6161/WoodHeart_FE
 ```
 
 The backend is modelled on `D:\Chromatics\Bento_BE`, the frontend on `D:\Personal_Projects\IMSAnuglar`, so navigating either teaches the other.
 
-### 4.1 Backend — `WoodHeart`
+### 4.1 Backend — `WoodHeart_BE`
 
 Projects sit flat inside `backend/`, as they sit flat at the root of Bento_BE.
 
 ```
-WoodHeart\
+WoodHeart\                           (repo: WoodHeart_BE)
 ├─ PLAN.md                        ← this file, the single source of truth
 ├─ README.md
 ├─ .gitignore  .editorconfig
@@ -150,10 +150,10 @@ WoodHeart\
     └─ github-actions/            CI/CD workflows
 ```
 
-### 4.2 Frontend — `WoodHeart_Web`
+### 4.2 Frontend — `WoodHeart_FE`
 
 ```
-WoodHeart_Web\
+WoodHeart_Web\                       (repo: WoodHeart_FE)
 ├─ README.md  angular.json  package.json  .nvmrc
 ├─ .github/workflows/ci.yml
 └─ src/
@@ -514,12 +514,12 @@ GET  /me/notifications
 
 ## 9. Frontend architecture
 
-Lives in the **`WoodHeart_Web`** repository (§4.2). Modelled on `D:\Personal_Projects\IMSAnuglar`, so that navigating one Angular project teaches the other. Folder names, the underscore-prefixed shared directories, and the shared contract types are all carried across verbatim.
+Lives in the **`WoodHeart_FE`** repository (§4.2). Modelled on `D:\Personal_Projects\IMSAnuglar`, so that navigating one Angular project teaches the other. Folder names, the underscore-prefixed shared directories, and the shared contract types are all carried across verbatim.
 
 ### 9.1 Structure
 
 ```
-WoodHeart_Web/src/
+WoodHeart_FE/src/
 ├─ environments/            environment.ts + environment.prod.ts (apiUrl)
 ├─ styles.scss             Bootstrap 5 + brand tokens
 └─ app/
@@ -843,7 +843,7 @@ These change the model, so answering them early avoids rework. Where an answer d
 | Walking skeleton (`/api/diagnostics/ping`, `/echo`) | ✅ 9 integration tests |
 | Docker Compose (Postgres + pgAdmin), production `Dockerfile.api` | ✅ |
 | GitHub Actions CI — build, arch, tests, migration verification, vulnerability audit | ✅ |
-| Angular workspace — Angular 21, SSR, Bootstrap 5, IMSAnuglar structure | ✅ 8 tests, in the `WoodHeart_Web` repo |
+| Angular workspace — Angular 21, SSR, Bootstrap 5, IMSAnuglar structure | ✅ 8 tests, in the `WoodHeart_FE` repo |
 
 **Total: 73 backend + 8 frontend tests passing, zero build warnings on either side.**
 
@@ -864,7 +864,7 @@ Everything else follows Bento: the four projects and their names, feature folder
 ### 17.2 What happens next
 
 1. **Install Docker Desktop**, then apply the migration and confirm the schema. Until that runs, the migration is a hypothesis rather than a fact.
-2. ~~Scaffold the Angular workspace.~~ **Done** — Angular 21 on the existing Node, so the upgrade turned out not to be needed. It now lives in the separate `WoodHeart_Web` repository (§4).
+2. ~~Scaffold the Angular workspace.~~ **Done** — Angular 21 on the existing Node, so the upgrade turned out not to be needed. It now lives in the separate `WoodHeart_FE` repository (§4).
 3. **Phase 1 — Catalog.** Category tree, products, variants, media, admin CRUD, public listing and detail pages, SSR and SEO, seed data from real WoodHeart products. Neither blocker above stops this starting.
 
 Answering §16 questions 1, 2 and 8 — VAT, delivery charges, bKash merchant status — matters before Phase 2, which is where money starts arriving. Question 8 in particular has a long calendar lead time, so the paperwork is worth starting during Phase 1.

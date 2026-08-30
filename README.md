@@ -7,7 +7,7 @@ Interior commerce and consultation platform — home interior products plus inte
 | | |
 |---|---|
 | Backend | .NET 10 · ASP.NET Core Web API · layered (Domain / Repository / Service / Presentation) |
-| Frontend | Angular 21 — **separate repo**, `WoodHeart_Web` |
+| Frontend | Angular 21 — **separate repo**, `WoodHeart_FE` |
 | Database | PostgreSQL 17 · EF Core 10 — swappable, see [PLAN.md §11.1](PLAN.md#111-changing-the-database-provider-later) |
 | Market | Bangladesh — BDT, Bangla/English, Cash on Delivery + bKash |
 
@@ -166,16 +166,16 @@ genuinely needs the database belongs in a Testcontainers-backed fixture.
 
 ## Frontend
 
-**Lives in a separate repository:** `WoodHeart_Web`, checked out beside this one.
+**Lives in a separate repository:** `WoodHeart_FE`, checked out beside this one.
 
 ```
 D:\Personal_Projects\
-├─ WoodHeart\        ← this repo (API)
-└─ WoodHeart_Web\    ← Angular 21 storefront + admin
+├─ WoodHeart\        ← this repo  · github.com/aslam6161/WoodHeart_BE
+└─ WoodHeart_Web\    ← Angular 21 · github.com/aslam6161/WoodHeart_FE
 ```
 
 ```bash
-cd ../WoodHeart_Web
+cd ../WoodHeart_Web        # repo: WoodHeart_FE
 npm install
 npm start            # http://localhost:4200
 ```
@@ -186,7 +186,7 @@ Run this API first — the storefront calls `/api/diagnostics/ping` on load and 
 
 Three types are shared by convention, not by a package. If one changes here, change it there in the same pull request.
 
-| This repo | WoodHeart_Web |
+| This repo | WoodHeart_FE |
 |---|---|
 | `GeneralResponse` / `GeneralResponse<T>` | `_models/generalResponse.ts` |
 | `PagedList<T>`, `PaginationParams`, `PaginationHeader` | `_models/pagination.ts` |
