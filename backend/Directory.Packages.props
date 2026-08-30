@@ -1,5 +1,17 @@
 <Project>
 
+  <!--
+    Central Package Management. Bento pins versions inline in each csproj; this
+    is the one build-level thing WoodHeart does differently, and the reason is
+    concrete rather than stylistic: Hangfire.Core pulls in Newtonsoft.Json
+    11.0.1, which carries GHSA-5crp-9r3c-p9vr. CentralPackageTransitivePinning
+    is what forces the patched version into the graph. Without it the only fix
+    is an explicit reference in every project that transitively touches Hangfire.
+
+    Practical difference when adding a package: write
+    <PackageReference Include="X" /> with no version in the csproj, and put the
+    version here.
+  -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
@@ -10,17 +22,27 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.11" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
   </ItemGroup>
 
-  <!-- ======================= Application ======================= -->
+  <!-- ========================= Service ========================= -->
   <ItemGroup>
-    <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
-    <PackageVersion Include="Mediator.SourceGenerator" Version="3.0.2" />
+    <!--
+      Mapperly rather than Bento's AutoMapper, and not by preference — the
+      choice is forced. GHSA-rvv3-g6hj-g44x (uncontrolled recursion, DoS via a
+      self-referential object graph) covers every AutoMapper below 15.1.1, and
+      15.x is where the licence turned commercial. Bento pins 12.0.1 and hides
+      the warning with NuGetAuditLevel=critical; that is not a fix, and a
+      category tree mapped from request data is exactly the self-referential
+      shape the advisory describes.
+
+      Mapperly is MIT, generates plain mapping code at compile time, and needs
+      no runtime engine. Mappers live in Service/Mapping/ — the same place
+      AutoMapper Profiles would.
+    -->
     <PackageVersion Include="Riok.Mapperly" Version="4.3.1" />
-    <PackageVersion Include="FluentValidation" Version="12.1.1" />
-    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
   </ItemGroup>
 
   <!-- =================== Framework abstractions ================ -->
@@ -45,10 +67,10 @@
 
   <!-- ======================= Background jobs =================== -->
   <ItemGroup>
+    <PackageVersion Include="Hangfire.Core" Version="1.8.24" />
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.24" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
-    <!-- Hangfire.Core drags in Newtonsoft.Json 11.0.1 (GHSA-5crp-9r3c-p9vr).
-         Transitive pinning bumps it to a patched version. -->
+    <!-- See the CPM note above: this pin is why transitive pinning is on. -->
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    One test project, subdivided by feature, matching Bento. Domain rules,
+    service behaviour, the architecture rules and API integration tests all live
+    here.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>WoodHeart.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Bogus" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="NetArchTest.eNhancedEdition" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WoodHeart.Domain\WoodHeart.Domain.csproj" />
+    <ProjectReference Include="..\WoodHeart.Repository\WoodHeart.Repository.csproj" />
+    <ProjectReference Include="..\WoodHeart.Service\WoodHeart.Service.csproj" />
+    <ProjectReference Include="..\WoodHeart.Presentation\WoodHeart.Presentation.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -6,7 +6,7 @@ Interior commerce and consultation platform — home interior products plus inte
 
 | | |
 |---|---|
-| Backend | .NET 10 · ASP.NET Core Web API · Onion architecture · modular monolith |
+| Backend | .NET 10 · ASP.NET Core Web API · layered (Domain / Repository / Service / Presentation) |
 | Frontend | Angular · SSR for the public storefront |
 | Database | PostgreSQL 17 · EF Core 10 |
 | Market | Bangladesh — BDT, Bangla/English, Cash on Delivery + bKash |
@@ -52,7 +52,7 @@ docker compose -f deploy/docker/docker-compose.yml --profile tools up -d
 The API **refuses to start** without one, deliberately — a weak or shared signing key means anyone can mint an Admin token.
 
 ```bash
-cd backend/src/WoodHeart.Api
+cd backend/WoodHeart.Presentation
 dotnet user-secrets set "Jwt:SigningKey" "<at least 32 random characters>"
 ```
 
@@ -61,15 +61,15 @@ dotnet user-secrets set "Jwt:SigningKey" "<at least 32 random characters>"
 ```bash
 cd backend
 dotnet ef database update \
-  --project src/WoodHeart.Infrastructure \
-  --startup-project src/WoodHeart.Infrastructure \
-  --context WoodHeartDbContext
+  --project WoodHeart.Repository \
+  --startup-project WoodHeart.Repository \
+  --context DataContext
 ```
 
 ### 4. Run the API
 
 ```bash
-cd backend/src/WoodHeart.Api
+cd backend/WoodHeart.Presentation
 dotnet run
 ```
 
@@ -79,14 +79,14 @@ dotnet run
 | `/openapi/v1.json` | OpenAPI document |
 | `/health/live` | Liveness — does not touch the database |
 | `/health/ready` | Readiness — checks dependencies |
-| `/api/v1/diagnostics/ping` | Smoke test, returns UTC and Dhaka time |
+| `/api/diagnostics/ping` | Smoke test, returns UTC and Dhaka time |
 
 ### 5. Verify
 
 ```bash
-curl http://localhost:5199/api/v1/diagnostics/ping
+curl http://localhost:5199/api/diagnostics/ping
 
-curl -X POST http://localhost:5199/api/v1/diagnostics/echo \
+curl -X POST http://localhost:5199/api/diagnostics/echo \
   -H "Content-Type: application/json" \
   -d '{"message":"hello","phoneNumber":"017-1234-5678"}'
 ```
@@ -98,18 +98,33 @@ The second call round-trips the entire pipeline and should normalise the phone n
 ## Solution layout
 
 ```
-backend/src/
-├─ WoodHeart.Domain           entities, value objects, domain events — zero dependencies
-├─ WoodHeart.Application      use cases + ports (interfaces); implements none of them
-├─ WoodHeart.Infrastructure   EF Core, Identity, payment/SMS/email adapters
-└─ WoodHeart.Api              controllers, middleware, DI composition root
+backend/
+├─ WoodHeart.Domain/        entities, enums, constants, settings, value objects
+├─ WoodHeart.Repository/    DataContext, Repository<T>, per-entity repositories, migrations
+├─ WoodHeart.Service/       business logic, DTOs, service interfaces, infrastructure adapters
+├─ WoodHeart.Presentation/  controllers, middleware, DI composition, configuration
+└─ WoodHeart.Tests/         one test project, subdivided by feature
 ```
 
-**The dependency rule:** always inward. `Domain` depends on nothing; `Api` is the only project that may reference `Infrastructure`.
+**The dependency rule:** each layer references only the one beneath it.
+`Domain → Repository → Service → Presentation`. Domain references nothing of
+ours; Presentation is the only project that composes the whole graph.
 
-This is enforced by `WoodHeart.ArchitectureTests` — a violation is a **build failure**, not a code-review opinion. If one of those tests fails, the fix is essentially never to relax the test; it is to move the code into the layer it belongs in.
+Enforced by `WoodHeart.Tests/Architecture` — a violation is a **build failure**,
+not a code-review opinion. If one of those tests fails, the fix is essentially
+never to relax the test; it is to move the code into the layer it belongs in.
 
-Each layer is subdivided by **module** (Catalog, Inventory, Ordering, Payments, Promotions, Consultations, Notifications, Identity, Content) rather than by technical noun, so a module can later be extracted without an archaeological dig. Modules communicate through domain events and Application-layer ports, never by reaching into each other's data.
+Inside each layer, folders are named by **feature** (`Catalog`, `Inventory`,
+`Ordering`, `Payments`, `Promotions`, `Consultations`, `Notifications`,
+`Identity`) rather than by technical noun, and interfaces sit in a parallel
+`Interfaces/` tree beside their implementations.
+
+| Layer | Contains | Never contains |
+|---|---|---|
+| `Domain` | `BaseEntity`, entities, enums, `Money`, `PhoneNumber`, constants | queries, HTTP, business workflows |
+| `Repository` | `DataContext`, `Repository<T>`, `IUnitOfWork`, migrations, seed | business rules, DTOs |
+| `Service` | services, DTOs, mapping, payment/SMS adapters | controllers, `HttpContext` handling beyond `ICurrentUserService` |
+| `Presentation` | controllers, middleware, `ApplicationServiceExtensions` | any decision a service should be making |
 
 ---
 
@@ -117,38 +132,41 @@ Each layer is subdivided by **module** (Catalog, Inventory, Ordering, Payments, 
 
 ```bash
 cd backend
-dotnet test                                     # everything
-dotnet test tests/WoodHeart.ArchitectureTests   # the layer rules
-dotnet test tests/WoodHeart.Domain.UnitTests    # business rules, no mocks
+dotnet test                                              # everything
+dotnet test --filter "FullyQualifiedName~Architecture"   # the layer rules
+dotnet test --filter "FullyQualifiedName~Common"         # domain rules, no mocks
 ```
 
-| Suite | What it covers |
+| Folder | What it covers |
 |---|---|
-| `Domain.UnitTests` | Money arithmetic, phone normalisation, slugs, `Result` — no mocks, no I/O |
-| `Application.UnitTests` | Handler orchestration and validation, against fake ports |
-| `Api.IntegrationTests` | The real pipeline in memory via `WebApplicationFactory` |
-| `ArchitectureTests` | The dependency rules above |
+| `Common/` | Money arithmetic, phone normalisation, slugs — no mocks, no I/O |
+| `Diagnostics/` | Service orchestration against fake ports |
+| `Architecture/` | The dependency rules above |
+| `Integration/` | The real pipeline in memory via `WebApplicationFactory` |
 
-Integration tests that need a database read `ConnectionStrings__Default` from the environment and skip cleanly when it is absent, so the suite runs on a machine with no Postgres.
+The integration tests run with seeding disabled and exercise only DB-free
+paths, so the suite passes on a machine with no PostgreSQL. Anything that
+genuinely needs the database belongs in a Testcontainers-backed fixture.
 
 ---
 
 ## Conventions worth knowing before you write code
 
-- **Business failures are `Result` values, not exceptions.** "Coupon expired" is not exceptional — it is Tuesday. Exceptions are for bugs and infrastructure faults.
-- **Every error has a stable machine-readable code** (`ordering.insufficient_stock`) returned as the RFC 9457 `type`. The Angular client branches on the code, never on the English message.
+- **Business failures are `GeneralResponse` values, not exceptions.** "Coupon expired" is not exceptional — it is Tuesday. Exceptions are for bugs and infrastructure faults.
+- **Every error has a stable machine-readable code** (`ordering.insufficient_stock`) in `GeneralResponse.ErrorCode`. The Angular client branches on the code, never on the English message, which gets reworded and translated to Bangla.
+- **Only the service that owns a use case commits.** Stage work through repositories, commit once via `IUnitOfWork`. A helper that saves flushes its caller's half-finished work — see the comment on `IRepository<T>`.
 - **Never call `DateTime.UtcNow`.** Inject `IDateTimeProvider`. Slots, discount windows and reservation expiry are all time-dependent and must be testable.
 - **Money is `Money`, never `decimal` and never `double`.** Mixing currencies throws rather than producing a plausible wrong number.
 - **Phone numbers are `PhoneNumber`.** Normalised to `+8801XXXXXXXXX` so the same customer typing their number four ways is recognised as one person.
 - **Never mutate stock without writing a `StockMovement`.** The ledger is the truth; `OnHand` is a cached projection of it.
 - **Snapshot prices onto order lines at placement.** An order that joins live to `Product` silently rewrites last month's invoices when a price changes.
-- **Controllers contain no business logic.** Build a command, dispatch it, map the result.
+- **Controllers contain no business logic.** Build a DTO, call a service, hand the result to `HandleResult`.
 
 ---
 
 ## Frontend
 
-Not yet scaffolded — see the note at the top of [PLAN.md §17](PLAN.md#17-immediate-next-steps) for the outstanding Node version decision.
+Not yet scaffolded — Angular 22 needs Node 22.22.3+ and this machine has 22.12.0. See [PLAN.md §17](PLAN.md#17-immediate-next-steps).
 
 ---
 

@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Business logic. Services orchestrate repositories, enforce rules, map to
+    DTOs and return GeneralResponse. This is where "can this order be
+    cancelled?" is answered.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>WoodHeart.Service</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IHttpContextAccessor for CurrentUserService, and IDataProtectionProvider
+         for encrypting stored payment-gateway credentials. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Riok.Mapperly" />
+    <!-- Hangfire.Core only: the attributes ([AutomaticRetry],
+         [DisableConcurrentExecution]) go on service interfaces so the job
+         Hangfire stores actually carries them. The server itself is started in
+         Presentation. -->
+    <PackageReference Include="Hangfire.Core" />
+    <!-- Http, Options, Logging and Caching.Memory all arrive with the
+         Microsoft.AspNetCore.App framework reference above. -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WoodHeart.Repository\WoodHeart.Repository.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="WoodHeart.Tests" />
+  </ItemGroup>
+
+</Project>

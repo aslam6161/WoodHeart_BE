@@ -11,22 +11,19 @@ WORKDIR /src
 # not re-run every time a .cs file changes. This is the single biggest win in
 # .NET image build time.
 COPY backend/Directory.Build.props backend/Directory.Packages.props ./backend/
-COPY backend/WoodHeart.slnx ./backend/
-COPY backend/src/WoodHeart.Domain/*.csproj                    ./backend/src/WoodHeart.Domain/
-COPY backend/src/WoodHeart.Application/*.csproj               ./backend/src/WoodHeart.Application/
-COPY backend/src/WoodHeart.Infrastructure/*.csproj            ./backend/src/WoodHeart.Infrastructure/
-COPY backend/src/WoodHeart.Api/*.csproj                       ./backend/src/WoodHeart.Api/
-COPY backend/tests/WoodHeart.Domain.UnitTests/*.csproj        ./backend/tests/WoodHeart.Domain.UnitTests/
-COPY backend/tests/WoodHeart.Application.UnitTests/*.csproj   ./backend/tests/WoodHeart.Application.UnitTests/
-COPY backend/tests/WoodHeart.Api.IntegrationTests/*.csproj    ./backend/tests/WoodHeart.Api.IntegrationTests/
-COPY backend/tests/WoodHeart.ArchitectureTests/*.csproj       ./backend/tests/WoodHeart.ArchitectureTests/
+COPY backend/WoodHeart.sln ./backend/
+COPY backend/WoodHeart.Domain/*.csproj        ./backend/WoodHeart.Domain/
+COPY backend/WoodHeart.Repository/*.csproj    ./backend/WoodHeart.Repository/
+COPY backend/WoodHeart.Service/*.csproj       ./backend/WoodHeart.Service/
+COPY backend/WoodHeart.Presentation/*.csproj  ./backend/WoodHeart.Presentation/
+COPY backend/WoodHeart.Tests/*.csproj         ./backend/WoodHeart.Tests/
 
-RUN dotnet restore backend/src/WoodHeart.Api/WoodHeart.Api.csproj
+RUN dotnet restore backend/WoodHeart.Presentation/WoodHeart.Presentation.csproj
 
 COPY .editorconfig ./
 COPY backend/ ./backend/
 
-RUN dotnet publish backend/src/WoodHeart.Api/WoodHeart.Api.csproj \
+RUN dotnet publish backend/WoodHeart.Presentation/WoodHeart.Presentation.csproj \
         -c Release -o /app/publish \
         --no-restore \
         /p:UseAppHost=false
@@ -52,4 +49,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://localhost:8080/health/live || exit 1
 
-ENTRYPOINT ["dotnet", "WoodHeart.Api.dll"]
+ENTRYPOINT ["dotnet", "WoodHeart.Presentation.dll"]

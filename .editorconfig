@@ -59,9 +59,20 @@ dotnet_diagnostic.CA2007.severity = none    # ConfigureAwait not needed in ASP.N
 dotnet_diagnostic.CS1591.severity = none    # missing XML doc
 dotnet_diagnostic.IDE0290.severity = suggestion
 
-# `Error` is the conventional name in the Result<T> pattern and reads correctly
-# at every call site. The VB/F# interop this rule protects is not a concern here.
+# Reserved-word clashes with VB/F#. Not a concern for a C#-only API whose only
+# consumer is an Angular client over JSON.
 dotnet_diagnostic.CA1716.severity = none
+
+# Static factory methods on generic types — GeneralResponse<T>.Success,
+# PagedList<T>.CreateAsync. The alternative the rule wants is a non-generic
+# helper class whose every call site needs explicit type arguments, which is
+# strictly worse to read.
+dotnet_diagnostic.CA1000.severity = none
+
+# ApiException is the response body for an exception, and NotificationQueue is
+# a thing that enqueues — neither is the collection type this rule guards
+# against, and both names say exactly what they are.
+dotnet_diagnostic.CA1711.severity = none
 
 # ValueObject already supplies ==, != and Equals for every derived type;
 # the analyzer cannot see through the base class.
@@ -74,7 +85,7 @@ dotnet_diagnostic.CA1720.severity = none
 # ---------------------------------------------------------------------------
 # Test projects: Given_When_Then names are the point, not a style violation.
 # ---------------------------------------------------------------------------
-[**/tests/**/*.cs]
+[**/WoodHeart.Tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none    # underscores in test method names
 dotnet_diagnostic.CA1861.severity = none    # inline arrays in test data
 dotnet_diagnostic.CA1305.severity = none    # culture in test assertions
@@ -82,7 +93,7 @@ dotnet_diagnostic.CA1305.severity = none    # culture in test assertions
 # ---------------------------------------------------------------------------
 # EF Core migrations are generated. Never hand-edit; never lint.
 # ---------------------------------------------------------------------------
-[**/Persistence/Migrations/*.cs]
+[**/Migrations/*.cs]
 generated_code = true
 dotnet_analyzer_diagnostic.severity = none
 dotnet_diagnostic.IDE0161.severity = none

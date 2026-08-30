@@ -65,25 +65,23 @@ jobs:
       # do not matter and this failure is the one worth reading.
       - name: Architecture tests
         working-directory: backend
-        run: dotnet test tests/WoodHeart.ArchitectureTests --no-build -c Release --logger "console;verbosity=normal"
+        run: >-
+          dotnet test WoodHeart.Tests --no-build -c Release
+          --filter "FullyQualifiedName~Architecture"
+          --logger "console;verbosity=normal"
 
-      - name: Unit tests
-        working-directory: backend
-        run: |
-          dotnet test tests/WoodHeart.Domain.UnitTests --no-build -c Release \
-            --logger trx --results-directory ../TestResults \
-            --collect:"XPlat Code Coverage"
-          dotnet test tests/WoodHeart.Application.UnitTests --no-build -c Release \
-            --logger trx --results-directory ../TestResults \
-            --collect:"XPlat Code Coverage"
-
-      - name: Integration tests
+      # One test project, so one run. The architecture subset above is repeated
+      # here rather than excluded — running it twice costs a second and keeps
+      # the coverage numbers honest.
+      - name: Tests
         working-directory: backend
         env:
-          ConnectionStrings__Default: "Host=localhost;Port=5432;Database=woodheart_test;Username=woodheart;Password=woodheart"
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=woodheart_test;Username=woodheart;Password=woodheart"
           Jwt__SigningKey: "ci-only-signing-key-not-used-anywhere-else-32chars"
-          ASPNETCORE_ENVIRONMENT: Testing
-        run: dotnet test tests/WoodHeart.Api.IntegrationTests --no-build -c Release --logger trx --results-directory ../TestResults
+        run: >-
+          dotnet test WoodHeart.Tests --no-build -c Release
+          --logger trx --results-directory ../TestResults
+          --collect:"XPlat Code Coverage"
 
       - name: Verify migrations apply to an empty database
         working-directory: backend
@@ -95,9 +93,9 @@ jobs:
           # Catches the migration that works on a developer's existing database
           # but fails from scratch — which is exactly what production is.
           dotnet ef database update \
-            --project src/WoodHeart.Infrastructure \
-            --startup-project src/WoodHeart.Infrastructure \
-            --context WoodHeartDbContext
+            --project WoodHeart.Repository \
+            --startup-project WoodHeart.Repository \
+            --context DataContext
 
       - name: Publish test results
         if: always()

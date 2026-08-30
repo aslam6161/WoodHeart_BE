@@ -6,12 +6,12 @@
 | ---------------- | -------------------------------------------------------------------- |
 | **Product**      | Online store for home interior items + interior consultation booking |
 | **Market**       | Bangladesh (BDT, Bangla/English, bKash + Cash on Delivery)           |
-| **Backend**      | .NET 10 (ASP.NET Core Web API), Onion Architecture, modular monolith |
+| **Backend**      | .NET 10 (ASP.NET Core Web API), layered: Domain / Repository / Service / Presentation |
 | **Frontend**     | Angular 22 (standalone, signals, zoneless, SSR for public pages)     |
 | **Database**     | PostgreSQL 16+ via EF Core 10                                        |
 | **Repo root**    | `D:\Personal_Projects\WoodHeart`                                     |
-| **Status**       | **Phase 0 backend complete** — 88 tests passing. Frontend pending a Node upgrade (§17). |
-| **Last updated** | 2026-08-24                                                           |
+| **Status**       | **Phase 0 backend complete**, restructured to follow Bento_BE — 73 tests passing. Frontend pending a Node upgrade (§17). |
+| **Last updated** | 2026-08-30                                                           |
 
 ---
 
@@ -81,11 +81,11 @@ These are not afterthoughts; they shape the domain model.
 | ---------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | **.NET**                           | 10 (LTS)                                  | Already installed here (`10.0.301`). LTS = three years of support.                                                                                | .NET 8 — older, no reason to start there.                                          |
 | **ASP.NET Core Web API**           | 10                                        | Controller-based, not Minimal APIs — better fit for a large command/query surface, cleaner filters and conventions, easier for a growing team.    | Minimal APIs — excellent for small services, verbose at this endpoint count.       |
-| **PostgreSQL**                     | 16+                                       | Free, strong JSONB (variant attributes), full-text search plus `pg_trgm`, cheap on any VPS.                                                       | SQL Server — licence cost on a VPS; use it only if you already own one.            |
+| **PostgreSQL**                     | 17                                        | Free, strong JSONB (variant attributes), full-text search plus `pg_trgm`, cheap on any VPS.                                                       | SQL Server — licence cost on a VPS; use it only if you already own one.            |
 | **EF Core**                        | 10 (`dotnet-ef 10.0.7` already installed) | Migrations, LINQ, compiled queries.                                                                                                               | Dapper — added as a _supplement_ for heavy report queries, not as the primary ORM. |
-| **Mediator** (martinothamar)       | latest                                    | Source-generated, reflection-free CQRS dispatch, **MIT licensed**.                                                                                | **MediatR** — commercial from v13. Avoid the licence trap up front.                |
-| **Mapperly**                       | latest                                    | Source-generated mapping, compile-time safe, **MIT**.                                                                                             | **AutoMapper** — also commercial now.                                              |
-| **FluentValidation**               | 11.x                                      | Request/command validation in a pipeline behaviour.                                                                                               | DataAnnotations — too weak for conditional rules.                                  |
+| **Service layer** (no mediator) | — | Services behind interfaces, matching Bento_BE. A dispatcher buys indirection this codebase does not need. | **Mediator / MediatR** — MediatR is commercial from v13 in any case. |
+| **Mapperly** | 4.3.x | Source-generated mapping, compile-time safe, **MIT**. | **AutoMapper** — every version below 15.1.1 carries GHSA-rvv3-g6hj-g44x (DoS via uncontrolled recursion), and 15.x is commercially licensed. |
+| **DataAnnotations + `ValidationFilter`** | in-box | Shape validation on the DTO; conditional business rules live in the service, not in a second rules engine beside it. | **FluentValidation** — excellent, but it splits the rules across two places. |
 | **Serilog** + **OpenTelemetry**    | latest                                    | Structured logs (file/Seq) plus traces and metrics.                                                                                               | Bare `ILogger` — no correlation across a checkout flow.                            |
 | **Built-in OpenAPI + Scalar UI**   | .NET 10 in-box                            | `Microsoft.AspNetCore.OpenApi` ships in the box now; Scalar renders the browsable UI.                                                             | Swashbuckle — no longer necessary.                                                 |
 | **Hangfire**                       | latest                                    | Persistent background jobs with a dashboard: reservation expiry, notification retries, abandoned cart, low-stock digest, payment reconciliation.  | Quartz (no dashboard) or a bare `BackgroundService` (no persistence, no retry).    |
@@ -110,12 +110,14 @@ These are not afterthoughts; they shape the domain model.
 
 ## 4. Repository structure
 
+Modelled on the existing Bento_BE codebase, so that navigating one project teaches you the other. Projects sit flat inside `backend/` — Bento is a backend-only repo and is flat at its root; WoodHeart has a frontend, so `backend/` is the container and everything inside it is flat.
+
 ```
 D:\Personal_Projects\WoodHeart\
 │
 ├─ PLAN.md                        ← this file
 ├─ README.md
-├─ .gitignore  .editorconfig  Directory.Build.props  Directory.Packages.props
+├─ .gitignore  .editorconfig  .nvmrc
 │
 ├─ docs/
 │   ├─ architecture/              ADRs, C4 diagrams, domain model notes
@@ -124,16 +126,12 @@ D:\Personal_Projects\WoodHeart\
 │
 ├─ backend/
 │   ├─ WoodHeart.sln
-│   ├─ src/
-│   │   ├─ WoodHeart.Domain/            ← the core, zero dependencies
-│   │   ├─ WoodHeart.Application/       ← use cases + ports (interfaces)
-│   │   ├─ WoodHeart.Infrastructure/    ← EF Core, Identity, adapters
-│   │   └─ WoodHeart.Api/               ← controllers, DI composition root
-│   └─ tests/
-│       ├─ WoodHeart.Domain.UnitTests/
-│       ├─ WoodHeart.Application.UnitTests/
-│       ├─ WoodHeart.Api.IntegrationTests/
-│       └─ WoodHeart.ArchitectureTests/  ← NetArchTest: enforces the layer rules
+│   ├─ Directory.Build.props  Directory.Packages.props
+│   ├─ WoodHeart.Domain/         ← entities, enums, constants, settings, value objects
+│   ├─ WoodHeart.Repository/     ← DataContext, Repository<T>, migrations, seed
+│   ├─ WoodHeart.Service/        ← business logic, DTOs, adapters
+│   ├─ WoodHeart.Presentation/   ← controllers, middleware, DI composition
+│   └─ WoodHeart.Tests/          ← one project, feature folders
 │
 ├─ frontend/
 │   └─ woodheart-web/             ← Angular 22 workspace (public + customer + admin)
@@ -146,79 +144,97 @@ D:\Personal_Projects\WoodHeart\
 
 **Why one Angular app for all three surfaces:** shared design tokens, one API client, one auth interceptor, one deployment. Admin is a lazily loaded route group (`/admin/**`) behind a role guard, so it costs a public visitor **zero bytes** — it never enters the initial chunk. Splitting into separate apps is a Phase 6 decision, not a Phase 1 one.
 
-**Why `Infrastructure` is one project, not four:** splitting persistence, identity, payments and messaging into separate assemblies is a common instinct, and at this size it buys nothing but 20 extra `.csproj` files to keep in sync. Folders inside one `Infrastructure` project give the same separation. Split later only if a module is genuinely extracted.
+**Why one test project, not four:** Bento's shape, and it removes the friction that stops people writing the second kind of test. A filter picks out a subset when you want one (`--filter "FullyQualifiedName~Architecture"`).
 
 ---
 
-## 5. Backend architecture — Onion
+## 5. Backend architecture — layered
 
 ### 5.1 The layers, and the one rule
 
 ```
             ┌──────────────────────────────────────────┐
-            │            WoodHeart.Api                 │  Controllers, middleware,
-            │       (Presentation / Composition)       │  auth, DI wiring, Hangfire UI
+            │         WoodHeart.Presentation           │  Controllers, middleware,
+            │        (HTTP + composition root)         │  auth, DI wiring, Hangfire
             ├──────────────────────────────────────────┤
-            │        WoodHeart.Infrastructure          │  EF Core, Identity, bKash,
-            │        (Adapters — implements ports)     │  SMS/Email, storage, jobs
+            │           WoodHeart.Service              │  Services, DTOs, mapping,
+            │       (Business logic + adapters)        │  bKash/SMS/email adapters
             ├──────────────────────────────────────────┤
-            │         WoodHeart.Application            │  Commands, Queries, Handlers,
-            │      (Use cases + port interfaces)       │  Validators, DTOs, policies
+            │          WoodHeart.Repository            │  DataContext, Repository<T>,
+            │              (Data access)               │  IUnitOfWork, migrations
             ├──────────────────────────────────────────┤
-            │           WoodHeart.Domain               │  Entities, Value Objects,
-            │       (Enterprise model — the core)      │  Domain Events, Specs, rules
+            │            WoodHeart.Domain              │  Entities, enums, constants,
+            │          (The model — the core)          │  settings, value objects
             └──────────────────────────────────────────┘
 
-   Dependency direction: ALWAYS inward.  Domain depends on NOTHING.
+   Dependency direction: each layer references only the one beneath it.
 ```
 
-**The rule, stated once:** _no outer layer's type may appear in an inner layer's signature, and no inner layer may reference an outer assembly._ This is enforced mechanically by `WoodHeart.ArchitectureTests` — a build failure, not a code-review opinion. Concretely:
+**The rule:** *no outer layer's type may appear in an inner layer's signature, and no inner layer may reference an outer assembly.* Enforced mechanically by `WoodHeart.Tests/Architecture` — a build failure, not a code-review opinion. Concretely:
 
-- `Domain` references **no NuGet packages at all** — no EF, no JSON attributes, no mediator types.
-- `Application` _declares_ ports (`IOrderRepository`, `IPaymentProvider`, `ISmsSender`, `IUnitOfWork`, `IDateTime`, `ICurrentUser`) and never implements them.
-- `Infrastructure` implements those ports and is referenced **only** by `Api`, and only at DI-registration time.
-- `Api` holds **no business logic**. A controller action builds a command, dispatches it, maps the result to an HTTP response. If a controller contains an `if` about pricing, it is in the wrong layer.
+- `Domain` references only ASP.NET Identity's EF package, because `AppUser` derives from `IdentityUser<long>`. No `DbContext`, no `DbSet`, no Npgsql.
+- `Repository` owns persistence. It may not call a service.
+- `Service` holds the business rules and may not know that HTTP exists — every service must be callable from a Hangfire job, which is where a good deal of this application's work runs.
+- `Presentation` holds **no business logic**. A controller builds a DTO, calls a service, hands the result to `HandleResult`. If a controller contains an `if` about pricing, it is in the wrong layer.
 
-### 5.2 Modular monolith — vertical slices inside each layer
+### 5.2 Feature folders inside each layer
 
-Every layer is subdivided by **module**, not by technical noun. This is what allows a module to be extracted into its own service later without an archaeological dig.
+Every layer is subdivided by **feature**, not by technical noun — the same convention Bento uses, and what allows a module to be extracted later without an archaeological dig.
 
 ```
 WoodHeart.Domain/
-├─ Common/            Entity, AggregateRoot, ValueObject, IDomainEvent, Money, Slug, PhoneNumber
-├─ Catalog/           Product, ProductVariant, Category, Brand, Attribute, Media, Review
-├─ Inventory/         StockItem, StockMovement, StockReservation, Warehouse
-├─ Pricing/           PriceList, TaxRule, DeliveryRate
-├─ Promotions/        Discount, Coupon, PromotionRule, PromotionUsage
-├─ Ordering/          Cart, CartLine, Order, OrderLine, Shipment, ReturnRequest
-├─ Payments/          Payment, PaymentAttempt, Refund, PaymentMethodConfig
-├─ Consultations/     ConsultationService, Consultant, AvailabilityRule, Booking
-├─ Notifications/     NotificationTemplate, NotificationMessage, Subscription
-├─ Identity/          Customer, Address, CustomerGroup
-└─ Content/           Page, Banner, Collection, Faq, Testimonial
+├─ Entity/
+│   ├─ Common/          OutboxMessage, StoreSetting, FeatureFlag
+│   ├─ Identity/        AppUser, AppRole, AppUserRole, UserRefreshToken
+│   ├─ Catalog/         Product, ProductVariant, Category, Media, Review
+│   ├─ Inventory/       StockItem, StockMovement, StockReservation
+│   ├─ Ordering/        Customer, Address, Cart, CartLine, Order, OrderLine, Shipment
+│   ├─ Promotions/      Discount, Coupon, PromotionRule, PromotionUsage
+│   ├─ Payments/        Payment, PaymentAttempt, Refund, PaymentMethodConfig
+│   ├─ Consultations/   ConsultationType, Consultant, AvailabilityRule, Booking
+│   ├─ Notifications/   NotificationTemplate, Subscription
+│   └─ Content/         Page, Banner, Collection, Faq, Testimonial
+├─ Enums/<Feature>/
+├─ ValueObjects/        Money, PhoneNumber, LocalizedText, Slug, EmailAddress
+├─ Constants/           Roles, Policies, GlobalConstants, SettingKeys, FeatureFlags
+├─ Settings/            JwtSettings, SmsSettings, BkashSettings…
+└─ Helpers/             IDateTimeProvider
 ```
 
-`Application` and `Infrastructure` mirror these folder names exactly.
-
-**Module dependency policy:** modules communicate through **domain events** and **Application-layer ports**, never by reaching into another module's repository or `DbSet`. `Ordering` does not decrement stock; it raises `OrderPlaced`, and an `Inventory` handler reacts.
-
-### 5.3 CQRS shape
+`Repository`, `Service` and `Tests` mirror these feature names:
 
 ```
-POST /api/v1/orders
-   → OrdersController.Place(PlaceOrderRequest)
-   → PlaceOrderCommand  ──dispatch──▶  PlaceOrderCommandHandler
-        │  pipeline behaviours, in order:
-        │    1. RequestLogging        4. UnitOfWork / transaction
-        │    2. Authorization         5. DomainEventDispatch (post-commit)
-        │    3. Validation (FluentValidation)
-        └──▶ loads the Cart aggregate, calls domain methods, persists, returns OrderResult
-   → 201 Created + OrderDto
+WoodHeart.Repository/          WoodHeart.Service/
+├─ Repositories/<Feature>/     ├─ Services/<Feature>/
+├─ Interfaces/<Feature>/       ├─ Interfaces/<Feature>/
+├─ Configurations/<Feature>/   ├─ DTOs/<Feature>/
+├─ Migrations/                 ├─ Infrastructure/   Time, Correlation, Security, Payments
+└─ Data/  Seed.cs              ├─ Mapping/
+                               └─ Helper/  Exceptions/
 ```
 
-- **Commands** return `Result<T>`. Business failures are _values_, not exceptions — exceptions are reserved for bugs and infrastructure faults.
-- **Queries** may bypass repositories and project straight to DTOs with EF `.Select()` or Dapper. Read models are allowed to be pragmatic; write models are not.
-- Business failures surface as **RFC 9457 `ProblemDetails`** with a stable machine-readable `type` (`woodheart/insufficient-stock`, `woodheart/coupon-expired`) so Angular can branch on a code instead of string-matching a message.
+**Module dependency policy:** a service may call another module's service through its interface, but never another module's repository directly. Side effects that must survive a crash — SMS, email — go through the outbox rather than a direct call.
+
+### 5.3 Request shape
+
+```
+POST /api/orders
+   → OrdersController.Place(PlaceOrderDto)          ← ValidationFilter has already run
+   → IOrderService.PlaceAsync(dto)
+        │  inside the service:
+        │    1. load the cart, validate the rules
+        │    2. IUnitOfWork.ExecuteInTransactionAsync:
+        │         draw down stock, write the order, write the payment,
+        │         queue the confirmation SMS into the outbox
+        │    3. one commit — all of it, or none of it
+        └──▶ GeneralResponse<OrderDto>
+   → BaseApiController.HandleResult → 200 / 4xx
+```
+
+- **Services return `GeneralResponse<T>`.** Business failures are *values*, not exceptions — exceptions are reserved for bugs and infrastructure faults, which is what lets the exception middleware treat everything it catches as a 500 worth investigating.
+- **Every failure carries a stable `ErrorCode`** (`ordering.insufficient_stock`). Angular branches on the code; the message is prose that gets reworded and translated to Bangla.
+- **Only the entry-point service commits.** Repositories stage; `IUnitOfWork` commits. This is the one place WoodHeart deliberately departs from Bento, whose `IRepository.SaveAllAsync` is the pattern behind its own recorded `notification-insert-commits-callers-pending-changes` bug.
+- **Reads may bypass repositories** and project straight to DTOs with `.Select()`. Read paths are allowed to be pragmatic; write paths are not.
 
 ---
 
@@ -400,9 +416,9 @@ Event → notification map for v1:
 
 ---
 
-## 8. API surface (v1 outline)
+## 8. API surface (outline)
 
-Base path `/api/v1`. JSON, cursor or page/size pagination, RFC 9457 errors, ETag on catalog reads.
+Base path `/api`, route template `api/[controller]` as in Bento_BE. JSON, page/size pagination via `PaginationParams` with the counts returned in an `X-Pagination` header, and one error shape everywhere: `GeneralResponse` carrying a stable `errorCode`.
 
 **Public — no auth**
 
@@ -462,7 +478,7 @@ GET  /me/notifications
 /admin/reports           sales, top products, stock valuation, discount cost, funnel
 ```
 
-**Versioning:** URL segment (`/api/v1`). Breaking changes create `/v2`; the Angular client pins one version.
+**Versioning:** none in v1, matching Bento_BE. There is a single first-party client and it deploys with the API, so a version segment would be ceremony. If a second consumer ever appears — a mobile app, a partner integration — that is the moment to add `/api/v2`, and the route template makes it a one-line change.
 
 ---
 
@@ -694,7 +710,7 @@ Each phase ends with something demonstrable. Sequenced so revenue arrives as ear
 
 | Phase                         | Goal                                  | Deliverables                                                                                                                                                                                                                   |
 | ----------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **0 — Foundation**            | Skeleton that builds and deploys      | Solution + all four projects, Onion + arch tests wired, Docker Compose (Postgres + API + web), EF context, Identity, JWT, logging, error handling, OpenAPI, Angular workspace with layouts, Tailwind theme, CI pipeline.       |
+| **0 — Foundation**            | Skeleton that builds and deploys      | Solution + all four projects, layering + arch tests wired, Docker Compose (Postgres + API + web), EF context, Identity, JWT, logging, error handling, OpenAPI, Angular workspace with layouts, Tailwind theme, CI pipeline.       |
 | **1 — Catalog**               | Products visible to the public        | Category tree, products, variants, media pipeline, admin product CRUD, public listing with filters/search/sort, product detail page, SSR + SEO, seed data for real WoodHeart products.                                         |
 | **2 — Commerce core**         | **First real order — revenue starts** | Cart (guest + member), delivery zones and fees, VAT, checkout flow, COD provider, order placement, order confirmation, customer order history, admin order management, invoice PDF, basic email + SMS.                         |
 | **3 — Inventory & Discounts** | Operations become manageable          | Stock ledger, reservations, low-stock alerts, stock-in/adjustment screens, full discount engine, coupon codes, automatic promotions, campaign scheduling, usage reports.                                                       |
@@ -741,33 +757,43 @@ These change the model, so answering them early avoids rework. Where an answer d
 
 | Item | Status |
 | ---- | ------ |
-| Solution, four projects, onion dependency direction | ✅ |
-| `WoodHeart.ArchitectureTests` enforcing the layer rules | ✅ 6 tests |
-| Domain building blocks — `Entity`, `AggregateRoot`, `ValueObject`, `Result<T>`, `Error` | ✅ |
-| Bangladesh value objects — `Money`, `PhoneNumber`, `LocalizedText`, `Slug`, `EmailAddress` | ✅ 64 tests |
-| Mediator pipeline — logging, validation, unit-of-work/transaction | ✅ |
-| `WoodHeartDbContext` — snake_case, soft delete, audit stamping, `xmin` concurrency, outbox, post-commit domain events | ✅ |
-| Initial migration — 11 tables | ✅ |
-| ASP.NET Identity (phone as login handle), JWT + rotating refresh tokens | ✅ |
-| RFC 9457 problem details with stable error codes | ✅ |
+| Solution, four projects, layer dependency direction | ✅ |
+| `WoodHeart.Tests/Architecture` enforcing the layer rules | ✅ 7 tests |
+| Domain building blocks — `BaseEntity`, `SoftDeletableEntity`, `ValueObject` | ✅ |
+| Bangladesh value objects — `Money`, `PhoneNumber`, `LocalizedText`, `Slug`, `EmailAddress` | ✅ 49 tests |
+| `GeneralResponse` / `GeneralResponse<T>` with stable error codes, `PagedList<T>`, `PaginationParams` | ✅ |
+| `Repository<T>` + `IUnitOfWork` — staging separated from committing | ✅ |
+| `DataContext` — snake_case, soft delete, audit stamping via injected clock, `xmin` concurrency | ✅ |
+| Initial migration — 11 tables | ✅ generated, **not yet applied** |
+| Seeder — roles, store settings, feature flags (`bkash.enabled` off) | ✅ idempotent |
+| ASP.NET Identity (phone as login handle), JWT policies, rotating refresh tokens | ✅ |
+| `ValidationFilter` — one error shape for binding and business failures alike | ✅ |
 | Correlation ids, tiered rate limiting, health checks, Serilog, Scalar | ✅ |
-| Walking skeleton (`/diagnostics/ping`, `/echo`) verified end to end | ✅ 9 integration tests |
+| Walking skeleton (`/api/diagnostics/ping`, `/echo`) | ✅ 9 integration tests |
 | Docker Compose (Postgres + pgAdmin), production `Dockerfile.api` | ✅ |
-| GitHub Actions CI — build, arch, unit, integration, migration verification, vulnerability audit | ✅ |
+| GitHub Actions CI — build, arch, tests, migration verification, vulnerability audit | ✅ |
 | Angular workspace | ⏳ blocked on Node |
 
-**Total: 88 tests passing.**
+**Total: 73 tests passing, zero build warnings.**
 
-**Build order for Phase 0**
+### 17.1 Where this deliberately differs from Bento_BE
 
-1. `git init`, add `.gitignore`, `.editorconfig`, `Directory.Build.props`, `Directory.Packages.props` (central package management).
-2. Create the solution and the four projects with the correct project references, so the dependency direction is right from the very first commit.
-3. Add `WoodHeart.ArchitectureTests` **immediately** — the layer rules are only real if a build can fail on them.
-4. `Domain.Common`: `Entity`, `AggregateRoot`, `ValueObject`, `IDomainEvent`, `Money`, `PhoneNumber`, `Result<T>`.
-5. `Infrastructure`: `WoodHeartDbContext`, naming conventions, audit and domain-event interceptors, the first migration.
-6. `Api`: Serilog, ProblemDetails handler, OpenAPI + Scalar, JWT auth, CORS, health checks, rate limiting, the mediator pipeline behaviours.
-7. Docker Compose: Postgres + pgAdmin, so the whole team runs one command to get an environment.
-8. `ng new woodheart-web --ssr --style=css --zoneless`, add Tailwind v4, layouts, the design tokens, the API client generation step.
-9. GitHub Actions CI running build + tests + arch tests on every PR.
+Three departures, each with a reason rather than a preference.
 
-**Then say the word and I will start on Phase 0.** I would also recommend answering §16 questions 1, 2 and 8 first — they are the ones that shape Phase 2, which is where money starts arriving.
+| Bento_BE | WoodHeart | Why |
+| -------- | --------- | --- |
+| `IRepository.SaveAllAsync` — any repository can commit | Committing lives only on `IUnitOfWork` | Bento's own `DOCs/bugs/notification-insert-commits-callers-pending-changes.md` records the failure mode: a helper that saves flushes its caller's half-finished work. Stock drawdown and order placement must not be able to half-commit. |
+| `BaseEntity.CreatedAt = DateTime.UtcNow` | Stamped in `DataContext` from an injected `IDateTimeProvider` | A field that always says "now" cannot be tested. Discount windows, consultation slots and reservation expiry are all time-dependent. |
+| AutoMapper 12.0.1 with `NuGetAuditLevel=critical` | Mapperly (source generator) | GHSA-rvv3-g6hj-g44x covers every AutoMapper below 15.1.1, and 15.x is the commercial licence. A category tree mapped from request data is exactly the self-referential shape the advisory describes. |
+
+Two smaller ones: PostgreSQL rather than SQL Server (already wired, and `pg_trgm` gives Bangla product search), and Central Package Management rather than inline versions — the latter is what pins Hangfire's vulnerable transitive Newtonsoft.Json.
+
+Everything else follows Bento: the four projects and their names, feature folders, the parallel `Interfaces/` tree, `BaseApiController.HandleResult`, `GeneralResponse`, `PagedList<T>`, all DI in `ApplicationServiceExtensions`, one test project.
+
+### 17.2 What happens next
+
+1. **Install Docker Desktop**, then apply the migration and confirm the schema. Until that runs, the migration is a hypothesis rather than a fact.
+2. **Install Node 24** (`winget install OpenJS.NodeJS.LTS`), then scaffold the Angular 22 workspace — the last outstanding Phase 0 item.
+3. **Phase 1 — Catalog.** Category tree, products, variants, media, admin CRUD, public listing and detail pages, SSR and SEO, seed data from real WoodHeart products. Neither blocker above stops this starting.
+
+Answering §16 questions 1, 2 and 8 — VAT, delivery charges, bKash merchant status — matters before Phase 2, which is where money starts arriving. Question 8 in particular has a long calendar lead time, so the paperwork is worth starting during Phase 1.

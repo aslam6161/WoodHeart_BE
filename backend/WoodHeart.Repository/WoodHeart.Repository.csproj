@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Data access: DataContext, the generic Repository<T>, per-entity
+    repositories, EF configurations and migrations. Knows about PostgreSQL;
+    knows nothing about HTTP or about business rules.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>WoodHeart.Repository</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- For IHttpContextAccessor, which DataContext uses to stamp CreatedBy. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WoodHeart.Domain\WoodHeart.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

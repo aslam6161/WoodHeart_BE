@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Entities, enums, constants, settings and value objects. The innermost
+    project: it references no other WoodHeart project, so a change here is never
+    caused by a change somewhere else.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>WoodHeart.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- AppUser/AppRole derive from IdentityUser<long>, so the entity shapes
+         live here rather than being duplicated in the repository layer. -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+  </ItemGroup>
+
+</Project>
