@@ -9,7 +9,7 @@
 | **Backend**      | .NET 10 (ASP.NET Core Web API), layered: Domain / Repository / Service / Presentation |
 | **Frontend**     | Angular 21 (standalone, signals, zoneless, SSR) + Bootstrap 5, structured after IMSAnuglar |
 | **Database**     | PostgreSQL 16+ via EF Core 10                                        |
-| **Repo root**    | `D:\Personal_Projects\WoodHeart`                                     |
+| **Repos**        | `WoodHeart` (backend) + `WoodHeart_Web` (frontend), siblings in `D:\Personal_Projects` |
 | **Status**       | **Phase 0 complete except the database run** — 73 backend + 8 frontend tests passing. Blocked only on Docker (§17). |
 | **Last updated** | 2026-08-30                                                           |
 
@@ -110,14 +110,25 @@ These are not afterthoughts; they shape the domain model.
 
 ## 4. Repository structure
 
-Modelled on the existing Bento_BE codebase, so that navigating one project teaches you the other. Projects sit flat inside `backend/` — Bento is a backend-only repo and is flat at its root; WoodHeart has a frontend, so `backend/` is the container and everything inside it is flat.
+**Two repositories, not a monorepo.** They deploy separately, are built by different toolchains, and are worked on at different times — and this matches how Bento_BE and IMSAnuglar already sit side by side.
 
 ```
-D:\Personal_Projects\WoodHeart\
-│
-├─ PLAN.md                        ← this file
+D:\Personal_Projects\
+├─ WoodHeart\          ← backend repo (this document lives here)
+└─ WoodHeart_Web\      ← frontend repo
+```
+
+The backend is modelled on `D:\Chromatics\Bento_BE`, the frontend on `D:\Personal_Projects\IMSAnuglar`, so navigating either teaches the other.
+
+### 4.1 Backend — `WoodHeart`
+
+Projects sit flat inside `backend/`, as they sit flat at the root of Bento_BE.
+
+```
+WoodHeart\
+├─ PLAN.md                        ← this file, the single source of truth
 ├─ README.md
-├─ .gitignore  .editorconfig  .nvmrc
+├─ .gitignore  .editorconfig
 │
 ├─ docs/
 │   ├─ architecture/              ADRs, C4 diagrams, domain model notes
@@ -133,18 +144,37 @@ D:\Personal_Projects\WoodHeart\
 │   ├─ WoodHeart.Presentation/   ← controllers, middleware, DI composition
 │   └─ WoodHeart.Tests/          ← one project, feature folders
 │
-├─ frontend/
-│   └─ woodheart-web/             ← Angular 21 workspace (public + customer + admin)
-│
 └─ deploy/
-    ├─ docker/                    Dockerfile.api, Dockerfile.web, compose files
+    ├─ docker/                    Dockerfile.api, docker-compose (Postgres, pgAdmin)
     ├─ nginx/                     reverse proxy + TLS
     └─ github-actions/            CI/CD workflows
 ```
 
-**Why one Angular app for all three surfaces:** shared design tokens, one API client, one auth interceptor, one deployment. Admin is a lazily loaded route group (`/admin/**`) behind a role guard, so it costs a public visitor **zero bytes** — it never enters the initial chunk. Splitting into separate apps is a Phase 6 decision, not a Phase 1 one.
+### 4.2 Frontend — `WoodHeart_Web`
 
-**Why one test project, not four:** Bento's shape, and it removes the friction that stops people writing the second kind of test. A filter picks out a subset when you want one (`--filter "FullyQualifiedName~Architecture"`).
+```
+WoodHeart_Web\
+├─ README.md  angular.json  package.json  .nvmrc
+├─ .github/workflows/ci.yml
+└─ src/
+    ├─ environments/            environment.ts + environment.prod.ts
+    ├─ styles.scss              Bootstrap 5 + brand tokens
+    └─ app/                     see §9 for the full structure
+```
+
+### 4.3 The seam between them
+
+Three types are shared by convention rather than by a package. Change one and the other changes in the same pull request.
+
+| Backend | Frontend |
+| ------- | -------- |
+| `GeneralResponse` / `GeneralResponse<T>` | `_models/generalResponse.ts` |
+| `PagedList<T>`, `PaginationParams`, `PaginationHeader` | `_models/pagination.ts` |
+| The `X-Pagination` response header | `_services/paginationHelper.ts` |
+
+**Why convention and not a shared package.** A generated client or an npm contract package is the textbook answer, and it is worth revisiting once the API surface stops moving. Today it would mean a publish step between every backend change and the frontend that consumes it, on a two-repo project with one developer. The three types above are small, stable and covered by tests on both sides; the cost of drift is currently lower than the cost of the machinery. Generating the client from the OpenAPI spec is a Phase 3 candidate, once the endpoint list has settled.
+
+**Why two repos rather than one.** Independent deploy cadence — the storefront ships CSS fixes far more often than the API ships schema changes — and CI that does not run a .NET build because a stylesheet changed. The cost is real and worth naming: a change that spans both repos is two pull requests, and nothing mechanically stops the contract types drifting apart. That is what the table above exists to prevent.
 
 ---
 
@@ -484,12 +514,12 @@ GET  /me/notifications
 
 ## 9. Frontend architecture
 
-Modelled on `D:\Personal_Projects\IMSAnuglar`, so that navigating one Angular project teaches the other. Folder names, the underscore-prefixed shared directories, and the shared contract types are all carried across verbatim.
+Lives in the **`WoodHeart_Web`** repository (§4.2). Modelled on `D:\Personal_Projects\IMSAnuglar`, so that navigating one Angular project teaches the other. Folder names, the underscore-prefixed shared directories, and the shared contract types are all carried across verbatim.
 
 ### 9.1 Structure
 
 ```
-frontend/woodheart-web/src/
+WoodHeart_Web/src/
 ├─ environments/            environment.ts + environment.prod.ts (apiUrl)
 ├─ styles.scss             Bootstrap 5 + brand tokens
 └─ app/
@@ -813,7 +843,7 @@ These change the model, so answering them early avoids rework. Where an answer d
 | Walking skeleton (`/api/diagnostics/ping`, `/echo`) | ✅ 9 integration tests |
 | Docker Compose (Postgres + pgAdmin), production `Dockerfile.api` | ✅ |
 | GitHub Actions CI — build, arch, tests, migration verification, vulnerability audit | ✅ |
-| Angular workspace — Angular 21, SSR, Bootstrap 5, IMSAnuglar structure | ✅ 8 tests |
+| Angular workspace — Angular 21, SSR, Bootstrap 5, IMSAnuglar structure | ✅ 8 tests, in the `WoodHeart_Web` repo |
 
 **Total: 73 backend + 8 frontend tests passing, zero build warnings on either side.**
 
@@ -834,7 +864,7 @@ Everything else follows Bento: the four projects and their names, feature folder
 ### 17.2 What happens next
 
 1. **Install Docker Desktop**, then apply the migration and confirm the schema. Until that runs, the migration is a hypothesis rather than a fact.
-2. ~~Scaffold the Angular workspace.~~ **Done** — Angular 21 on the existing Node, so the upgrade turned out not to be needed.
+2. ~~Scaffold the Angular workspace.~~ **Done** — Angular 21 on the existing Node, so the upgrade turned out not to be needed. It now lives in the separate `WoodHeart_Web` repository (§4).
 3. **Phase 1 — Catalog.** Category tree, products, variants, media, admin CRUD, public listing and detail pages, SSR and SEO, seed data from real WoodHeart products. Neither blocker above stops this starting.
 
 Answering §16 questions 1, 2 and 8 — VAT, delivery charges, bKash merchant status — matters before Phase 2, which is where money starts arriving. Question 8 in particular has a long calendar lead time, so the paperwork is worth starting during Phase 1.

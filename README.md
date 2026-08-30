@@ -7,7 +7,7 @@ Interior commerce and consultation platform — home interior products plus inte
 | | |
 |---|---|
 | Backend | .NET 10 · ASP.NET Core Web API · layered (Domain / Repository / Service / Presentation) |
-| Frontend | Angular 21 · standalone + signals + zoneless · SSR · Bootstrap 5 |
+| Frontend | Angular 21 — **separate repo**, `WoodHeart_Web` |
 | Database | PostgreSQL 17 · EF Core 10 — swappable, see [PLAN.md §11.1](PLAN.md#111-changing-the-database-provider-later) |
 | Market | Bangladesh — BDT, Bangla/English, Cash on Delivery + bKash |
 
@@ -19,7 +19,7 @@ Interior commerce and consultation platform — home interior products plus inte
 |---|---|---|
 | .NET SDK | 10.0+ | `dotnet --version` |
 | dotnet-ef | 10.0+ | `dotnet ef --version` |
-| Node.js | see [frontend](#frontend) | `node --version` |
+| Node.js | only for the frontend repo | `node --version` |
 | Docker Desktop | any recent | `docker --version` |
 | PostgreSQL | 17 (via Docker) | — |
 
@@ -166,32 +166,38 @@ genuinely needs the database belongs in a Testcontainers-backed fixture.
 
 ## Frontend
 
+**Lives in a separate repository:** `WoodHeart_Web`, checked out beside this one.
+
+```
+D:\Personal_Projects\
+├─ WoodHeart\        ← this repo (API)
+└─ WoodHeart_Web\    ← Angular 21 storefront + admin
+```
+
 ```bash
-cd frontend/woodheart-web
+cd ../WoodHeart_Web
 npm install
-npm start           # http://localhost:4200, proxying nothing — it calls the API directly
-npm test -- --watch=false
-npm run build       # production, with SSR
+npm start            # http://localhost:4200
 ```
 
-The API must be running on `localhost:5199` for the home page to show "Connected".
+Run this API first — the storefront calls `/api/diagnostics/ping` on load and will report "Could not reach the API" without it.
 
-**Angular 21**, not 22: 21 runs on Node `^20.19 || ^22.12 || >=24`, which the current machine already satisfies. Angular 22 requires 22.22.3+ and offers nothing this project uses.
+### The contract between them
 
-Structure follows `D:\Personal_Projects\IMSAnuglar`:
+Three types are shared by convention, not by a package. If one changes here, change it there in the same pull request.
 
-```
-src/app/
-├─ _directives/   _forms/   _guards/   _interceptors/   _resolvers/
-├─ _layout/       default-layout (storefront), admin-layout + adminComponents
-├─ _models/       one interface per model, + dtos/
-├─ _services/     one service per feature, + paginationHelper
-└─ home/  errors/  nav/  footer/   (admin/, Items/, User/ arrive in Phase 1)
-```
+| This repo | WoodHeart_Web |
+|---|---|
+| `GeneralResponse` / `GeneralResponse<T>` | `_models/generalResponse.ts` |
+| `PagedList<T>`, `PaginationParams`, `PaginationHeader` | `_models/pagination.ts` |
+| The `X-Pagination` response header | `_services/paginationHelper.ts` |
 
-`environment.apiUrl`, `GeneralResponse`, `Pagination`/`PaginatedResult`/`PaginationParams` and the `X-Pagination` header all match the backend contract exactly.
+Two rules that keep the seam honest:
 
-Modernised where Angular 12 idioms no longer apply: standalone components rather than NgModules, signals rather than `BehaviorSubject` + `take(1)`, functional interceptors and guards, Bootstrap 5 (no jQuery), and SSR — which matters commercially, because a client-rendered catalog is one Google cannot index.
+- **Every response is a `GeneralResponse`**, validation failures and business failures alike. The client unpacks one envelope, not two.
+- **`ErrorCode` is the contract; `Message` is not.** The client branches on `ordering.insufficient_stock`. The message is prose that gets reworded and translated to Bangla, and any client matching on it will break silently.
+
+`X-Pagination` only reaches the browser because it is listed in `Access-Control-Expose-Headers` in [CorsExtension.cs](backend/WoodHeart.Presentation/Extensions/CorsExtension.cs). Remove it there and every pager in the app silently shows a single page.
 
 ---
 
