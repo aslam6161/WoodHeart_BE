@@ -8,7 +8,7 @@ Interior commerce and consultation platform — home interior products plus inte
 |---|---|
 | Backend | .NET 10 · ASP.NET Core Web API · layered (Domain / Repository / Service / Presentation) |
 | Frontend | Angular · SSR for the public storefront |
-| Database | PostgreSQL 17 · EF Core 10 |
+| Database | PostgreSQL 17 · EF Core 10 — swappable, see [PLAN.md §11.1](PLAN.md#111-changing-the-database-provider-later) |
 | Market | Bangladesh — BDT, Bangla/English, Cash on Delivery + bKash |
 
 ---
