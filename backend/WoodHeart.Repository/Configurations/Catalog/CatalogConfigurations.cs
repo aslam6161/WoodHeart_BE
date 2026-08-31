@@ -130,6 +130,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.ProductType).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
 
+        builder.Property(x => x.SearchText).HasMaxLength(1000).IsRequired();
         builder.Property(x => x.Material).HasMaxLength(128);
         builder.Property(x => x.FinishType).HasMaxLength(128);
         builder.Property(x => x.SeoTitle).HasMaxLength(200);

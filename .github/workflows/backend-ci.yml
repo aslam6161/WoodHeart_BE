@@ -116,6 +116,130 @@ jobs:
             --startup-project WoodHeart.Repository \
             --context DataContext
 
+      # ---------------------------------------------------------------------
+      # The first time any of this runs against a real database with real rows.
+      # Unit tests use substitutes and the integration tests deliberately avoid
+      # Postgres, so until now nothing had proved a product can actually be
+      # written and read back — only that the schema applies.
+      #
+      # Reuses woodheart_migrations, which the step above just migrated.
+      #
+      # NOTE ON SHELL STYLE: no pipelines. `set -o pipefail` plus a consumer
+      # that exits early — `head -c`, `grep -q` — makes the producer take
+      # SIGPIPE, the pipeline return non-zero, and `set -e` kill the script
+      # silently before any assertion runs. That is exactly how the first
+      # version of this step failed with no message at all. Bash here-strings
+      # do the same job with no pipe in sight.
+      # ---------------------------------------------------------------------
+      - name: Seed the catalog and smoke test the storefront
+        working-directory: backend/WoodHeart.Presentation
+        shell: bash
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://localhost:5199
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=woodheart_migrations;Username=woodheart;Password=woodheart"
+          Jwt__SigningKey: "ci-only-signing-key-not-used-anywhere-else-32chars"
+          Seed__Enabled: "true"
+          Seed__Catalog: "true"
+        run: |
+          set -euo pipefail
+
+          dotnet run --no-build -c Release --no-launch-profile > /tmp/api.log 2>&1 &
+          API_PID=$!
+          trap 'kill $API_PID 2>/dev/null || true' EXIT
+
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 3 http://localhost:5199/health/ready > /dev/null 2>&1; then
+              echo "API ready after ${i}s."
+              break
+            fi
+            if ! kill -0 $API_PID 2>/dev/null; then
+              echo "::error::The API exited during startup."
+              tail -n 80 /tmp/api.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          fail() { echo "::error::$1"; tail -n 60 /tmp/api.log; exit 1; }
+          has()  { grep -qi -- "$2" <<< "$1"; }
+
+          echo "--- category tree ---"
+          TREE=$(curl -fsS http://localhost:5199/api/catalog/categories) || fail "category tree request failed"
+          printf '%.500s\n' "$TREE"
+          has "$TREE" 'bedroom' || fail "Bedroom is missing from the tree"
+          has "$TREE" 'beds'    || fail "the tree was not nested - Beds is missing"
+
+          echo "--- product listing ---"
+          LIST=$(curl -fsS "http://localhost:5199/api/catalog/products?pageSize=50") || fail "listing failed"
+          has "$LIST" 'segun-king-bed' || fail "the seeded bed is not listed"
+
+          echo "--- pagination header is exposed ---"
+          # -D - with -o /dev/null, not -I. curl -I sends HEAD, and an MVC
+          # action attributed [HttpGet] does not match HEAD -- it answers 405,
+          # which -f turns into a failure that looks like a missing header.
+          HEADERS=$(curl -fsS -D - -o /dev/null "http://localhost:5199/api/catalog/products") || fail "header request failed"
+          has "$HEADERS" 'x-pagination:' || fail "X-Pagination header is missing"
+          has "$HEADERS" 'access-control-expose-headers' || fail "X-Pagination is not exposed to the browser"
+
+          echo "--- product detail, variants and price fallback ---"
+          BED=$(curl -fsS http://localhost:5199/api/catalog/products/segun-king-bed) || fail "detail failed"
+          has "$BED" 'WH-BED-001-SG-6' || fail "variants did not round-trip"
+          # The 6ft Segun variant carries no price override, so it must inherit
+          # 68500 from the product. This is the jsonb and Money mapping working
+          # end to end for the first time.
+          has "$BED" '68500' || fail "the inherited variant price is wrong"
+          # Bangla must come back as Bangla, not as escaped ASCII.
+          has "$BED" 'সেগুন' || fail "Bangla did not survive the round trip"
+          has "$BED" 'breadcrumbs' || fail "breadcrumbs are missing"
+
+          echo "--- a draft must NOT be reachable ---"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5199/api/catalog/products/showcase-cabinet)
+          [ "$STATUS" = "404" ] || fail "a Draft product was served to the public (HTTP $STATUS)"
+
+          echo "--- ?status=Draft must not override the public filter ---"
+          DRAFTS=$(curl -fsS "http://localhost:5199/api/catalog/products?status=Draft&pageSize=50") || fail "draft-filter request failed"
+          if has "$DRAFTS" 'showcase-cabinet'; then
+            fail "the status filter was honoured - drafts leaked to the storefront"
+          fi
+
+          echo "--- search matches English and Bangla ---"
+          # These exercise the value-converted columns, which is where the
+          # InvalidCastException lived: a predicate over a jsonb-backed value
+          # object compiles and only fails when SQL is actually generated.
+          EN=$(curl -fsS "http://localhost:5199/api/catalog/products?search=segun&pageSize=50") || fail "English search failed"
+          has "$EN" 'segun-king-bed' || fail "searching for segun found nothing"
+
+          BN=$(curl -fsS --get --data-urlencode "search=সেগুন" "http://localhost:5199/api/catalog/products?pageSize=50") || fail "Bangla search failed"
+          has "$BN" 'segun-king-bed' || fail "searching in Bangla found nothing"
+
+          NONE=$(curl -fsS "http://localhost:5199/api/catalog/products?search=zzzznotathing&pageSize=50") || fail "empty search failed"
+          if has "$NONE" 'segun-king-bed'; then
+            fail "the search filter was ignored - everything came back"
+          fi
+
+          echo "--- price filter and price sort ---"
+          CHEAP=$(curl -fsS "http://localhost:5199/api/catalog/products?maxPrice=5000&pageSize=50") || fail "price filter failed"
+          has "$CHEAP" 'terracotta-planter' || fail "the cheap planter is missing from a maxPrice filter"
+          if has "$CHEAP" 'segun-king-bed'; then
+            fail "maxPrice was ignored - a 68500 bed came back under a 5000 cap"
+          fi
+
+          SORTED=$(curl -fsS "http://localhost:5199/api/catalog/products?sortBy=PriceLowToHigh&pageSize=50") || fail "price sort failed"
+          # grep -o over a here-string, then the first match: no backreferences,
+          # no pipeline, nothing that can die quietly under set -e.
+          FIRST=$(grep -oE '"slug":"[a-z0-9-]+"' <<< "$SORTED" | head -n 1)
+          [ "$FIRST" = '"slug":"terracotta-planter"' ] || fail "cheapest-first sort put $FIRST first, expected terracotta-planter"
+
+          echo "--- collections ---"
+          curl -fsS http://localhost:5199/api/catalog/collections/shop-the-bedroom > /dev/null || fail "collection request failed"
+
+          echo "--- admin routes stay protected ---"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5199/api/admin/products)
+          [ "$STATUS" = "401" ] || fail "admin products returned $STATUS, expected 401"
+
+          echo "All storefront smoke checks passed."
+
       - name: Publish test results
         if: always()
         uses: actions/upload-artifact@v4
