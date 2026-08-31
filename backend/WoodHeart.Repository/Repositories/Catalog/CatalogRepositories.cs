@@ -60,6 +60,36 @@ public class CategoryRepository(DataContext context)
             .OrderBy(c => c.MaterializedPath)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Category>> GetAncestorsAsync(
+        string materializedPath, CancellationToken cancellationToken = default)
+    {
+        // "/1/14/37/" -> [1, 14, 37]. The path already holds the whole chain,
+        // which is the entire reason it is denormalised onto the row.
+        var ids = materializedPath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Select(segment => long.TryParse(segment, out var id) ? id : (long?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var found = await Set.AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .ToListAsync(cancellationToken);
+
+        // Ordered by the path, not by id. Ids ascend by creation order, so
+        // sorting by them puts a category created before its own parent in the
+        // wrong place in the breadcrumb.
+        return [.. ids
+            .Select(id => found.FirstOrDefault(c => c.Id == id))
+            .Where(c => c is not null)
+            .Select(c => c!)];
+    }
+
     public async Task<bool> HasChildrenAsync(long categoryId, CancellationToken cancellationToken = default) =>
         await Set.AsNoTracking().AnyAsync(c => c.ParentId == categoryId, cancellationToken);
 
@@ -169,6 +199,16 @@ public class ProductRepository(DataContext context)
         var products = Set.AsNoTracking()
             .Include(p => p.Category)
             .Include(p => p.Brand)
+            // Active variants and the primary image only. A listing needs the
+            // cheapest price and one thumbnail per row; without these includes
+            // VariantCount is always 0 and PrimaryImagePath always null, which
+            // is silent rather than a failure.
+            .Include(p => p.Variants.Where(v => v.IsActive && !v.IsDeleted))
+            .Include(p => p.Media.Where(m => m.IsPrimary && !m.IsDeleted))
+            // Split, so two collections do not multiply the rows: 20 products
+            // with 5 variants and an image each is 100 rows carrying every
+            // product's description five times over.
+            .AsSplitQuery()
             .AsQueryable();
 
         if (query.CategoryId is { } categoryId)
@@ -197,6 +237,11 @@ public class ProductRepository(DataContext context)
         if (query.BrandId is { } brandId)
         {
             products = products.Where(p => p.BrandId == brandId);
+        }
+
+        if (query.CollectionId is { } collectionId)
+        {
+            products = products.Where(p => p.Collections.Any(c => c.Id == collectionId));
         }
 
         if (query.Status is { } status)
@@ -263,6 +308,22 @@ public class ProductRepository(DataContext context)
         return await PagedList<Product>.CreateAsync(
             products, query.PageNumber, query.PageSize, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Product>> GetRelatedAsync(
+        long productId, long categoryId, int count, CancellationToken cancellationToken = default) =>
+        await Set.AsNoTracking()
+            .Where(p => p.CategoryId == categoryId
+                        && p.Id != productId
+                        && p.Status == ProductStatus.Active)
+            .Include(p => p.Category)
+            .Include(p => p.Brand)
+            .Include(p => p.Variants.Where(v => v.IsActive && !v.IsDeleted))
+            .Include(p => p.Media.Where(m => m.IsPrimary && !m.IsDeleted))
+            .AsSplitQuery()
+            .OrderBy(p => EF.Property<decimal>(p, nameof(Product.BasePrice)))
+            .ThenBy(p => p.Id)
+            .Take(count)
+            .ToListAsync(cancellationToken);
 
     /// <summary>
     /// Everything a product page needs, in one round trip.

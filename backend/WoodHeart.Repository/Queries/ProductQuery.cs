@@ -33,6 +33,9 @@ public class ProductQuery : PaginationParams
 
     public long? BrandId { get; set; }
 
+    /// <summary>Restricts to the products curated into one collection.</summary>
+    public long? CollectionId { get; set; }
+
     public ProductStatus? Status { get; set; }
 
     public ProductType? ProductType { get; set; }

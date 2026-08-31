@@ -300,6 +300,9 @@ public class CategoryService(
     /// has a hidden parent — showing it at the top beats dropping it silently
     /// from the admin tree, where it would look deleted.
     /// </remarks>
+    internal static List<CategoryTreeDto> BuildPublicHierarchy(List<CategoryTreeDto> flat) =>
+        BuildHierarchy(flat);
+
     private static List<CategoryTreeDto> BuildHierarchy(List<CategoryTreeDto> flat)
     {
         var byId = flat.ToDictionary(c => c.Id);

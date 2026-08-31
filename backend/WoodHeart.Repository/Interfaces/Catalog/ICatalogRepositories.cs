@@ -38,6 +38,18 @@ public interface ICategoryRepository : IRepository<Category>
     Task<IReadOnlyList<Category>> GetSubtreeAsync(
         string materializedPath, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The ancestor chain for a category, root first, including the category
+    /// itself. Drives breadcrumbs and their JSON-LD.
+    /// </summary>
+    /// <remarks>
+    /// Reads the ids straight out of the materialized path, so it is one
+    /// <c>WHERE id = ANY(...)</c> rather than a walk up the parent pointers —
+    /// which would be a query per level, on every product page.
+    /// </remarks>
+    Task<IReadOnlyList<Category>> GetAncestorsAsync(
+        string materializedPath, CancellationToken cancellationToken = default);
+
     Task<bool> HasChildrenAsync(long categoryId, CancellationToken cancellationToken = default);
 
     Task<bool> HasProductsAsync(long categoryId, CancellationToken cancellationToken = default);
@@ -99,6 +111,13 @@ public interface IProductRepository : IRepository<Product>
 
     Task<bool> CodeExistsAsync(
         string code, long? excludingId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Other published products in the same category, cheapest first, excluding
+    /// the one being viewed.
+    /// </summary>
+    Task<IReadOnlyList<Product>> GetRelatedAsync(
+        long productId, long categoryId, int count, CancellationToken cancellationToken = default);
 }
 
 public interface IProductVariantRepository : IRepository<ProductVariant>
