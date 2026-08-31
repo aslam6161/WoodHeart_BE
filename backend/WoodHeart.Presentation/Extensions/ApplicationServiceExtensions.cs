@@ -122,6 +122,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBrandService, BrandService>();
         services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IStorefrontService, StorefrontService>();
 
         return services;
     }

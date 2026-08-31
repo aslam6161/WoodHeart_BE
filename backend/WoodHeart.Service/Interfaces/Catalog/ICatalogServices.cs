@@ -87,3 +87,28 @@ public interface IProductService
     Task<GeneralResponse> DeleteVariantAsync(
         long variantId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// The public catalog. Only ever returns published products — see
+/// <c>StorefrontService</c> for why that is enforced rather than defaulted.
+/// </summary>
+public interface IStorefrontService
+{
+    Task<GeneralResponse<IReadOnlyList<CategoryTreeDto>>> GetCategoryTreeAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<PagedList<StorefrontProductDto>>> SearchAsync(
+        ProductQuery query, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<StorefrontProductDetailDto>> GetProductAsync(
+        string slug, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<IReadOnlyList<StorefrontProductDto>>> GetRelatedAsync(
+        string slug, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<StorefrontCollectionDto>> GetCollectionAsync(
+        string slug, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<PagedList<StorefrontProductDto>>> GetCollectionProductsAsync(
+        string slug, ProductQuery query, CancellationToken cancellationToken = default);
+}
