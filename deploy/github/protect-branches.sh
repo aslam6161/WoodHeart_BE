@@ -99,10 +99,18 @@ protect() {
 JSON
 }
 
-# main keeps a linear history: one merge per release, so `git log main` reads
-# as a list of releases. develop does not, because merging finished features
-# into it is exactly what it is for.
-protect main true
+# Linear history is off on BOTH branches, and that is a correction rather than
+# an oversight.
+#
+# Requiring it on main sounded tidy -- one commit per release, so `git log main`
+# reads as a list of releases. But it forbids merge commits, so a develop -> main
+# release has to be squashed or rebased. Either one writes commits onto main that
+# do not exist on develop, the two branches stop sharing a merge base, and every
+# release after the first is fighting a history that no longer lines up.
+#
+# That is the well-known reason git-flow merges into main rather than rebasing
+# onto it. A real merge commit on main is what keeps the next release honest.
+protect main false
 protect develop false
 
 echo
