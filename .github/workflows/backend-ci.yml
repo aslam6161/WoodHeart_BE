@@ -116,6 +116,88 @@ jobs:
             --startup-project WoodHeart.Repository \
             --context DataContext
 
+      # ---------------------------------------------------------------------
+      # The first time any of this runs against a real database with real rows.
+      # Unit tests use substitutes and the integration tests deliberately avoid
+      # Postgres, so until now nothing had proved a product can actually be
+      # written and read back — only that the schema applies.
+      #
+      # Reuses woodheart_migrations, which the step above just migrated.
+      # ---------------------------------------------------------------------
+      - name: Seed the catalog and smoke test the storefront
+        working-directory: backend/WoodHeart.Presentation
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: http://localhost:5199
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=woodheart_migrations;Username=woodheart;Password=woodheart"
+          Jwt__SigningKey: "ci-only-signing-key-not-used-anywhere-else-32chars"
+          Seed__Enabled: "true"
+          Seed__Catalog: "true"
+        run: |
+          set -euo pipefail
+
+          dotnet run --no-build -c Release --no-launch-profile > /tmp/api.log 2>&1 &
+          API_PID=$!
+          trap 'kill $API_PID 2>/dev/null || true' EXIT
+
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 3 http://localhost:5199/health/ready > /dev/null 2>&1; then
+              echo "API ready after ${i}s."
+              break
+            fi
+            if ! kill -0 $API_PID 2>/dev/null; then
+              echo "::error::The API exited during startup."
+              cat /tmp/api.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          fail() { echo "::error::$1"; cat /tmp/api.log; exit 1; }
+
+          echo "--- category tree ---"
+          TREE=$(curl -fsS http://localhost:5199/api/catalog/categories) || fail "category tree request failed"
+          echo "$TREE" | head -c 400; echo
+          echo "$TREE" | grep -q 'bedroom' || fail "Bedroom is missing from the tree"
+          echo "$TREE" | grep -q 'beds'    || fail "the tree was not nested — Beds is missing"
+
+          echo "--- product listing ---"
+          LIST=$(curl -fsS "http://localhost:5199/api/catalog/products?pageSize=50") || fail "listing failed"
+          echo "$LIST" | grep -q 'segun-king-bed' || fail "the seeded bed is not listed"
+
+          echo "--- pagination header is exposed ---"
+          curl -fsSI "http://localhost:5199/api/catalog/products" | grep -qi '^x-pagination:' || fail "X-Pagination header is missing"
+
+          echo "--- product detail, variants and price fallback ---"
+          BED=$(curl -fsS http://localhost:5199/api/catalog/products/segun-king-bed) || fail "detail failed"
+          echo "$BED" | grep -q 'WH-BED-001-SG-6' || fail "variants did not round-trip"
+          # The 6ft Segun variant carries no price override, so it must inherit
+          # 68500 from the product. This is the jsonb and Money mapping working
+          # end to end for the first time.
+          echo "$BED" | grep -q '68500' || fail "the inherited variant price is wrong"
+          # Bangla must come back as Bangla, not as escaped ASCII.
+          echo "$BED" | grep -q 'সেগুন' || fail "Bangla did not survive the round trip"
+          echo "$BED" | grep -q 'breadcrumbs' || fail "breadcrumbs are missing"
+
+          echo "--- a draft must NOT be reachable ---"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5199/api/catalog/products/showcase-cabinet)
+          [ "$STATUS" = "404" ] || fail "a Draft product was served to the public (HTTP $STATUS)"
+
+          echo "--- ?status=Draft must not override the public filter ---"
+          DRAFTS=$(curl -fsS "http://localhost:5199/api/catalog/products?status=Draft&pageSize=50")
+          if echo "$DRAFTS" | grep -q 'showcase-cabinet'; then
+            fail "the status filter was honoured — drafts leaked to the storefront"
+          fi
+
+          echo "--- collections ---"
+          curl -fsS http://localhost:5199/api/catalog/collections/shop-the-bedroom > /dev/null || fail "collection request failed"
+
+          echo "--- admin routes stay protected ---"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5199/api/admin/products)
+          [ "$STATUS" = "401" ] || fail "admin products returned $STATUS, expected 401"
+
+          echo "All storefront smoke checks passed."
+
       - name: Publish test results
         if: always()
         uses: actions/upload-artifact@v4
