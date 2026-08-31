@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Entity.Catalog;
+using WoodHeart.Domain.Enums.Catalog;
 using WoodHeart.Repository.Interfaces.Catalog;
+using WoodHeart.Repository.Queries;
 
 namespace WoodHeart.Repository.Repositories.Catalog;
 
@@ -161,6 +163,107 @@ public class ProductRepository(DataContext context)
         return await query.AnyAsync(cancellationToken);
     }
 
+    public async Task<PagedList<Product>> SearchAsync(
+        ProductQuery query, CancellationToken cancellationToken = default)
+    {
+        var products = Set.AsNoTracking()
+            .Include(p => p.Category)
+            .Include(p => p.Brand)
+            .AsQueryable();
+
+        if (query.CategoryId is { } categoryId)
+        {
+            if (query.IncludeDescendantCategories)
+            {
+                // Resolve the parent's path once, then match every category
+                // whose path starts with it. One indexed prefix scan for the
+                // whole subtree, rather than walking the tree in the service
+                // and passing back a list of ids that grows without bound.
+                var path = await Context.Categories.AsNoTracking()
+                    .Where(c => c.Id == categoryId)
+                    .Select(c => c.MaterializedPath)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                products = string.IsNullOrEmpty(path)
+                    ? products.Where(p => false)
+                    : products.Where(p => p.Category.MaterializedPath.StartsWith(path));
+            }
+            else
+            {
+                products = products.Where(p => p.CategoryId == categoryId);
+            }
+        }
+
+        if (query.BrandId is { } brandId)
+        {
+            products = products.Where(p => p.BrandId == brandId);
+        }
+
+        if (query.Status is { } status)
+        {
+            products = products.Where(p => p.Status == status);
+        }
+
+        if (query.ProductType is { } productType)
+        {
+            products = products.Where(p => p.ProductType == productType);
+        }
+
+        if (query.IsFeatured is { } featured)
+        {
+            products = products.Where(p => p.IsFeatured == featured);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var term = $"%{query.Search.Trim()}%";
+
+            // ILike, not ToLower().Contains(): ILike maps to Postgres ILIKE,
+            // which is index-assisted with pg_trgm and correct for Bangla.
+            // Lower-casing both sides forces a sequential scan and mangles
+            // scripts that have no case.
+            products = products.Where(p =>
+                EF.Functions.ILike(p.Code, term)
+                || EF.Functions.ILike(EF.Property<string>(p, nameof(Product.Name)), term));
+        }
+
+        // Compares the converted decimal column, so this stays SQL. Money
+        // itself never reaches the database as an object.
+        if (query.MinPrice is { } min)
+        {
+            products = products.Where(p => EF.Property<decimal>(p, nameof(Product.BasePrice)) >= min);
+        }
+
+        if (query.MaxPrice is { } max)
+        {
+            products = products.Where(p => EF.Property<decimal>(p, nameof(Product.BasePrice)) <= max);
+        }
+
+        products = query.SortBy switch
+        {
+            ProductSort.Oldest => products.OrderBy(p => p.CreatedAt),
+            ProductSort.PriceLowToHigh =>
+                products.OrderBy(p => EF.Property<decimal>(p, nameof(Product.BasePrice))),
+            ProductSort.PriceHighToLow =>
+                products.OrderByDescending(p => EF.Property<decimal>(p, nameof(Product.BasePrice))),
+            // Nulls last: an unpublished draft should not head the list of what
+            // is newest on the storefront.
+            ProductSort.RecentlyPublished => products
+                .OrderByDescending(p => p.PublishedAt.HasValue)
+                .ThenByDescending(p => p.PublishedAt),
+            ProductSort.Code => products.OrderBy(p => p.Code),
+            _ => products.OrderByDescending(p => p.CreatedAt)
+        };
+
+        // Id as the final tiebreak on every sort. Without it two products with
+        // the same price have no defined order, and a row can appear on page 1
+        // and page 2 of the same result set while another never appears at all.
+        products = ((IOrderedQueryable<Product>)products).ThenBy(p => p.Id);
+
+        return await PagedList<Product>.CreateAsync(
+            products, query.PageNumber, query.PageSize, cancellationToken);
+    }
+
     /// <summary>
     /// Everything a product page needs, in one round trip.
     /// </summary>
@@ -183,6 +286,17 @@ public class ProductRepository(DataContext context)
 public class ProductVariantRepository(DataContext context)
     : Repository<ProductVariant>(context), IProductVariantRepository
 {
+    public async Task<ProductVariant?> GetDefaultAsync(
+        long productId, CancellationToken cancellationToken = default) =>
+        await Set.FirstOrDefaultAsync(
+            v => v.ProductId == productId && v.IsDefault, cancellationToken);
+
+    public async Task<int> MaxSortOrderAsync(long productId, CancellationToken cancellationToken = default) =>
+        await Set.AsNoTracking()
+            .Where(v => v.ProductId == productId)
+            .Select(v => (int?)v.SortOrder)
+            .MaxAsync(cancellationToken) ?? -1;
+
     public async Task<bool> SkuExistsAsync(
         string sku, long? excludingId = null, CancellationToken cancellationToken = default)
     {

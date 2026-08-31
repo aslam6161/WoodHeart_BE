@@ -1,4 +1,5 @@
 using WoodHeart.Repository;
+using WoodHeart.Repository.Queries;
 using WoodHeart.Service.DTOs.Catalog;
 
 namespace WoodHeart.Service.Interfaces.Catalog;
@@ -48,4 +49,41 @@ public interface IBrandService
         long id, UpdateBrandDto dto, CancellationToken cancellationToken = default);
 
     Task<GeneralResponse> DeleteAsync(long id, CancellationToken cancellationToken = default);
+}
+
+public interface IProductService
+{
+    Task<GeneralResponse<PagedList<ProductListItemDto>>> SearchAsync(
+        ProductQuery query, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductDetailDto>> GetByIdAsync(
+        long id, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductDetailDto>> GetBySlugAsync(
+        string slug, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductDetailDto>> CreateAsync(
+        CreateProductDto dto, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductDetailDto>> UpdateAsync(
+        long id, UpdateProductDto dto, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publishes or withdraws a product. Separate from the general update so
+    /// going live is a deliberate act rather than a side effect of saving.
+    /// </summary>
+    Task<GeneralResponse<ProductDetailDto>> ChangeStatusAsync(
+        long id, ChangeProductStatusDto dto, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse> DeleteAsync(long id, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductVariantDto>> AddVariantAsync(
+        long productId, CreateProductVariantDto dto, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductVariantDto>> UpdateVariantAsync(
+        long variantId, UpdateProductVariantDto dto, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes a variant. Refuses when it is the product's last one.</summary>
+    Task<GeneralResponse> DeleteVariantAsync(
+        long variantId, CancellationToken cancellationToken = default);
 }

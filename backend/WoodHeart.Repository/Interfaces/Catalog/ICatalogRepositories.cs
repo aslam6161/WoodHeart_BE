@@ -1,4 +1,5 @@
 using WoodHeart.Domain.Entity.Catalog;
+using WoodHeart.Repository.Queries;
 
 namespace WoodHeart.Repository.Interfaces.Catalog;
 
@@ -73,6 +74,18 @@ public interface IBrandRepository : IRepository<Brand>
 public interface IProductRepository : IRepository<Product>
 {
     /// <summary>
+    /// A filtered, sorted page of products with the data a list row needs.
+    /// </summary>
+    /// <remarks>
+    /// Returns entities rather than DTOs so the Service layer keeps ownership
+    /// of the wire shape — but the filtering, sorting and paging all happen in
+    /// SQL. Loading the catalog and filtering in memory is the mistake this
+    /// signature exists to prevent.
+    /// </remarks>
+    Task<PagedList<Product>> SearchAsync(
+        ProductQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// A product with everything the detail page needs — category, brand,
     /// variants and media — in one round trip.
     /// </summary>
@@ -90,6 +103,12 @@ public interface IProductRepository : IRepository<Product>
 
 public interface IProductVariantRepository : IRepository<ProductVariant>
 {
+    /// <summary>The variant currently flagged default for a product, if any.</summary>
+    Task<ProductVariant?> GetDefaultAsync(
+        long productId, CancellationToken cancellationToken = default);
+
+    Task<int> MaxSortOrderAsync(long productId, CancellationToken cancellationToken = default);
+
     Task<bool> SkuExistsAsync(
         string sku, long? excludingId = null, CancellationToken cancellationToken = default);
 

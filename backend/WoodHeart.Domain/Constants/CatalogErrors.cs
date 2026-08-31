@@ -53,6 +53,13 @@ public static class CatalogErrors
     public const string VariantNotFound = Prefix + "variant.not_found";
     public const string VariantSkuTaken = Prefix + "variant_sku_taken";
 
+    /// <summary>
+    /// Deleting the only variant a product has. Refused, because a product with
+    /// no variants has no price and no stock — it cannot be added to a cart,
+    /// and nothing on the storefront reports why.
+    /// </summary>
+    public const string LastVariant = Prefix + "variant.last.conflict";
+
     // --- Collection ----------------------------------------------------------
 
     public const string CollectionNotFound = Prefix + "collection.not_found";
