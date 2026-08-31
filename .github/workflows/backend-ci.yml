@@ -123,9 +123,17 @@ jobs:
       # written and read back — only that the schema applies.
       #
       # Reuses woodheart_migrations, which the step above just migrated.
+      #
+      # NOTE ON SHELL STYLE: no pipelines. `set -o pipefail` plus a consumer
+      # that exits early — `head -c`, `grep -q` — makes the producer take
+      # SIGPIPE, the pipeline return non-zero, and `set -e` kill the script
+      # silently before any assertion runs. That is exactly how the first
+      # version of this step failed with no message at all. Bash here-strings
+      # do the same job with no pipe in sight.
       # ---------------------------------------------------------------------
       - name: Seed the catalog and smoke test the storefront
         working-directory: backend/WoodHeart.Presentation
+        shell: bash
         env:
           ASPNETCORE_ENVIRONMENT: Development
           ASPNETCORE_URLS: http://localhost:5199
@@ -147,46 +155,49 @@ jobs:
             fi
             if ! kill -0 $API_PID 2>/dev/null; then
               echo "::error::The API exited during startup."
-              cat /tmp/api.log
+              tail -n 80 /tmp/api.log
               exit 1
             fi
             sleep 1
           done
 
-          fail() { echo "::error::$1"; cat /tmp/api.log; exit 1; }
+          fail() { echo "::error::$1"; tail -n 60 /tmp/api.log; exit 1; }
+          has()  { grep -qi -- "$2" <<< "$1"; }
 
           echo "--- category tree ---"
           TREE=$(curl -fsS http://localhost:5199/api/catalog/categories) || fail "category tree request failed"
-          echo "$TREE" | head -c 400; echo
-          echo "$TREE" | grep -q 'bedroom' || fail "Bedroom is missing from the tree"
-          echo "$TREE" | grep -q 'beds'    || fail "the tree was not nested — Beds is missing"
+          printf '%.500s\n' "$TREE"
+          has "$TREE" 'bedroom' || fail "Bedroom is missing from the tree"
+          has "$TREE" 'beds'    || fail "the tree was not nested - Beds is missing"
 
           echo "--- product listing ---"
           LIST=$(curl -fsS "http://localhost:5199/api/catalog/products?pageSize=50") || fail "listing failed"
-          echo "$LIST" | grep -q 'segun-king-bed' || fail "the seeded bed is not listed"
+          has "$LIST" 'segun-king-bed' || fail "the seeded bed is not listed"
 
           echo "--- pagination header is exposed ---"
-          curl -fsSI "http://localhost:5199/api/catalog/products" | grep -qi '^x-pagination:' || fail "X-Pagination header is missing"
+          HEADERS=$(curl -fsSI "http://localhost:5199/api/catalog/products") || fail "header request failed"
+          has "$HEADERS" 'x-pagination:' || fail "X-Pagination header is missing"
+          has "$HEADERS" 'access-control-expose-headers' || fail "X-Pagination is not exposed to the browser"
 
           echo "--- product detail, variants and price fallback ---"
           BED=$(curl -fsS http://localhost:5199/api/catalog/products/segun-king-bed) || fail "detail failed"
-          echo "$BED" | grep -q 'WH-BED-001-SG-6' || fail "variants did not round-trip"
+          has "$BED" 'WH-BED-001-SG-6' || fail "variants did not round-trip"
           # The 6ft Segun variant carries no price override, so it must inherit
           # 68500 from the product. This is the jsonb and Money mapping working
           # end to end for the first time.
-          echo "$BED" | grep -q '68500' || fail "the inherited variant price is wrong"
+          has "$BED" '68500' || fail "the inherited variant price is wrong"
           # Bangla must come back as Bangla, not as escaped ASCII.
-          echo "$BED" | grep -q 'সেগুন' || fail "Bangla did not survive the round trip"
-          echo "$BED" | grep -q 'breadcrumbs' || fail "breadcrumbs are missing"
+          has "$BED" 'সেগুন' || fail "Bangla did not survive the round trip"
+          has "$BED" 'breadcrumbs' || fail "breadcrumbs are missing"
 
           echo "--- a draft must NOT be reachable ---"
           STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5199/api/catalog/products/showcase-cabinet)
           [ "$STATUS" = "404" ] || fail "a Draft product was served to the public (HTTP $STATUS)"
 
           echo "--- ?status=Draft must not override the public filter ---"
-          DRAFTS=$(curl -fsS "http://localhost:5199/api/catalog/products?status=Draft&pageSize=50")
-          if echo "$DRAFTS" | grep -q 'showcase-cabinet'; then
-            fail "the status filter was honoured — drafts leaked to the storefront"
+          DRAFTS=$(curl -fsS "http://localhost:5199/api/catalog/products?status=Draft&pageSize=50") || fail "draft-filter request failed"
+          if has "$DRAFTS" 'showcase-cabinet'; then
+            fail "the status filter was honoured - drafts leaked to the storefront"
           fi
 
           echo "--- collections ---"
