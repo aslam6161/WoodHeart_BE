@@ -1,0 +1,178 @@
+name: CD
+
+# Runs only on main. main is the deployable branch: whatever is on it is what
+# is either running in production or about to be. Nothing lands here except a
+# reviewed pull request from develop.
+#
+# Publishes to GitHub Container Registry using the built-in GITHUB_TOKEN, so
+# there is no registry secret to manage. The deploy job stays dormant until the
+# server exists — see "Turning on the deploy job" at the bottom of this file.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'deploy/**'
+      - '.github/workflows/cd.yml'
+  # Lets you rebuild and redeploy the current main without an empty commit.
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy after building the image'
+        type: boolean
+        default: true
+
+concurrency:
+  # Deliberately NOT cancel-in-progress. Killing a release halfway leaves an
+  # image pushed and a server never told about it — the worst of both states.
+  group: cd-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/woodheart-api
+
+jobs:
+  image:
+    name: Build & Publish Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short,prefix=sha-
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+          labels: |
+            org.opencontainers.image.title=WoodHeart API
+            org.opencontainers.image.description=WoodHeart interior commerce API
+
+      # "latest" is a convenience for humans; the sha- tag is the one to pin in
+      # production. Rolling back means naming a sha, and a sha is unambiguous
+      # in a way that "latest from last Tuesday" never is.
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Summary
+        run: |
+          {
+            echo "### API image published"
+            echo
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+            echo
+            echo "Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy to Production
+    needs: image
+    runs-on: ubuntu-latest
+    # Dormant until DEPLOY_HOST is set as a repository variable. Until then the
+    # job is skipped, which shows as a grey check rather than a red one — a CD
+    # pipeline that fails on every merge is one you stop reading.
+    if: >-
+      vars.DEPLOY_HOST != '' &&
+      (github.event_name == 'push' || inputs.deploy)
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Copies the compose file up before running it, so the server never holds
+      # a stale definition and the repository stays the single source of truth.
+      - name: Copy the compose file
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.DEPLOY_HOST }}
+          username: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: 'deploy/docker/docker-compose.prod.yml'
+          target: '/opt/woodheart'
+          strip_components: 2
+
+      - name: Pull and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ vars.DEPLOY_HOST }}
+          username: ${{ vars.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd /opt/woodheart
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+
+      # The deploy is not finished when the container starts; it is finished
+      # when the container answers. /health/ready checks the database too.
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 5 "${{ vars.PRODUCTION_URL }}/health/ready" > /dev/null; then
+              echo "Healthy after ${i} attempt(s)."
+              exit 0
+            fi
+            echo "Attempt ${i}: not ready yet."
+            sleep 5
+          done
+          echo "::error::The API never became ready. Roll back with the previous sha- tag."
+          exit 1
+
+# -----------------------------------------------------------------------------
+# Turning on the deploy job
+#
+# Repository variables (Settings → Secrets and variables → Actions → Variables):
+#   DEPLOY_HOST     the server, e.g. 203.0.113.10
+#   DEPLOY_USER     the ssh user, e.g. deploy
+#   PRODUCTION_URL  e.g. https://api.woodheart.com.bd
+#
+# Repository secret:
+#   DEPLOY_SSH_KEY  a private key whose public half is in the server's
+#                   authorized_keys. Generate a key used for nothing else.
+#
+# On the server:
+#   mkdir -p /opt/woodheart && cd /opt/woodheart
+#   cp .env.example .env    # then fill in the real values, chmod 600
+#
+# Create the "production" environment under Settings → Environments and add
+# yourself as a required reviewer if you want a human to click before a
+# release actually goes out.
+# -----------------------------------------------------------------------------

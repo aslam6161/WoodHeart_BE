@@ -2,12 +2,31 @@ name: Backend CI
 
 on:
   push:
-    branches: [main, develop]
-    paths: ['backend/**', '.github/workflows/backend-ci.yml']
+    # Long-lived branches plus the working branches described in CONTRIBUTING.md.
+    # Pushing to a phase branch runs the full suite, so the pull request into
+    # develop opens with its checks already green rather than pending.
+    branches:
+      - main
+      - develop
+      - 'phase/**'
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+    paths: ['backend/**', 'deploy/docker/**', '.github/workflows/backend-ci.yml']
+  # No paths filter on pull_request, deliberately. These jobs are required
+  # status checks, and a required check that never runs sits "expected" for
+  # ever and blocks the merge. A docs-only pull request paying for a build is
+  # a far smaller problem than a pull request nothing can merge.
   pull_request:
     branches: [main, develop]
-    paths: ['backend/**', '.github/workflows/backend-ci.yml']
   workflow_dispatch:
+
+# A second push to the same branch cancels the first. On main this is switched
+# off in cd.yml — cancelling a half-finished deployment is how you end up with
+# an image pushed but never released.
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -131,3 +150,51 @@ jobs:
         working-directory: backend
         continue-on-error: true
         run: dotnet list package --deprecated
+
+  branch-name:
+    name: Branch Name
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      # Cheap, and it catches the mistake before a reviewer has to. The names
+      # are not cosmetic: cd.yml and the branch protection rules both key off
+      # them, so a branch called "my-stuff" silently skips checks it should run.
+      - name: Check the source branch name
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          # develop → main is the release pull request; it is exempt by design.
+          if [ "$BRANCH" = "develop" ]; then
+            echo "Release pull request from develop — no name check."
+            exit 0
+          fi
+          if echo "$BRANCH" | grep -Eq '^(phase|feature|fix|chore|docs|refactor)/[a-z0-9][a-z0-9._-]*$'; then
+            echo "OK: $BRANCH"
+            exit 0
+          fi
+          echo "::error::Branch '$BRANCH' does not match the convention."
+          echo "Expected <type>/<slug>, lower-case, where type is one of:"
+          echo "  phase feature fix chore docs refactor"
+          echo "Examples: phase/1-catalog, fix/order-total-rounding"
+          echo "See CONTRIBUTING.md."
+          exit 1
+
+  docker-image:
+    name: Docker Image Builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Builds but does not push. A Dockerfile that only gets exercised on a
+      # merge to main is a Dockerfile that breaks on the day you most need it.
+      - name: Build the API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.api
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

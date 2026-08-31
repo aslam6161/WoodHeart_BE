@@ -757,19 +757,101 @@ Cloudflare (DNS, CDN, TLS, WAF, image caching)
 
 A single 4–8 GB VPS (Hetzner, DigitalOcean or Contabo) comfortably runs this to a few thousand orders a month. Azure App Service is the alternative if you prefer managed over cheap — the architecture does not care either way.
 
-### 14.3 CI/CD (GitHub Actions)
+### 14.3 Branching model
+
+Both repositories use the same three-tier model. The full working guide is in
+[CONTRIBUTING.md](CONTRIBUTING.md); this is the shape of it.
+
+| Branch | Meaning | Written to by |
+| --- | --- | --- |
+| `main` | **Deployable.** What is running in production, or about to be. | Reviewed pull request from `develop` only. |
+| `develop` | **Integration.** Finished features awaiting the next release. | Reviewed pull requests from working branches. |
+| `phase/<n>-<slug>` | One roadmap phase from §15. Long-lived. | Direct commits. |
 
 ```
-PR       → restore, build, unit + integration tests, arch tests,
-           lint, Angular build with bundle budgets, CodeQL
-main     → build Docker images, push to registry, deploy to staging,
-           run EF migrations, smoke tests
-tag v*   → manual approval → production deploy → migrate → health check → rollback on failure
+  phase/1-catalog ──► PR ──► develop ──► PR ──► main ──► CD ──► production
+                       │                 │
+                 AI review +       AI review +
+                 human review +    human review +
+                 green CI          green CI
 ```
+
+A phase branch stays open for the whole phase, and **each finished feature
+inside it becomes its own pull request** into `develop` — you do not wait for
+the phase to end. Small pull requests get real reviews; a two-thousand-line one
+gets a rubber stamp.
+
+Working branch names are `<type>/<slug>`, lower-case, where type is one of
+`phase` `feature` `fix` `chore` `docs` `refactor`. CI rejects anything else,
+because `cd.yml` and the branch protection rules both key off those prefixes.
+
+Phase branches as the roadmap reaches them: `phase/1-catalog`,
+`phase/2-commerce-core`, `phase/3-inventory-discounts`, `phase/4-consultation`,
+`phase/5-bkash-notifications`, `phase/6-growth-polish`.
+
+`main` and `develop` are protected: no direct pushes, no force-pushes, no
+deletion, all checks green, all review threads resolved. Applied by
+[`deploy/github/protect-branches.sh`](deploy/github/protect-branches.sh), which
+is the version-controlled record of settings that otherwise live only in
+GitHub's UI.
+
+### 14.4 Two reviews on every pull request
+
+**Automated.** [`ai-review.yml`](.github/workflows/ai-review.yml) runs Claude
+against the diff within a couple of minutes of the pull request opening, with
+the project's own conventions in its brief — a `decimal` that should be `Money`,
+a `DateTime.UtcNow` that should be `IDateTimeProvider`, a helper that commits
+its caller's half-finished work, a controller making a business decision. It
+leaves inline comments and can be pulled back into a thread with `@claude`.
+
+It cannot approve and cannot merge. It is a fast first pass so that the human
+review spends its attention on whether the design is right rather than on
+whether a convention was followed.
+
+**Human.** Reading the diff after the automated comments have landed.
+
+> **Caveat worth knowing up front:** GitHub will not let you approve your own
+> pull request. Until a second person has write access, a "require 1 approval"
+> rule would make every pull request unmergeable, so the protection script
+> requires zero approvals and enforces the rest. Re-run it with `1` when there
+> is somebody who can actually approve.
+
+### 14.5 CI/CD (GitHub Actions)
+
+```
+push to phase/**     → full CI, so the pull request opens already green
+PR → develop | main  → branch name, build, tests, arch tests, migrations
+                       against an empty database, dependency audit,
+                       bundle budgets, Docker image builds, AI review
+merge to main        → build image, push to ghcr.io, deploy, health check
+```
+
+Images publish to GitHub Container Registry using the built-in `GITHUB_TOKEN`,
+so there is no registry secret to manage:
+
+| Repository | Image |
+| --- | --- |
+| `WoodHeart_BE` | `ghcr.io/aslam6161/woodheart-api` |
+| `WoodHeart_FE` | `ghcr.io/aslam6161/woodheart-web` |
+
+Every build is tagged `latest`, `sha-<short>` and a timestamp. **Production
+pins the `sha-` tag** — rolling back then means naming a specific sha, which is
+unambiguous in a way that "latest from last Tuesday" never is.
+
+Pull requests build the images without pushing them. A Dockerfile only
+exercised on a merge to `main` is a Dockerfile that breaks on the day you most
+need it.
+
+The deploy job is skipped, not failed, until the `DEPLOY_HOST` repository
+variable exists — a grey check rather than a red one, because a pipeline that
+fails on every merge is one you stop reading. It deploys
+[`docker-compose.prod.yml`](deploy/docker/docker-compose.prod.yml): Postgres,
+API and web, all bound to `127.0.0.1` behind a reverse proxy, configured from a
+`.env` created once by hand on the server.
 
 Migrations run as a **separate step before** the app rollout, never on application startup — startup migrations in a multi-instance deployment are a race condition waiting to corrupt your schema.
 
-### 14.4 Observability
+### 14.6 Observability
 
 Serilog → file plus Seq (or Grafana Loki). OpenTelemetry traces on the checkout and payment paths. Health endpoints `/health/live` and `/health/ready` covering DB, Hangfire, SMS and payment gateway. Uptime monitoring with alerts to the admin phone. A weekly digest email: orders, revenue, failed payments, low stock.
 

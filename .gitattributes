@@ -1,0 +1,26 @@
+# core.autocrlf is true on this machine, which hands the working copy CRLF line
+# endings. That is harmless for C# and Markdown and fatal for anything a shell
+# executes: bash reads the trailing \r as part of the command and reports
+# "$'\r': command not found".
+#
+# So these are pinned to LF regardless of platform.
+
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+Dockerfile*     text eol=lf
+*.env.example   text eol=lf
+.editorconfig   text eol=lf
+
+# Everything else: normalise to LF in the repository, let Git decide locally.
+*               text=auto
+
+# Never touched.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.webp          binary
+*.ico           binary
+*.pdf           binary
+*.woff          binary
+*.woff2         binary

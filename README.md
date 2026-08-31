@@ -3,6 +3,7 @@
 Interior commerce and consultation platform — home interior products plus interior design consultation booking, built for the Bangladeshi market.
 
 **Architecture and roadmap:** [PLAN.md](PLAN.md)
+**How work moves through the repo:** [CONTRIBUTING.md](CONTRIBUTING.md) — branches, pull requests, CI/CD
 
 | | |
 |---|---|
@@ -206,6 +207,7 @@ Two rules that keep the seam honest:
 | Path | Contents |
 |---|---|
 | [PLAN.md](PLAN.md) | Architecture, domain model, roadmap, open business questions |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Branching model, pull request flow, reviews, CI/CD |
 | `docs/architecture/` | ADRs and diagrams |
 | `docs/api/` | Exported OpenAPI spec |
 | `docs/runbooks/` | Deploy, backup/restore, bKash go-live |

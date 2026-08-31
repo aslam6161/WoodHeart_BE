@@ -1,0 +1,93 @@
+# -----------------------------------------------------------------------------
+# Production stack. Deployed to /opt/woodheart by .github/workflows/cd.yml and
+# started there — never run this file locally. Use docker-compose.yml for that.
+#
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Reads its configuration from a .env file sitting beside it, which is created
+# once by hand on the server and is not in this repository. See .env.example.
+#
+# Both images are built and published by CD in their own repositories:
+#   WoodHeart_BE → ghcr.io/aslam6161/woodheart-api
+#   WoodHeart_FE → ghcr.io/aslam6161/woodheart-web
+# -----------------------------------------------------------------------------
+name: woodheart
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-woodheart}
+      POSTGRES_USER: ${POSTGRES_USER:-woodheart}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    # Deliberately no ports: mapping. The database is reachable from the other
+    # containers on the compose network and from nowhere else. Publishing 5432
+    # to the host is how a Postgres ends up on the public internet.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-woodheart} -d ${POSTGRES_DB:-woodheart}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  api:
+    image: ghcr.io/aslam6161/woodheart-api:${API_TAG:-latest}
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: >-
+        Host=postgres;Port=5432;Database=${POSTGRES_DB:-woodheart};Username=${POSTGRES_USER:-woodheart};Password=${POSTGRES_PASSWORD}
+      # The API refuses to start if this is shorter than 32 characters, which
+      # is the point — a weak signing key means anyone can mint an Admin token.
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?JWT_SIGNING_KEY must be set}
+      Cors__AllowedOrigins__0: ${PUBLIC_WEB_URL:-https://woodheart.com.bd}
+      TZ: Asia/Dhaka
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/live || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  web:
+    image: ghcr.io/aslam6161/woodheart-web:${WEB_TAG:-latest}
+    restart: always
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # Server-side rendering calls the API container directly over the compose
+      # network; the browser calls it through the public URL. They are not the
+      # same address and conflating them breaks SSR in a way that only shows up
+      # in production.
+      API_URL_SSR: http://api:8080
+      API_URL_BROWSER: ${PUBLIC_API_URL:-https://api.woodheart.com.bd}
+      TZ: Asia/Dhaka
+    ports:
+      - "127.0.0.1:4000:4000"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+volumes:
+  postgres-data:
+
+# Both services bind to 127.0.0.1 only. A reverse proxy on the host terminates
+# TLS and forwards to them; nothing in this file is directly reachable from the
+# internet. That proxy is the next piece of infrastructure to set up.
