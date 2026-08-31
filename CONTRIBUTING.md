@@ -14,8 +14,7 @@ follows the same rules and links here rather than repeating them.
 | `phase/<n>-<slug>` | The working branch for one roadmap phase. | You, directly. |
 
 Nobody commits to `main` or `develop`. Both are protected, and the protection
-is what makes the AI review and the test suite meaningful — an unenforced rule
-is a suggestion.
+is what makes the test suite meaningful — an unenforced rule is a suggestion.
 
 ### Working branch names
 
@@ -51,9 +50,9 @@ until the phase is over to merge.
                      ↓
   phase/1-catalog ───┴──► PR ──► develop ──► PR ──► main ──► CD ──► production
        ↑                    │                 │
-   your commits       AI review +        AI review +
-                      1 human approval   1 human approval
-                      + green CI         + green CI
+   your commits        green CI +        green CI +
+                       you read the      you read the
+                       diff              diff
 ```
 
 **1. Start the phase.**
@@ -95,43 +94,45 @@ gh pr create --base main --head develop --title "Release: phase 1 catalog"
 
 ---
 
-## Every pull request gets two reviews
+## Review
 
-**The AI review** runs automatically within a couple of minutes of opening,
-leaving inline comments. It knows this project's conventions — it is told to
-look for a `decimal` that should be `Money`, a `DateTime.UtcNow` that should be
-`IDateTimeProvider`, a helper that commits its caller's half-finished work. Pull
-it back into a thread by mentioning `@claude` in a comment.
+Review is manual, and it is yours. Open the pull request, let CI finish, then
+read the whole diff on GitHub before merging it.
 
-It **cannot approve and cannot merge.** It is a fast first pass that catches
-the boring things, so the human review can spend its attention on whether the
-design is right.
+Reading it on the pull request page rather than in your editor is the point.
+The diff is the change stripped of everything you remember about writing it,
+which is exactly the state a reviewer is in — and it is why reviewing your own
+code an hour later still finds things.
 
-**The human review** is you, reading your own diff after the AI comments have
-landed. That is genuinely worth doing and is not the same as writing it.
+Two habits that make a solo review worth doing:
 
-One honest caveat: **GitHub does not let you approve your own pull request.**
-On a one-developer repository, a rule requiring one approval would make every
-pull request permanently unmergeable — so it would get switched off, and a
-protection rule you routinely switch off protects nothing. The protection
-script therefore requires **zero** approvals by default and enforces what it
-actually can: no direct pushes to `main` or `develop`, no force-pushes, all
+- **Read it as the person who has to fix it at 2am**, not as the person who
+  just wrote it. Would you understand this in six months with no context?
+- **Check the conventions list in the pull request template deliberately**,
+  rather than ticking it from memory. Those boxes exist because each one is a
+  mistake that is cheap to catch here and expensive to find in production.
+
+There is no automated reviewer. GitHub Copilot code review needs a paid plan,
+GitHub Models was retired in July 2026, and an Anthropic API key bills per
+review — none of which is worth it at this stage. If you want a second opinion
+on a branch before opening the pull request, `/code-review` in Claude Code does
+that locally at no extra cost.
+
+### Approvals
+
+**GitHub does not let you approve your own pull request.** On a one-developer
+repository, a rule requiring one approval would make every pull request
+permanently unmergeable — so it would get switched off, and a protection rule
+you routinely switch off protects nothing.
+
+The protection script therefore requires **zero** approvals and enforces what
+it actually can: no direct pushes to `main` or `develop`, no force-pushes, all
 checks green, all review threads resolved. The day a second person gets write
 access, re-run it with `1` and the gate becomes real:
 
 ```bash
 ./deploy/github/protect-branches.sh aslam6161/WoodHeart_BE 1
 ```
-
-Requires the `ANTHROPIC_API_KEY` secret:
-
-```bash
-gh secret set ANTHROPIC_API_KEY --repo aslam6161/WoodHeart_BE
-gh secret set ANTHROPIC_API_KEY --repo aslam6161/WoodHeart_FE
-```
-
-Without it the review job logs a notice and passes, so the repository still
-works for anyone who has not set it up.
 
 ---
 

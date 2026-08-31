@@ -24,9 +24,9 @@
 #
 # So the enforced part is what actually can be enforced today: no direct pushes
 # to main or develop, no force-pushes, no deletion, and every status check
-# green before merge. The review still happens — the AI review posts within a
-# couple of minutes, and you read your own diff — it is simply not gated by a
-# button GitHub will not let you press.
+# green before merge. The review still happens — you read the diff on the pull
+# request before merging it — it is simply not gated by a button GitHub will
+# not let you press.
 #
 # The day a second person gets write access, re-run this with `1` and the gate
 # becomes real.

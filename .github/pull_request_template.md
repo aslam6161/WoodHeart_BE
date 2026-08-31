@@ -26,8 +26,8 @@
 
 ## Conventions this touches
 
-<!-- Tick what applies. Leave the rest. The AI review checks these too, but
-     ticking them means you thought about them rather than were caught. -->
+<!-- Tick what applies. Leave the rest. Check them against the diff rather
+     than from memory — that is the whole value of the list. -->
 
 - [ ] Money is `Money`, never `decimal` or `double`
 - [ ] Phone numbers are `PhoneNumber`, normalised to `+8801XXXXXXXXX`

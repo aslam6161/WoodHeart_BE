@@ -771,9 +771,9 @@ Both repositories use the same three-tier model. The full working guide is in
 ```
   phase/1-catalog ──► PR ──► develop ──► PR ──► main ──► CD ──► production
                        │                 │
-                 AI review +       AI review +
-                 human review +    human review +
-                 green CI          green CI
+                  green CI +        green CI +
+                  you read the      you read the
+                  diff              diff
 ```
 
 A phase branch stays open for the whole phase, and **each finished feature
@@ -795,20 +795,20 @@ deletion, all checks green, all review threads resolved. Applied by
 is the version-controlled record of settings that otherwise live only in
 GitHub's UI.
 
-### 14.4 Two reviews on every pull request
+### 14.4 Review
 
-**Automated.** [`ai-review.yml`](.github/workflows/ai-review.yml) runs Claude
-against the diff within a couple of minutes of the pull request opening, with
-the project's own conventions in its brief — a `decimal` that should be `Money`,
-a `DateTime.UtcNow` that should be `IDateTimeProvider`, a helper that commits
-its caller's half-finished work, a controller making a business decision. It
-leaves inline comments and can be pulled back into a thread with `@claude`.
+Review is manual. The pull request is opened, CI runs, and the diff is read on
+GitHub before it is merged — reading it there rather than in the editor is the
+point, because the diff is the change stripped of everything you remember about
+writing it.
 
-It cannot approve and cannot merge. It is a fast first pass so that the human
-review spends its attention on whether the design is right rather than on
-whether a convention was followed.
-
-**Human.** Reading the diff after the automated comments have landed.
+**There is no automated reviewer, deliberately.** The options were priced and
+none earned its cost at this stage: GitHub Copilot code review needs a paid
+plan and, on private repositories, bills Actions minutes per review; GitHub
+Models — which would have been free from a workflow — was retired on 30 July
+2026; an Anthropic API key bills per review. Running `/code-review` in Claude
+Code locally, before opening the pull request, costs nothing extra and does the
+same job.
 
 > **Caveat worth knowing up front:** GitHub will not let you approve your own
 > pull request. Until a second person has write access, a "require 1 approval"
@@ -822,7 +822,7 @@ whether a convention was followed.
 push to phase/**     → full CI, so the pull request opens already green
 PR → develop | main  → branch name, build, tests, arch tests, migrations
                        against an empty database, dependency audit,
-                       bundle budgets, Docker image builds, AI review
+                       bundle budgets, Docker image builds
 merge to main        → build image, push to ghcr.io, deploy, health check
 ```
 
