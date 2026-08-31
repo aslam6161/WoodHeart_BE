@@ -11,7 +11,7 @@ WORKDIR /src
 # not re-run every time a .cs file changes. This is the single biggest win in
 # .NET image build time.
 COPY backend/Directory.Build.props backend/Directory.Packages.props ./backend/
-COPY backend/WoodHeart.sln ./backend/
+COPY backend/WoodHeart.slnx ./backend/
 COPY backend/WoodHeart.Domain/*.csproj        ./backend/WoodHeart.Domain/
 COPY backend/WoodHeart.Repository/*.csproj    ./backend/WoodHeart.Repository/
 COPY backend/WoodHeart.Service/*.csproj       ./backend/WoodHeart.Service/
