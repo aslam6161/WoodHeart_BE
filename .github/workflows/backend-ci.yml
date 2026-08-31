@@ -175,7 +175,10 @@ jobs:
           has "$LIST" 'segun-king-bed' || fail "the seeded bed is not listed"
 
           echo "--- pagination header is exposed ---"
-          HEADERS=$(curl -fsSI "http://localhost:5199/api/catalog/products") || fail "header request failed"
+          # -D - with -o /dev/null, not -I. curl -I sends HEAD, and an MVC
+          # action attributed [HttpGet] does not match HEAD -- it answers 405,
+          # which -f turns into a failure that looks like a missing header.
+          HEADERS=$(curl -fsS -D - -o /dev/null "http://localhost:5199/api/catalog/products") || fail "header request failed"
           has "$HEADERS" 'x-pagination:' || fail "X-Pagination header is missing"
           has "$HEADERS" 'access-control-expose-headers' || fail "X-Pagination is not exposed to the browser"
 
