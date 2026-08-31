@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
 using WoodHeart.Domain.Entity;
+using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Common;
 using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Helpers;
@@ -46,6 +47,20 @@ public class DataContext(
     public DbSet<StoreSetting> StoreSettings => Set<StoreSetting>();
 
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
+
+    // --- Catalog ------------------------------------------------------------
+
+    public DbSet<Category> Categories => Set<Category>();
+
+    public DbSet<Brand> Brands => Set<Brand>();
+
+    public DbSet<Product> Products => Set<Product>();
+
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+
+    public DbSet<ProductMedia> ProductMedia => Set<ProductMedia>();
+
+    public DbSet<Collection> Collections => Set<Collection>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
