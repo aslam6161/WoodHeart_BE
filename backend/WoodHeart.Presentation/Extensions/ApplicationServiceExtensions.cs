@@ -2,19 +2,22 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Helpers;
 using WoodHeart.Presentation.Middleware;
-using WoodHeart.Repository;
+using WoodHeart.Repository.Interfaces.Catalog;
 using WoodHeart.Repository.Interfaces.Common;
 using WoodHeart.Repository.Interfaces.Identity;
+using WoodHeart.Repository.Repositories.Catalog;
 using WoodHeart.Repository.Repositories.Common;
 using WoodHeart.Repository.Repositories.Identity;
+using WoodHeart.Repository;
 using WoodHeart.Service.Infrastructure.Correlation;
 using WoodHeart.Service.Infrastructure.Security;
 using WoodHeart.Service.Infrastructure.Time;
+using WoodHeart.Service.Interfaces.Catalog;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
+using WoodHeart.Service.Services.Catalog;
 using WoodHeart.Service.Services.Common;
 using WoodHeart.Service.Services.Notifications;
-
 namespace WoodHeart.Presentation.Extensions;
 
 /// <summary>
@@ -77,6 +80,13 @@ public static class ApplicationServiceExtensions
         // Identity
         services.AddScoped<IUserRefreshTokenRepository, UserRefreshTokenRepository>();
 
+        // Catalog.
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<IBrandRepository, BrandRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IProductVariantRepository, ProductVariantRepository>();
+        services.AddScoped<ICollectionRepository, CollectionRepository>();
+
         return services;
     }
 
@@ -108,6 +118,11 @@ public static class ApplicationServiceExtensions
     {
         services.AddScoped<IDiagnosticsService, DiagnosticsService>();
         services.AddScoped<INotificationQueue, NotificationQueue>();
+
+        services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IBrandService, BrandService>();
+        services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IStorefrontService, StorefrontService>();
 
         return services;
     }
