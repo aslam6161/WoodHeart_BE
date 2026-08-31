@@ -203,6 +203,34 @@ jobs:
             fail "the status filter was honoured - drafts leaked to the storefront"
           fi
 
+          echo "--- search matches English and Bangla ---"
+          # These exercise the value-converted columns, which is where the
+          # InvalidCastException lived: a predicate over a jsonb-backed value
+          # object compiles and only fails when SQL is actually generated.
+          EN=$(curl -fsS "http://localhost:5199/api/catalog/products?search=segun&pageSize=50") || fail "English search failed"
+          has "$EN" 'segun-king-bed' || fail "searching for segun found nothing"
+
+          BN=$(curl -fsS --get --data-urlencode "search=সেগুন" "http://localhost:5199/api/catalog/products?pageSize=50") || fail "Bangla search failed"
+          has "$BN" 'segun-king-bed' || fail "searching in Bangla found nothing"
+
+          NONE=$(curl -fsS "http://localhost:5199/api/catalog/products?search=zzzznotathing&pageSize=50") || fail "empty search failed"
+          if has "$NONE" 'segun-king-bed'; then
+            fail "the search filter was ignored - everything came back"
+          fi
+
+          echo "--- price filter and price sort ---"
+          CHEAP=$(curl -fsS "http://localhost:5199/api/catalog/products?maxPrice=5000&pageSize=50") || fail "price filter failed"
+          has "$CHEAP" 'terracotta-planter' || fail "the cheap planter is missing from a maxPrice filter"
+          if has "$CHEAP" 'segun-king-bed'; then
+            fail "maxPrice was ignored - a 68500 bed came back under a 5000 cap"
+          fi
+
+          SORTED=$(curl -fsS "http://localhost:5199/api/catalog/products?sortBy=PriceLowToHigh&pageSize=50") || fail "price sort failed"
+          # grep -o over a here-string, then the first match: no backreferences,
+          # no pipeline, nothing that can die quietly under set -e.
+          FIRST=$(grep -oE '"slug":"[a-z0-9-]+"' <<< "$SORTED" | head -n 1)
+          [ "$FIRST" = '"slug":"terracotta-planter"' ] || fail "cheapest-first sort put $FIRST first, expected terracotta-planter"
+
           echo "--- collections ---"
           curl -fsS http://localhost:5199/api/catalog/collections/shop-the-bedroom > /dev/null || fail "collection request failed"
 
