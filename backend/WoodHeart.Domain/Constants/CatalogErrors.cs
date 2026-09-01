@@ -65,6 +65,31 @@ public static class CatalogErrors
     public const string CollectionNotFound = Prefix + "collection.not_found";
     public const string CollectionSlugTaken = Prefix + "collection_slug_taken";
 
+    // --- Media ---------------------------------------------------------------
+
+    public const string MediaNotFound = Prefix + "media.not_found";
+
+    /// <summary>The bytes are not an image format we accept. See ImageFileInspector.</summary>
+    public const string MediaUnsupportedFormat = Prefix + "media.unsupported_format";
+
+    public const string MediaTooLarge = Prefix + "media.too_large";
+
+    /// <summary>
+    /// A confirm call named a public id that Cloudinary does not have, or that
+    /// is not the kind of asset it was claimed to be.
+    /// </summary>
+    public const string MediaNotUploaded = Prefix + "media.not_uploaded";
+
+    /// <summary>Attaching media belonging to a different product's variant.</summary>
+    public const string MediaVariantMismatch = Prefix + "media.variant_mismatch.conflict";
+
+    // Deliberately under `external.` rather than `catalog.`: BaseApiController
+    // maps that prefix to 502, and a storage outage or a missing credential is
+    // not the caller's fault. A 400 would tell the Angular client to stop
+    // retrying at exactly the moment retrying is the right thing to do.
+    public const string MediaUploadFailed = "external.media_upload_failed";
+    public const string MediaStorageUnavailable = "external.media_storage_unavailable";
+
     // --- Shared --------------------------------------------------------------
 
     /// <summary>Text supplied that cannot be reduced to a URL-safe slug.</summary>

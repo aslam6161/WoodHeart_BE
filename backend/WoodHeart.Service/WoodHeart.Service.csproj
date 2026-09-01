@@ -23,6 +23,9 @@
          Hangfire stores actually carries them. The server itself is started in
          Presentation. -->
     <PackageReference Include="Hangfire.Core" />
+    <!-- Referenced by exactly one class, CloudinaryMediaStorage. Everything
+         above it speaks in public ids and StoredMedia. -->
+    <PackageReference Include="CloudinaryDotNet" />
     <!-- Http, Options, Logging and Caching.Memory all arrive with the
          Microsoft.AspNetCore.App framework reference above. -->
   </ItemGroup>

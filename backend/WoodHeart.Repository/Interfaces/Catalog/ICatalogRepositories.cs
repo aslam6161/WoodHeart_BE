@@ -135,6 +135,43 @@ public interface IProductVariantRepository : IRepository<ProductVariant>
         long productId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Images, video and documents attached to a product.</summary>
+/// <remarks>
+/// <b>Every read is scoped by product id, and that is not redundancy.</b> The
+/// routes are <c>/admin/products/{productId}/media/{mediaId}</c>, and a media
+/// id is a small integer someone can simply change. Looking a row up by id
+/// alone and trusting the product id from the URL is how an admin editing one
+/// product ends up deleting the hero image of another.
+/// </remarks>
+public interface IProductMediaRepository : IRepository<ProductMedia>
+{
+    /// <summary>Everything attached to a product, in display order.</summary>
+    Task<IReadOnlyList<ProductMedia>> GetByProductAsync(
+        long productId, CancellationToken cancellationToken = default);
+
+    /// <summary>One row, only if it belongs to that product. Null otherwise.</summary>
+    Task<ProductMedia?> GetForProductAsync(
+        long productId, long mediaId, CancellationToken cancellationToken = default);
+
+    /// <summary>The current hero image, if the product has one.</summary>
+    Task<ProductMedia?> GetPrimaryAsync(
+        long productId, CancellationToken cancellationToken = default);
+
+    /// <summary>Highest sort order in use, or -1 when the product has no media.</summary>
+    Task<int> MaxSortOrderAsync(long productId, CancellationToken cancellationToken = default);
+
+    /// <summary>Everything on a product, tracked, for a bulk reorder.</summary>
+    Task<IReadOnlyList<ProductMedia>> GetTrackedByProductAsync(
+        long productId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The image that should become primary once <paramref name="excludingMediaId"/>
+    /// is gone: lowest sort order, ties broken on id.
+    /// </summary>
+    Task<ProductMedia?> GetPrimaryCandidateAsync(
+        long productId, long excludingMediaId, CancellationToken cancellationToken = default);
+}
+
 public interface ICollectionRepository : IRepository<Collection>
 {
     Task<Collection?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default);

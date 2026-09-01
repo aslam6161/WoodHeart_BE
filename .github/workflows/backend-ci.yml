@@ -97,10 +97,31 @@ jobs:
         env:
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=woodheart_test;Username=woodheart;Password=woodheart"
           Jwt__SigningKey: "ci-only-signing-key-not-used-anywhere-else-32chars"
+          # Switches on the database-backed tests. Without it they skip, which
+          # is what keeps `dotnet test` green on a machine with no Postgres —
+          # see PostgresFixture. They are the only tests that can see a filtered
+          # unique index, and ux_product_media_one_primary is exactly the kind
+          # of rule that passes against a substitute and fails in production.
+          WOODHEART_TEST_DB: "Host=localhost;Port=5432;Database=postgres;Username=woodheart;Password=woodheart"
         run: >-
           dotnet test WoodHeart.Tests --no-build -c Release
           --logger trx --results-directory ../TestResults
           --collect:"XPlat Code Coverage"
+
+      # A skipped test is a green test, so the count is checked rather than
+      # assumed. If WOODHEART_TEST_DB ever stops reaching the service, these
+      # would quietly stop running and nothing else would notice.
+      - name: Confirm the database-backed tests actually ran
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          skipped=$(grep -o 'outcome="NotExecuted"' ../TestResults/*.trx | wc -l)
+          if [ "$skipped" -ne 0 ]; then
+            echo "::error::$skipped test(s) were skipped. The database-backed tests must run in CI."
+            exit 1
+          fi
+          echo "No skipped tests."
 
       - name: Verify migrations apply to an empty database
         working-directory: backend
@@ -237,6 +258,18 @@ jobs:
           echo "--- admin routes stay protected ---"
           STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5199/api/admin/products)
           [ "$STATUS" = "401" ] || fail "admin products returned $STATUS, expected 401"
+
+          # Media is nested under a product, so its route is registered
+          # separately and could be left unauthorised on its own.
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5199/api/admin/products/1/media)
+          [ "$STATUS" = "401" ] || fail "admin media returned $STATUS, expected 401"
+
+          # The API is started here with no Cloudinary credentials at all, which
+          # is the state a fresh checkout and this pipeline are both in. Reaching
+          # this line proves an unconfigured media store does not stop the
+          # storefront serving — the whole reason those settings are not
+          # validated at startup.
+          echo "--- the storefront serves with no media store configured ---"
 
           echo "All storefront smoke checks passed."
 

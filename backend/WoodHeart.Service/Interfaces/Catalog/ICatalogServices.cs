@@ -92,6 +92,47 @@ public interface IProductService
 /// The public catalog. Only ever returns published products — see
 /// <c>StorefrontService</c> for why that is enforced rather than defaulted.
 /// </summary>
+/// <summary>
+/// Photography and video attached to a product.
+/// </summary>
+/// <remarks>
+/// Separate from <see cref="IProductService"/> because it is a separate job
+/// with a separate failure mode: everything here talks to an external store
+/// that can be slow, unreachable or unconfigured, and none of that should be
+/// able to stop someone editing a price.
+/// </remarks>
+public interface IProductMediaService
+{
+    Task<GeneralResponse<IReadOnlyList<ProductMediaDto>>> GetAsync(
+        long productId, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductMediaDto>> UploadImageAsync(
+        long productId, UploadProductImageDto dto, CancellationToken cancellationToken = default);
+
+    /// <summary>Signs a ticket for a browser to upload one video directly.</summary>
+    Task<GeneralResponse<VideoUploadTicketDto>> CreateVideoTicketAsync(
+        long productId, CancellationToken cancellationToken = default);
+
+    /// <summary>Verifies a directly-uploaded video with storage, then records it.</summary>
+    Task<GeneralResponse<ProductMediaDto>> ConfirmVideoAsync(
+        long productId, ConfirmVideoUploadDto dto, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductMediaDto>> UpdateAsync(
+        long productId,
+        long mediaId,
+        UpdateProductMediaDto dto,
+        CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ProductMediaDto>> SetPrimaryAsync(
+        long productId, long mediaId, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<IReadOnlyList<ProductMediaDto>>> ReorderAsync(
+        long productId, ReorderProductMediaDto dto, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse> DeleteAsync(
+        long productId, long mediaId, CancellationToken cancellationToken = default);
+}
+
 public interface IStorefrontService
 {
     Task<GeneralResponse<IReadOnlyList<CategoryTreeDto>>> GetCategoryTreeAsync(
