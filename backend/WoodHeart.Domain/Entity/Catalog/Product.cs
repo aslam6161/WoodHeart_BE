@@ -139,6 +139,28 @@ public class Product : SoftDeletableEntity
 
     public int ReviewCount { get; set; }
 
+    /// <summary>
+    /// Denormalised lower-case haystack: code, both names, material and finish.
+    /// Maintained by <c>DataContext</c> on every save.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It exists because the searchable fields are value objects stored as
+    /// jsonb, and EF cannot reach inside a value-converted property to build a
+    /// predicate — <c>EF.Property&lt;string&gt;(p, "Name")</c> compiles and then
+    /// throws <c>InvalidCastException</c> at runtime, because the model type is
+    /// <c>LocalizedText</c>, not <c>string</c>.
+    /// </para>
+    /// <para>
+    /// One plain column matches English and Bangla in a single predicate, which
+    /// is what an admin typing সেগুন into a filter box expects. It is a
+    /// stepping stone, not the destination: PLAN.md §11 commits to
+    /// <c>tsvector</c> plus <c>pg_trgm</c> for the storefront, and this column
+    /// is what that will be built from.
+    /// </para>
+    /// </remarks>
+    public string SearchText { get; set; } = string.Empty;
+
     public ICollection<ProductVariant> Variants { get; set; } = [];
 
     public ICollection<ProductMedia> Media { get; set; } = [];

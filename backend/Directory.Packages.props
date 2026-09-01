@@ -43,6 +43,14 @@
       AutoMapper Profiles would.
     -->
     <PackageVersion Include="Riok.Mapperly" Version="4.3.1" />
+
+    <!--
+      Cloudinary is storage, transformation and CDN in one, which is why there
+      is no ImageSharp here despite PLAN.md's original pick. Thumbnails are a
+      URL, not a build step: no server-side resizing, no derivative files to
+      keep in step with the original, and no second thing to back up.
+    -->
+    <PackageVersion Include="CloudinaryDotNet" Version="1.29.3" />
   </ItemGroup>
 
   <!-- =================== Framework abstractions ================ -->

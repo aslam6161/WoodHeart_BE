@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Helpers;
+using WoodHeart.Domain.Settings;
 using WoodHeart.Presentation.Middleware;
 using WoodHeart.Repository.Interfaces.Catalog;
 using WoodHeart.Repository.Interfaces.Common;
@@ -14,9 +15,11 @@ using WoodHeart.Service.Infrastructure.Security;
 using WoodHeart.Service.Infrastructure.Time;
 using WoodHeart.Service.Interfaces.Catalog;
 using WoodHeart.Service.Interfaces.Common;
+using WoodHeart.Service.Interfaces.Media;
 using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Services.Catalog;
 using WoodHeart.Service.Services.Common;
+using WoodHeart.Service.Services.Media;
 using WoodHeart.Service.Services.Notifications;
 namespace WoodHeart.Presentation.Extensions;
 
@@ -35,6 +38,7 @@ public static class ApplicationServiceExtensions
     {
         builder.Services.AddDataAccess(builder.Configuration);
         builder.Services.AddSystemServices();
+        builder.Services.AddMediaSettings(builder.Configuration);
         builder.Services.AddBusinessServices();
         builder.Services.AddWebServices();
 
@@ -86,6 +90,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IProductVariantRepository, ProductVariantRepository>();
         services.AddScoped<ICollectionRepository, CollectionRepository>();
+        services.AddScoped<IProductMediaRepository, ProductMediaRepository>();
 
         return services;
     }
@@ -114,6 +119,26 @@ public static class ApplicationServiceExtensions
         return services;
     }
 
+    /// <summary>
+    /// Binds <see cref="CloudinarySettings"/>.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not validated at startup. A missing credential must not
+    /// stop the API booting: CI runs without one, a fresh checkout has none,
+    /// and the entire storefront works without ever touching Cloudinary. The
+    /// storage adapter logs a warning once and refuses uploads with a message
+    /// that says why. Contrast <c>Jwt:SigningKey</c>, which does fail startup —
+    /// there, carrying on means issuing tokens nobody can trust.
+    /// </remarks>
+    private static IServiceCollection AddMediaSettings(
+        this IServiceCollection services, ConfigurationManager configuration)
+    {
+        services.Configure<CloudinarySettings>(
+            configuration.GetSection(CloudinarySettings.SectionName));
+
+        return services;
+    }
+
     private static IServiceCollection AddBusinessServices(this IServiceCollection services)
     {
         services.AddScoped<IDiagnosticsService, DiagnosticsService>();
@@ -123,6 +148,12 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IBrandService, BrandService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IStorefrontService, StorefrontService>();
+        services.AddScoped<IProductMediaService, ProductMediaService>();
+
+        // Singleton: it holds one configured Cloudinary client, which is
+        // thread-safe and wraps a pooled HttpClient. A scoped registration
+        // would build a new one per request and defeat that pooling.
+        services.AddSingleton<IMediaStorage, CloudinaryMediaStorage>();
 
         return services;
     }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Scalar.AspNetCore;
 using Serilog;
 using WoodHeart.Domain.Entity.Identity;
+using WoodHeart.Domain.Helpers;
 using WoodHeart.Presentation.Extensions;
 using WoodHeart.Presentation.Logging;
 using WoodHeart.Presentation.Middleware;
@@ -104,6 +105,16 @@ static async Task SeedDatabaseAsync(WebApplication app)
         var roleManager = services.GetRequiredService<RoleManager<AppRole>>();
 
         await Seed.RunAsync(context, roleManager);
+
+        // Gated separately, and defaulting to OFF. Roles and settings belong in
+        // every environment; a dozen sample sofas do not. Turning this on in
+        // production would put placeholder prices in front of customers.
+        if (app.Configuration.GetValue("Seed:Catalog", false))
+        {
+            var clock = services.GetRequiredService<IDateTimeProvider>();
+
+            await CatalogSeed.RunAsync(context, clock);
+        }
     }
     catch (Exception exception)
     {

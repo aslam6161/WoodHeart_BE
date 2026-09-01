@@ -81,6 +81,7 @@ public class DataContext(
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         StampAuditFields();
+        MaintainProductSearchText();
         ConvertDeletesToSoftDeletes();
 
         return await base.SaveChangesAsync(cancellationToken);
@@ -161,6 +162,46 @@ public class DataContext(
                     entry.Entity.UpdatedBy = actor;
                     break;
             }
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds <see cref="Product.SearchText"/> from the fields a person would
+    /// search by.
+    /// </summary>
+    /// <remarks>
+    /// Centralised for the same reason audit stamping is: no service can forget
+    /// it. A denormalised column that is only maintained by whichever code path
+    /// remembered to call a helper drifts silently, and a search index that is
+    /// quietly stale is worse than no search at all — it returns confident,
+    /// wrong results.
+    /// </remarks>
+    private void MaintainProductSearchText()
+    {
+        foreach (var entry in ChangeTracker.Entries<Product>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+            {
+                continue;
+            }
+
+            var product = entry.Entity;
+
+            var parts = new[]
+            {
+                product.Code,
+                product.Name?.En,
+                product.Name?.Bn,
+                product.Material,
+                product.FinishType
+            };
+
+            // Lower-cased on write so the query does not have to lower-case the
+            // column, which would forfeit any index on it. Bangla has no case,
+            // so this is a no-op there and harmless.
+            var text = string.Join(' ', parts.Where(p => !string.IsNullOrWhiteSpace(p))).ToLowerInvariant();
+
+            product.SearchText = text.Length > 1000 ? text[..1000] : text;
         }
     }
 
