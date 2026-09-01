@@ -57,6 +57,31 @@ cd backend/WoodHeart.Presentation
 dotnet user-secrets set "Jwt:SigningKey" "<at least 32 random characters>"
 ```
 
+### 2b. Set the Cloudinary credentials (optional)
+
+Images and video live in Cloudinary — it is storage, transformation and CDN in
+one, which is why there is no thumbnail pipeline in this codebase: a thumbnail
+is a URL, not a build step.
+
+Unlike the signing key, **the API starts happily without these**. The whole
+storefront works; only uploading refuses, with a message saying why. Skip this
+section until you need to attach a photograph to something.
+
+```bash
+cd backend/WoodHeart.Presentation
+dotnet user-secrets set "Cloudinary:CloudName" "<your cloud name>"
+dotnet user-secrets set "Cloudinary:ApiKey"    "<your api key>"
+dotnet user-secrets set "Cloudinary:ApiSecret" "<your api secret>"
+```
+
+`Cloudinary:Folder` in `appsettings.json` scopes everything this environment
+writes. Give staging and production **different folders** in the same account,
+or a tidy-up in one destroys live product photography in the other.
+
+The cloud name is not a secret — it appears in the host of every delivery URL —
+and the Angular app carries its own copy in `src/environments/`. The API key and
+secret never leave the server.
+
 ### 3. Apply migrations
 
 ```bash

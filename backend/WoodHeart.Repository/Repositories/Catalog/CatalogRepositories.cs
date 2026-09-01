@@ -486,3 +486,60 @@ public class CollectionRepository(DataContext context)
         return await query.AnyAsync(cancellationToken);
     }
 }
+
+public class ProductMediaRepository(DataContext context)
+    : Repository<ProductMedia>(context), IProductMediaRepository
+{
+    public async Task<IReadOnlyList<ProductMedia>> GetByProductAsync(
+        long productId, CancellationToken cancellationToken = default) =>
+        await Set.AsNoTracking()
+            .Where(m => m.ProductId == productId)
+            .OrderBy(m => m.SortOrder)
+            // Ties broken on id, so the gallery order is the same on every
+            // request. Without it two images sharing a sort order swap places
+            // between page loads, and the "primary" one appears to move.
+            .ThenBy(m => m.Id)
+            .ToListAsync(cancellationToken);
+
+    public async Task<ProductMedia?> GetForProductAsync(
+        long productId, long mediaId, CancellationToken cancellationToken = default) =>
+        // Tracked: every caller of this goes on to modify the row.
+        await Set.FirstOrDefaultAsync(
+            m => m.Id == mediaId && m.ProductId == productId, cancellationToken);
+
+    public async Task<ProductMedia?> GetPrimaryAsync(
+        long productId, CancellationToken cancellationToken = default) =>
+        await Set.FirstOrDefaultAsync(
+            m => m.ProductId == productId && m.IsPrimary, cancellationToken);
+
+    public async Task<int> MaxSortOrderAsync(
+        long productId, CancellationToken cancellationToken = default)
+    {
+        // -1 for "no media yet", so the caller's `max + 1` gives 0 for the
+        // first image without a special case. MaxAsync on an empty sequence
+        // throws for a non-nullable selector, which is why the cast is here.
+        var max = await Set.AsNoTracking()
+            .Where(m => m.ProductId == productId)
+            .MaxAsync(m => (int?)m.SortOrder, cancellationToken);
+
+        return max ?? -1;
+    }
+
+    public async Task<IReadOnlyList<ProductMedia>> GetTrackedByProductAsync(
+        long productId, CancellationToken cancellationToken = default) =>
+        await Set.Where(m => m.ProductId == productId)
+            .OrderBy(m => m.SortOrder)
+            .ThenBy(m => m.Id)
+            .ToListAsync(cancellationToken);
+
+    public async Task<ProductMedia?> GetPrimaryCandidateAsync(
+        long productId, long excludingMediaId, CancellationToken cancellationToken = default) =>
+        // Images only. Promoting a video to hero would put a card with no
+        // photograph on it into every listing the product appears in.
+        await Set.Where(m => m.ProductId == productId
+                             && m.Id != excludingMediaId
+                             && m.MediaType == MediaType.Image)
+            .OrderBy(m => m.SortOrder)
+            .ThenBy(m => m.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+}
