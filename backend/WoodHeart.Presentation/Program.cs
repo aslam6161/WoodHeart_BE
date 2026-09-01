@@ -103,16 +103,27 @@ static async Task SeedDatabaseAsync(WebApplication app)
     {
         var context = services.GetRequiredService<DataContext>();
         var roleManager = services.GetRequiredService<RoleManager<AppRole>>();
+        var userManager = services.GetRequiredService<UserManager<AppUser>>();
+        var clock = services.GetRequiredService<IDateTimeProvider>();
 
         await Seed.RunAsync(context, roleManager);
+
+        // After the roles exist, because the administrator is granted one.
+        // Credentials come from configuration and are never committed — when
+        // they are absent this logs a warning and moves on, which is what a CI
+        // run and a fresh checkout should do.
+        await AdminSeed.RunAsync(
+            userManager,
+            clock,
+            app.Configuration[AdminSeed.PhoneKey],
+            app.Configuration[AdminSeed.PasswordKey],
+            logger);
 
         // Gated separately, and defaulting to OFF. Roles and settings belong in
         // every environment; a dozen sample sofas do not. Turning this on in
         // production would put placeholder prices in front of customers.
         if (app.Configuration.GetValue("Seed:Catalog", false))
         {
-            var clock = services.GetRequiredService<IDateTimeProvider>();
-
             await CatalogSeed.RunAsync(context, clock);
         }
     }
