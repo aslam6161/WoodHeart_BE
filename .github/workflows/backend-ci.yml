@@ -116,11 +116,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          skipped=$(grep -o 'outcome="NotExecuted"' ../TestResults/*.trx | wc -l)
-          if [ "$skipped" -ne 0 ]; then
-            echo "::error::$skipped test(s) were skipped. The database-backed tests must run in CI."
+
+          # `grep -c`, not `grep -o | wc -l`. grep exits 1 when it finds
+          # nothing, and under `set -o pipefail` that kills the step — so the
+          # obvious version fails precisely when zero tests were skipped, which
+          # is the case it is meant to pass. The repository already documents
+          # this trap in the smoke step below; this is it biting again.
+          total=0
+
+          for trx in ../TestResults/*.trx; do
+            count=$(grep -c 'outcome="NotExecuted"' "$trx") || count=0
+            total=$((total + count))
+          done
+
+          if [ "$total" -ne 0 ]; then
+            echo "::error::$total test(s) were skipped. The database-backed tests must run in CI."
             exit 1
           fi
+
           echo "No skipped tests."
 
       - name: Verify migrations apply to an empty database

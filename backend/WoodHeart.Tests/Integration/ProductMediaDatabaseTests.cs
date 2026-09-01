@@ -62,7 +62,7 @@ public class ProductMediaDatabaseTests(PostgresFixture fixture) : IClassFixture<
         return (service, context);
     }
 
-    private async Task<long> SeedProductAsync(DataContext context)
+    private static async Task<long> SeedProductAsync(DataContext context)
     {
         var category = new Category
         {
