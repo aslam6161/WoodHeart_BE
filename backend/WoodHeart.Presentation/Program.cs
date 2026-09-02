@@ -18,12 +18,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .Enrich.With(new CorrelationIdEnricher(
         services.GetRequiredService<IHttpContextAccessor>())));
 
-builder.Services.AddOpenApi(options =>
-    options.AddDocumentTransformer((document, _, _) =>
-    {
-        document.Info = new() { Title = "WoodHeart API", Version = "v1" };
-        return Task.CompletedTask;
-    }));
+builder.Services.AddWoodHeartOpenApi();
 
 builder.AddApplicationService();
 builder.AddIdentityService();
