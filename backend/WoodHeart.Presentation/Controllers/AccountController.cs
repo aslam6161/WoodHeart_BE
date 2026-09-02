@@ -22,10 +22,12 @@ namespace WoodHeart.Presentation.Controllers;
 /// is written. See <see cref="RefreshTokenCookie"/> for why.
 /// </para>
 /// <para>
-/// <b>The whole controller is rate limited.</b> Login and registration are the
-/// brute-force targets, and refresh is worth limiting too — an attacker holding
-/// a stolen cookie should not get unlimited attempts to find a moment when
-/// rotation races.
+/// <b>The controller defaults to the tight limit, and two endpoints opt out.</b>
+/// Login, registration and password change are the brute-force targets and get
+/// ten attempts a minute per IP. Refresh and sign-out are not: see the notes on
+/// each. Getting that split wrong is not theoretical — the admin panel calls
+/// refresh on every full page load, and a whole shop behind one NAT shares the
+/// bucket.
 /// </para>
 /// </remarks>
 [Route("api/account")]
@@ -54,8 +56,21 @@ public class AccountController(IAccountService accounts) : BaseApiController
     /// when the access token has expired, so requiring one would make it
     /// unreachable at the only moment it is needed.
     /// </para>
+    /// <para>
+    /// <b>On the generous limit rather than the tight one, deliberately.</b>
+    /// This is not a brute-force target: the credential is 256 random bits, so
+    /// guessing is not a strategy, and replaying a captured one is already
+    /// caught by rotation — the second use revokes the whole chain. What the
+    /// tight limit <i>does</i> catch is ordinary use. The access token lives in
+    /// memory, so every full page load calls this once; ten a minute is a
+    /// handful of page loads, shared across every member of staff behind one
+    /// office connection. That reads to the shop as "the admin panel keeps
+    /// signing me out", which is exactly the failure a rate limit should not
+    /// cause.
+    /// </para>
     /// </remarks>
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Public)]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
     {
@@ -74,11 +89,18 @@ public class AccountController(IAccountService accounts) : BaseApiController
 
     /// <summary>Ends this session.</summary>
     /// <remarks>
+    /// <para>
     /// Anonymous on purpose. Someone whose access token has already expired is
     /// exactly who is trying to sign out, and refusing them would leave the
     /// refresh token live for another thirty days.
+    /// </para>
+    /// <para>
+    /// On the generous limit for the same reason: throttling sign-out only ever
+    /// achieves leaving somebody signed in.
+    /// </para>
     /// </remarks>
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Public)]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
