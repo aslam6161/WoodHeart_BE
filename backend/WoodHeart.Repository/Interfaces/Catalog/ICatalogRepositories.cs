@@ -133,6 +133,18 @@ public interface IProductVariantRepository : IRepository<ProductVariant>
 
     Task<IReadOnlyList<ProductVariant>> GetByProductAsync(
         long productId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One variant with its product loaded, for pricing.
+    /// </summary>
+    /// <remarks>
+    /// The product is not optional here. <c>ProductVariant.EffectivePrice</c>
+    /// falls back to the product's base price and throws when it cannot reach
+    /// it, and a variant with no price override is the common case — a "simple"
+    /// product is one product with one default variant.
+    /// </remarks>
+    Task<ProductVariant?> GetWithProductAsync(
+        long variantId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Images, video and documents attached to a product.</summary>

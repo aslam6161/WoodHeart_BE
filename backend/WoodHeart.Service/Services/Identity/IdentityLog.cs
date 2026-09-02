@@ -52,4 +52,11 @@ internal static partial class IdentityLog
         Level = LogLevel.Information,
         Message = "User {UserId} changed their password; {SessionCount} other session(s) revoked.")]
     public static partial void PasswordChanged(ILogger logger, long userId, int sessionCount);
+
+    [LoggerMessage(
+        EventId = 1305,
+        Level = LogLevel.Error,
+        Message = "Could not merge the guest basket into user {UserId}'s account. The sign-in "
+                  + "itself succeeded; the customer has lost whatever was in their basket.")]
+    public static partial void GuestCartMergeFailed(ILogger logger, long userId, Exception exception);
 }

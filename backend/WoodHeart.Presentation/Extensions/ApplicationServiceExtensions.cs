@@ -6,9 +6,11 @@ using WoodHeart.Presentation.Middleware;
 using WoodHeart.Repository.Interfaces.Catalog;
 using WoodHeart.Repository.Interfaces.Common;
 using WoodHeart.Repository.Interfaces.Identity;
+using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Repository.Repositories.Catalog;
 using WoodHeart.Repository.Repositories.Common;
 using WoodHeart.Repository.Repositories.Identity;
+using WoodHeart.Repository.Repositories.Ordering;
 using WoodHeart.Repository;
 using WoodHeart.Service.Infrastructure.Correlation;
 using WoodHeart.Service.Infrastructure.Security;
@@ -18,11 +20,13 @@ using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Identity;
 using WoodHeart.Service.Interfaces.Media;
 using WoodHeart.Service.Interfaces.Notifications;
+using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Services.Catalog;
 using WoodHeart.Service.Services.Common;
 using WoodHeart.Service.Services.Identity;
 using WoodHeart.Service.Services.Media;
 using WoodHeart.Service.Services.Notifications;
+using WoodHeart.Service.Services.Ordering;
 namespace WoodHeart.Presentation.Extensions;
 
 /// <summary>
@@ -94,6 +98,10 @@ public static class ApplicationServiceExtensions
         services.AddScoped<ICollectionRepository, CollectionRepository>();
         services.AddScoped<IProductMediaRepository, ProductMediaRepository>();
 
+        // --- Ordering --------------------------------------------------------
+
+        services.AddScoped<ICartRepository, CartRepository>();
+
         return services;
     }
 
@@ -158,6 +166,11 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IStorefrontService, StorefrontService>();
         services.AddScoped<IProductMediaService, ProductMediaService>();
+
+        // One factory builds the pricing context for both the cart and, later,
+        // order placement — so the two can never disagree about the VAT rate.
+        services.AddScoped<IPricingContextFactory, PricingContextFactory>();
+        services.AddScoped<ICartService, CartService>();
 
         // Singleton: it holds one configured Cloudinary client, which is
         // thread-safe and wraps a pooled HttpClient. A scoped registration

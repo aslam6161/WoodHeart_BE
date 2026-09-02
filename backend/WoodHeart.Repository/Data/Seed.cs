@@ -70,6 +70,9 @@ public static class Seed
                 "VAT percentage applied at checkout. PLACEHOLDER — confirm the rate before go-live."),
             (SettingKeys.PricesIncludeVat, "true", SettingValueType.Boolean, "Tax",
                 "Whether catalog prices already include VAT. Bangladeshi retail normally quotes inclusive."),
+            (SettingKeys.VatOnDelivery, "false", SettingValueType.Boolean, "Tax",
+                "Whether the delivery charge is itself taxable. PLACEHOLDER — confirm with the "
+                + "shop's VAT registration."),
             (SettingKeys.DeliveryChargeInsideDhaka, "0", SettingValueType.Decimal, "Delivery",
                 "Flat delivery charge inside Dhaka, in BDT. PLACEHOLDER."),
             (SettingKeys.DeliveryChargeOutsideDhaka, "0", SettingValueType.Decimal, "Delivery",

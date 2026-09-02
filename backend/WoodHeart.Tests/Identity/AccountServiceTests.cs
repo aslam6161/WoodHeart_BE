@@ -11,6 +11,7 @@ using WoodHeart.Service.DTOs.Identity;
 using WoodHeart.Service.Infrastructure.Security;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Identity;
+using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Services.Identity;
 using WoodHeart.Tests.Helper;
 
@@ -44,6 +45,13 @@ public class AccountServiceTests
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeClock _clock = new();
     private readonly ICurrentUserService _currentUser = Substitute.For<ICurrentUserService>();
+
+    /// <summary>
+    /// Sign-in folds a guest basket into the account. These tests are about
+    /// authentication, so the merge is stubbed — its own behaviour is covered
+    /// in <c>CartServiceTests</c>.
+    /// </summary>
+    private readonly ICartService _carts = Substitute.For<ICartService>();
 
     private const string Phone = "01712345678";
     private const string E164 = "+8801712345678";
@@ -91,6 +99,7 @@ public class AccountServiceTests
             _unitOfWork,
             _clock,
             _currentUser,
+            _carts,
             Options.Create(new JwtSettings { RefreshTokenDays = 30 }),
             NullLogger<AccountService>.Instance);
 
