@@ -45,6 +45,16 @@
     <PackageVersion Include="Riok.Mapperly" Version="4.3.1" />
 
     <!--
+      JWT creation lives in Service.TokenService, because minting a token is a
+      business decision (which claims, whose roles, how long) rather than an
+      HTTP one. This is the pure token library — the ASP.NET
+      Authentication.JwtBearer package that *validates* tokens stays in
+      Presentation, where the middleware is. Same version the JwtBearer package
+      resolves to, so the graph has one copy.
+    -->
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
+
+    <!--
       Cloudinary is storage, transformation and CDN in one, which is why there
       is no ImageSharp here despite PLAN.md's original pick. Thumbnails are a
       URL, not a build step: no server-side resizing, no derivative files to

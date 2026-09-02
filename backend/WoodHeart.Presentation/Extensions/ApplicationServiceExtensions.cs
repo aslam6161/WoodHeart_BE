@@ -15,10 +15,12 @@ using WoodHeart.Service.Infrastructure.Security;
 using WoodHeart.Service.Infrastructure.Time;
 using WoodHeart.Service.Interfaces.Catalog;
 using WoodHeart.Service.Interfaces.Common;
+using WoodHeart.Service.Interfaces.Identity;
 using WoodHeart.Service.Interfaces.Media;
 using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Services.Catalog;
 using WoodHeart.Service.Services.Common;
+using WoodHeart.Service.Services.Identity;
 using WoodHeart.Service.Services.Media;
 using WoodHeart.Service.Services.Notifications;
 namespace WoodHeart.Presentation.Extensions;
@@ -142,6 +144,13 @@ public static class ApplicationServiceExtensions
     private static IServiceCollection AddBusinessServices(this IServiceCollection services)
     {
         services.AddScoped<IDiagnosticsService, DiagnosticsService>();
+
+        // Singleton: it holds one SigningCredentials built from a key that
+        // cannot change while the process is alive. Rebuilding it per request
+        // is measurable on the one endpoint customers hit while waiting.
+        services.AddSingleton<ITokenService, TokenService>();
+        services.AddScoped<IAccountService, AccountService>();
+
         services.AddScoped<INotificationQueue, NotificationQueue>();
 
         services.AddScoped<ICategoryService, CategoryService>();
