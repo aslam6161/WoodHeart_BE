@@ -1,10 +1,11 @@
+using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Domain.ValueObjects;
 
 namespace WoodHeart.Domain.Pricing;
 
 /// <summary>
-/// One line as the pricer sees it: a quantity, a unit price, and whatever about
-/// the product changes what delivering it costs.
+/// One line as the pricer sees it: a quantity, a unit price, and what it costs
+/// to deliver.
 /// </summary>
 /// <remarks>
 /// A flat record rather than the entity, so the pricer never touches EF
@@ -13,49 +14,52 @@ namespace WoodHeart.Domain.Pricing;
 /// </remarks>
 /// <param name="Quantity">How many. Must be positive.</param>
 /// <param name="UnitPrice">The variant's live price, per unit.</param>
-/// <param name="DeliverySurchargePerUnit">
-/// Extra carriage for something bulky, per unit, on top of the zone rate. A
-/// three-seater sofa is not a table lamp.
+/// <param name="DeliveryChargeInsideDhaka">
+/// What one of these costs to deliver inside Dhaka. Null means the product has
+/// not been costed and the store default applies — never that it ships free.
 /// </param>
+/// <param name="DeliveryChargeOutsideDhaka">The same, for everywhere else.</param>
 public readonly record struct PricedLine(
     int Quantity,
     Money UnitPrice,
-    Money? DeliverySurchargePerUnit = null)
+    Money? DeliveryChargeInsideDhaka = null,
+    Money? DeliveryChargeOutsideDhaka = null)
 {
     /// <summary>Unit price times quantity, before any discount.</summary>
     public Money LineTotal => UnitPrice.Multiply(Quantity);
-
-    /// <summary>This line's contribution to the surcharge, or zero.</summary>
-    public Money SurchargeTotal =>
-        DeliverySurchargePerUnit is null
-            ? Money.Zero(UnitPrice.Currency)
-            : DeliverySurchargePerUnit.Multiply(Quantity);
 }
 
 /// <summary>
-/// Everything outside the lines that changes the bill: the tax regime, the
-/// delivery rate for the chosen zone, and any discount already resolved.
+/// Everything outside the lines that changes the bill: the tax regime, where
+/// the order is going, and any figure already decided by hand.
 /// </summary>
 /// <param name="VatRatePercent">
-/// e.g. <c>15</c> for 15%. Zero switches VAT off entirely, which is the seeded
-/// default until the real rate is confirmed.
+/// e.g. <c>7.5</c> for 7.5%. Zero switches VAT off entirely.
 /// </param>
 /// <param name="PricesIncludeVat">
 /// Whether catalog prices already contain VAT. <b>This flag inverts the
 /// arithmetic</b> — see the class remarks on <see cref="CartPricer"/>.
 /// </param>
-/// <param name="ZoneDeliveryCharge">
-/// The flat charge for the delivery zone, or null when the customer has not
-/// chosen one yet and delivery is still "calculated at checkout".
+/// <param name="Zone">
+/// Where it is being delivered, or null when the customer has not said yet and
+/// delivery is still "calculated at checkout".
+/// </param>
+/// <param name="DefaultDeliveryCharge">
+/// The store's ordinary rate for the zone, used for any product that has not
+/// been costed individually.
 /// </param>
 /// <param name="FreeDeliveryThreshold">
-/// Goods total at or above which the zone charge is waived. Null or zero
-/// disables the rule.
+/// Goods total at or above which delivery is waived. Null or zero disables the
+/// rule — see <see cref="DeliveryPricer"/> for why that default matters now
+/// that delivery is priced per product.
+/// </param>
+/// <param name="DeliveryFeeOverride">
+/// A figure set by staff, which replaces the calculated one. This is how "both
+/// of those fit in the same van" gets expressed.
 /// </param>
 /// <param name="VatOnDelivery">
-/// Whether the delivery charge is itself taxable. Defaults to false; see the
-/// remarks on <see cref="CartPricer"/> for why this is a setting rather than a
-/// decision baked into the code.
+/// Whether the delivery charge is itself taxable. Defaults to false; a business
+/// question rather than a code one.
 /// </param>
 /// <param name="Discount">
 /// Money already taken off the goods, resolved elsewhere. Zero until the
@@ -65,8 +69,10 @@ public readonly record struct PricedLine(
 public readonly record struct PricingContext(
     decimal VatRatePercent,
     bool PricesIncludeVat,
-    Money? ZoneDeliveryCharge = null,
+    DeliveryZone? Zone = null,
+    Money? DefaultDeliveryCharge = null,
     Money? FreeDeliveryThreshold = null,
+    Money? DeliveryFeeOverride = null,
     bool VatOnDelivery = false,
     Money? Discount = null);
 
@@ -87,6 +93,8 @@ public readonly record struct CartTotals(
     Money DeliveryFee,
     Money GrandTotal,
     bool DeliveryWaived,
+    bool DeliveryOverridden,
+    bool DeliveryPending,
     int ItemCount);
 
 /// <summary>
@@ -108,8 +116,8 @@ public readonly record struct CartTotals(
 /// <i>extracted</i>:
 /// </para>
 /// <code>
-/// vat = gross × rate / (100 + rate)      // inclusive — 15% of 5,000 is 652.17
-/// vat = net   × rate / 100               // exclusive — 15% of 5,000 is 750.00
+/// vat = gross × rate / (100 + rate)      // inclusive — 7.5% of 5,000 is 348.84
+/// vat = net   × rate / 100               // exclusive — 7.5% of 5,000 is 375.00
 /// </code>
 /// <para>
 /// Applying the exclusive formula to inclusive prices overcharges every single
@@ -124,9 +132,9 @@ public readonly record struct CartTotals(
 /// thing an auditor stops on.
 /// </para>
 /// <para>
-/// <b>Whether delivery is taxable is a business question, not a code
-/// question</b> (PLAN.md §16.1), so it is a setting with a documented default
-/// of false rather than an assumption buried in an expression.
+/// Delivery is <see cref="DeliveryPricer"/>'s job, not this one's — it is the
+/// part most likely to grow, and it should not be able to disturb the tax
+/// arithmetic when it does.
 /// </para>
 /// </remarks>
 public static class CartPricer
@@ -148,9 +156,9 @@ public static class CartPricer
         var discount = (context.Discount ?? zero).OrZeroIfNegative().CapAt(subtotal);
         var goodsGross = (subtotal - discount).OrZeroIfNegative();
 
-        var (deliveryFee, waived) = Delivery(lines, context, goodsGross, zero);
+        var delivery = DeliveryPricer.Quote(lines, context, goodsGross);
 
-        var taxableBase = context.VatOnDelivery ? goodsGross + deliveryFee : goodsGross;
+        var taxableBase = context.VatOnDelivery ? goodsGross + delivery.Fee : goodsGross;
         var vat = Vat(taxableBase, context);
 
         // Both regimes converge here, and the difference is only what the
@@ -160,56 +168,22 @@ public static class CartPricer
         //               by tax and the net is what is left after extracting it.
         //   exclusive — the VAT is added on top, so the total grows by it.
         var grandTotal = context.PricesIncludeVat
-            ? goodsGross + deliveryFee
-            : goodsGross + deliveryFee + vat;
+            ? goodsGross + delivery.Fee
+            : goodsGross + delivery.Fee + vat;
 
-        var goodsNet = (grandTotal - deliveryFee - vat).OrZeroIfNegative();
+        var goodsNet = (grandTotal - delivery.Fee - vat).OrZeroIfNegative();
 
         return new CartTotals(
             Subtotal: subtotal,
             DiscountTotal: discount,
             GoodsNet: goodsNet,
             VatAmount: vat,
-            DeliveryFee: deliveryFee,
+            DeliveryFee: delivery.Fee,
             GrandTotal: grandTotal,
-            DeliveryWaived: waived,
+            DeliveryWaived: delivery.Waived,
+            DeliveryOverridden: delivery.Overridden,
+            DeliveryPending: delivery.Pending,
             ItemCount: itemCount);
-    }
-
-    /// <summary>
-    /// The zone charge, waived above the free-delivery threshold, plus any
-    /// per-product surcharge.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>The threshold waives the zone charge but never the surcharge.</b>
-    /// "Free delivery over 10,000৳" is a marketing promise about ordinary
-    /// carriage; a wardrobe that needs two men and a pickup still costs what it
-    /// costs, and folding that into a free-delivery offer means the shop pays to
-    /// deliver its most expensive-to-move items. If that turns out to be the
-    /// wrong call commercially it is one line to change — but it should be
-    /// changed deliberately.
-    /// </para>
-    /// <para>
-    /// Delivery is zero, not "unknown", while the zone is unset. The cart page
-    /// shows it as calculated at checkout; guessing at Dhaka would quote a
-    /// Chattogram customer a price that goes up when they enter their address.
-    /// </para>
-    /// </remarks>
-    private static (Money Fee, bool Waived) Delivery(
-        IReadOnlyList<PricedLine> lines, PricingContext context, Money goodsGross, Money zero)
-    {
-        if (context.ZoneDeliveryCharge is not { } zoneCharge)
-        {
-            return (zero, false);
-        }
-
-        var waived = context.FreeDeliveryThreshold is { IsPositive: true } threshold
-                     && goodsGross >= threshold;
-
-        var surcharge = lines.Aggregate(zero, (running, line) => running + line.SurchargeTotal);
-
-        return (waived ? surcharge : zoneCharge + surcharge, waived);
     }
 
     /// <summary>

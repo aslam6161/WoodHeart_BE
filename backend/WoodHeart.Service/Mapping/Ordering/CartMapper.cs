@@ -92,9 +92,13 @@ public static class CartMapper
             GrandTotal = totals.GrandTotal.Amount,
             DeliveryWaived = totals.DeliveryWaived,
 
+            // Adjusted by hand, so the page can say so rather than leaving the
+            // customer to wonder why the arithmetic does not match the items.
+            DeliveryOverridden = totals.DeliveryOverridden,
+
             // No zone chosen yet, so the delivery line is not zero — it is
             // unknown, and the page must say so.
-            DeliveryPending = context.ZoneDeliveryCharge is null,
+            DeliveryPending = totals.DeliveryPending,
 
             ItemCount = totals.ItemCount,
             PricesIncludeVat = context.PricesIncludeVat

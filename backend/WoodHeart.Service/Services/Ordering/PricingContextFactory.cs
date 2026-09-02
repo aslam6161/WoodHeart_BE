@@ -29,7 +29,9 @@ namespace WoodHeart.Service.Services.Ordering;
 public class PricingContextFactory(IStoreSettingService settings) : IPricingContextFactory
 {
     public async Task<PricingContext> BuildAsync(
-        DeliveryZone? zone, CancellationToken cancellationToken = default)
+        DeliveryZone? zone,
+        Money? deliveryFeeOverride = null,
+        CancellationToken cancellationToken = default)
     {
         var vatRate = await settings.GetDecimalAsync(SettingKeys.VatRate, 0m, cancellationToken);
 
@@ -46,7 +48,10 @@ public class PricingContextFactory(IStoreSettingService settings) : IPricingCont
         // would read as "delivery is free" on the cart page, and the number
         // would then go up at checkout — which is exactly the surprise that
         // makes people abandon a basket.
-        Money? zoneCharge = null;
+        //
+        // This is the *fallback* rate rather than the price: delivery is
+        // charged per product, and this covers anything not costed yet.
+        Money? storeDefault = null;
 
         if (zone is { } chosen)
         {
@@ -54,14 +59,16 @@ public class PricingContextFactory(IStoreSettingService settings) : IPricingCont
                 ? SettingKeys.DeliveryChargeInsideDhaka
                 : SettingKeys.DeliveryChargeOutsideDhaka;
 
-            zoneCharge = Money.Taka(await settings.GetDecimalAsync(key, 0m, cancellationToken));
+            storeDefault = Money.Taka(await settings.GetDecimalAsync(key, 0m, cancellationToken));
         }
 
         return new PricingContext(
             VatRatePercent: vatRate,
             PricesIncludeVat: includeVat,
-            ZoneDeliveryCharge: zoneCharge,
+            Zone: zone,
+            DefaultDeliveryCharge: storeDefault,
             FreeDeliveryThreshold: threshold > 0m ? Money.Taka(threshold) : null,
+            DeliveryFeeOverride: deliveryFeeOverride,
             VatOnDelivery: vatOnDelivery);
     }
 }

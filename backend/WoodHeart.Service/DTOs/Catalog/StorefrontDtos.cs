@@ -97,7 +97,13 @@ public class StorefrontProductDetailDto : StorefrontProductDto
 
     public bool AssemblyRequired { get; set; }
 
-    public decimal? DeliverySurcharge { get; set; }
+    /// <summary>
+    /// Delivery for one of these inside Dhaka, so the product page can say what
+    /// carriage costs before the customer reaches checkout.
+    /// </summary>
+    public decimal? DeliveryChargeInsideDhaka { get; set; }
+
+    public decimal? DeliveryChargeOutsideDhaka { get; set; }
 
     /// <summary>The breadcrumb trail, root first. Drives the on-page trail and the JSON-LD.</summary>
     public List<StorefrontBreadcrumbDto> Breadcrumbs { get; set; } = [];

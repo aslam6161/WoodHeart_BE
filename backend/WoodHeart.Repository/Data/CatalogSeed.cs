@@ -242,7 +242,7 @@ public static class CatalogSeed
                 shortEn: "Velvet upholstery over a seasoned Segun frame.",
                 material: "Segun frame, velvet", finish: "Fabric", warranty: 12,
                 lengthCm: 210, widthCm: 88, heightCm: 82, weightKg: 62,
-                surcharge: 1_500m,
+                deliveryInsideDhaka: 1_500m, deliveryOutsideDhaka: 3_500m,
                 variants:
                 [
                     ("WH-SOF-001-CHA", "Charcoal", new() { ["Fabric"] = "Charcoal" }, null, true),
@@ -256,7 +256,7 @@ public static class CatalogSeed
                 shortEn: "Solid top, tapered legs, seats six comfortably.",
                 material: "Segun (Teak)", finish: "Natural Matte", warranty: 24,
                 lengthCm: 180, widthCm: 90, heightCm: 76, weightKg: 58,
-                surcharge: 1_200m,
+                deliveryInsideDhaka: 1_200m, deliveryOutsideDhaka: 2_800m,
                 variants:
                 [
                     ("WH-DIN-001-SG", "Segun", new() { ["Wood"] = "Segun" }, null, true),
@@ -415,7 +415,8 @@ public static class CatalogSeed
         decimal? widthCm = null,
         decimal? heightCm = null,
         decimal? weightKg = null,
-        decimal? surcharge = null,
+        decimal? deliveryInsideDhaka = null,
+        decimal? deliveryOutsideDhaka = null,
         ProductType productType = ProductType.Stocked,
         int? leadTimeDays = null,
         bool assemblyRequired = false,
@@ -441,7 +442,10 @@ public static class CatalogSeed
             WidthCm = widthCm,
             HeightCm = heightCm,
             WeightKg = weightKg,
-            DeliverySurcharge = surcharge is null ? null : Money.Taka(surcharge.Value),
+            DeliveryChargeInsideDhaka =
+                deliveryInsideDhaka is null ? null : Money.Taka(deliveryInsideDhaka.Value),
+            DeliveryChargeOutsideDhaka =
+                deliveryOutsideDhaka is null ? null : Money.Taka(deliveryOutsideDhaka.Value),
             LeadTimeDays = leadTimeDays,
             AssemblyRequired = assemblyRequired,
             SeoTitle = $"{nameEn} — WoodHeart",

@@ -42,8 +42,29 @@ public static class SettingKeys
     /// </remarks>
     public const string VatOnDelivery = "tax.vat_on_delivery";
 
+    /// <summary>
+    /// The ordinary inside-Dhaka rate, used for any product that has not been
+    /// costed individually.
+    /// </summary>
+    /// <remarks>
+    /// A fallback, not the price. Delivery is priced per product — see
+    /// <c>DeliveryPricer</c> — and this is what a product with a blank charge
+    /// quotes so that a forgotten field is never a giveaway.
+    /// </remarks>
     public const string DeliveryChargeInsideDhaka = "delivery.charge_inside_dhaka";
+
+    /// <summary>The same fallback, for everywhere outside Dhaka.</summary>
     public const string DeliveryChargeOutsideDhaka = "delivery.charge_outside_dhaka";
+
+    /// <summary>
+    /// Goods total at or above which delivery is free. Zero disables it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Worth thinking about before switching on.</b> Now that delivery is
+    /// priced per product, this waives the whole charge — including a
+    /// wardrobe's carriage to Sylhet, which is the most expensive thing the
+    /// shop moves.
+    /// </remarks>
     public const string FreeDeliveryThreshold = "delivery.free_threshold";
 
     public const string OrderNumberPrefix = "orders.number_prefix";

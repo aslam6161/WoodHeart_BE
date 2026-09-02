@@ -371,7 +371,8 @@ public class CartService(
 
     private async Task<CartDto> ToDtoAsync(Cart cart, CancellationToken cancellationToken)
     {
-        var context = await pricing.BuildAsync(cart.DeliveryZone, cancellationToken);
+        var context = await pricing.BuildAsync(
+            cart.DeliveryZone, cart.DeliveryFeeOverride, cancellationToken);
 
         // Unavailable lines are shown but not charged for. Billing someone for
         // a product that has been withdrawn is worse than either dropping it
@@ -381,7 +382,8 @@ public class CartService(
             .Select(line => new PricedLine(
                 line.Quantity,
                 line.ProductVariant.EffectivePrice,
-                line.ProductVariant.Product.DeliverySurcharge))
+                line.ProductVariant.Product.DeliveryChargeInsideDhaka,
+                line.ProductVariant.Product.DeliveryChargeOutsideDhaka))
             .ToList();
 
         var totals = CartPricer.Price(priceable, context);
@@ -391,7 +393,7 @@ public class CartService(
 
     private async Task<CartDto> EmptyAsync(CancellationToken cancellationToken)
     {
-        var context = await pricing.BuildAsync(null, cancellationToken);
+        var context = await pricing.BuildAsync(null, null, cancellationToken);
 
         return CartMapper.Empty(CartPricer.Price([], context), context);
     }

@@ -1,3 +1,4 @@
+using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Domain.Pricing;
 using WoodHeart.Domain.ValueObjects;
 
@@ -19,11 +20,15 @@ namespace WoodHeart.Tests.Ordering;
 /// from it rather than added to it — and the wrong formula overcharges every
 /// order by the VAT rate while looking entirely reasonable.
 /// </para>
+/// <para>
+/// Delivery has its own suite — see <c>DeliveryPricerTests</c>. What is tested
+/// here is only how the delivery figure interacts with tax and the total.
+/// </para>
 /// </remarks>
 public class CartPricerTests
 {
-    private static PricedLine Line(decimal unitPrice, int quantity = 1, decimal? surcharge = null) =>
-        new(quantity, Money.Taka(unitPrice), surcharge is { } s ? Money.Taka(s) : null);
+    private static PricedLine Line(decimal unitPrice, int quantity = 1) =>
+        new(quantity, Money.Taka(unitPrice));
 
     // -------------------------------------------------------------------------
     // The basics
@@ -54,8 +59,8 @@ public class CartPricerTests
     [Fact]
     public void A_zero_vat_rate_charges_no_vat_in_either_regime()
     {
-        // The seeded default until the real rate is confirmed, so it must be
-        // exactly the same bill either way round.
+        // A shop that is not VAT-registered sets the rate to zero, and the
+        // bill must then be identical either way round.
         var inclusive = CartPricer.Price([Line(5000m)], new PricingContext(0m, true));
         var exclusive = CartPricer.Price([Line(5000m)], new PricingContext(0m, false));
 
@@ -116,7 +121,8 @@ public class CartPricerTests
             new PricingContext(
                 VatRatePercent: 15m,
                 PricesIncludeVat: inclusive,
-                ZoneDeliveryCharge: Money.Taka(150m)));
+                Zone: DeliveryZone.InsideDhaka,
+                DefaultDeliveryCharge: Money.Taka(150m)));
 
         var sum = totals.GoodsNet + totals.VatAmount + totals.DeliveryFee;
 
@@ -127,131 +133,14 @@ public class CartPricerTests
     public void Delivery_is_untaxed_unless_the_setting_says_otherwise()
     {
         var lines = new[] { Line(1000m) };
-        var withoutTax = new PricingContext(15m, false, ZoneDeliveryCharge: Money.Taka(200m));
+        var withoutTax = new PricingContext(15m, false, Zone: DeliveryZone.InsideDhaka,
+                DefaultDeliveryCharge: Money.Taka(200m));
         var withTax = withoutTax with { VatOnDelivery = true };
 
         CartPricer.Price(lines, withoutTax).VatAmount.Amount.ShouldBe(150m);
 
         // 15% of 1,200 rather than of 1,000.
         CartPricer.Price(lines, withTax).VatAmount.Amount.ShouldBe(180m);
-    }
-
-    // -------------------------------------------------------------------------
-    // Delivery
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void Delivery_is_zero_until_a_zone_is_chosen()
-    {
-        // Zero rather than a guess. Quoting the Dhaka rate to someone in Sylhet
-        // and raising it at checkout is the surprise that loses the order.
-        var totals = CartPricer.Price([Line(5000m)], new PricingContext(0m, true));
-
-        totals.DeliveryFee.Amount.ShouldBe(0m);
-        totals.DeliveryWaived.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void The_zone_charge_applies_once_however_many_items_there_are()
-    {
-        var totals = CartPricer.Price(
-            [Line(1000m, 4), Line(500m, 2)],
-            new PricingContext(0m, true, ZoneDeliveryCharge: Money.Taka(120m)));
-
-        totals.DeliveryFee.Amount.ShouldBe(120m);
-    }
-
-    [Fact]
-    public void Reaching_the_threshold_waives_the_zone_charge()
-    {
-        var totals = CartPricer.Price(
-            [Line(10_000m)],
-            new PricingContext(
-                0m, true,
-                ZoneDeliveryCharge: Money.Taka(120m),
-                FreeDeliveryThreshold: Money.Taka(10_000m)));
-
-        // At the threshold, not merely above it. "Free delivery over 10,000৳"
-        // refusing at exactly 10,000৳ is the kind of detail customers complain
-        // about and they are right to.
-        totals.DeliveryFee.Amount.ShouldBe(0m);
-        totals.DeliveryWaived.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void Below_the_threshold_the_charge_stands()
-    {
-        var totals = CartPricer.Price(
-            [Line(9999m)],
-            new PricingContext(
-                0m, true,
-                ZoneDeliveryCharge: Money.Taka(120m),
-                FreeDeliveryThreshold: Money.Taka(10_000m)));
-
-        totals.DeliveryFee.Amount.ShouldBe(120m);
-        totals.DeliveryWaived.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void A_zero_threshold_disables_the_rule_rather_than_making_everything_free()
-    {
-        // The seeded default is zero. Read as "everything qualifies" it would
-        // give away delivery on every order in the shop.
-        var totals = CartPricer.Price(
-            [Line(100m)],
-            new PricingContext(
-                0m, true,
-                ZoneDeliveryCharge: Money.Taka(120m),
-                FreeDeliveryThreshold: Money.Taka(0m)));
-
-        totals.DeliveryFee.Amount.ShouldBe(120m);
-        totals.DeliveryWaived.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void A_bulky_item_adds_its_surcharge_per_unit()
-    {
-        var totals = CartPricer.Price(
-            [Line(45_000m, 2, surcharge: 500m), Line(1200m)],
-            new PricingContext(0m, true, ZoneDeliveryCharge: Money.Taka(120m)));
-
-        totals.DeliveryFee.Amount.ShouldBe(1120m);
-    }
-
-    [Fact]
-    public void Free_delivery_waives_the_zone_charge_but_not_the_surcharge()
-    {
-        // The deliberate commercial call: "free delivery over 10,000৳" is a
-        // promise about ordinary carriage. A wardrobe that needs two men and a
-        // pickup still costs what it costs, and folding that into the offer
-        // means the shop pays most to deliver exactly its bulkiest goods.
-        var totals = CartPricer.Price(
-            [Line(45_000m, surcharge: 500m)],
-            new PricingContext(
-                0m, true,
-                ZoneDeliveryCharge: Money.Taka(120m),
-                FreeDeliveryThreshold: Money.Taka(10_000m)));
-
-        totals.DeliveryFee.Amount.ShouldBe(500m);
-        totals.DeliveryWaived.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void The_threshold_is_measured_after_discount_not_before()
-    {
-        // A 9,000৳ basket does not earn free delivery by having been 11,000৳
-        // before a coupon. Measuring before the discount lets a coupon buy the
-        // delivery too.
-        var totals = CartPricer.Price(
-            [Line(11_000m)],
-            new PricingContext(
-                0m, true,
-                ZoneDeliveryCharge: Money.Taka(120m),
-                FreeDeliveryThreshold: Money.Taka(10_000m),
-                Discount: Money.Taka(2000m)));
-
-        totals.DeliveryFee.Amount.ShouldBe(120m);
-        totals.DeliveryWaived.ShouldBeFalse();
     }
 
     // -------------------------------------------------------------------------

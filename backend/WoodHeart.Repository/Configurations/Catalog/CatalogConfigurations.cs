@@ -123,7 +123,11 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
             .HasConversion(ValueObjectConverters.Money!, ValueObjectConverters.MoneyComparer!)
             .HasColumnType("numeric(18,2)");
 
-        builder.Property(x => x.DeliverySurcharge)
+        builder.Property(x => x.DeliveryChargeInsideDhaka)
+            .HasConversion(ValueObjectConverters.Money!, ValueObjectConverters.MoneyComparer!)
+            .HasColumnType("numeric(18,2)");
+
+        builder.Property(x => x.DeliveryChargeOutsideDhaka)
             .HasConversion(ValueObjectConverters.Money!, ValueObjectConverters.MoneyComparer!)
             .HasColumnType("numeric(18,2)");
 

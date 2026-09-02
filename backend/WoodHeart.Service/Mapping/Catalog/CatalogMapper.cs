@@ -84,7 +84,8 @@ public static class CatalogMapper
         dto.WarrantyMonths = product.WarrantyMonths;
         dto.LeadTimeDays = product.LeadTimeDays;
         dto.AssemblyRequired = product.AssemblyRequired;
-        dto.DeliverySurcharge = product.DeliverySurcharge?.Amount;
+        dto.DeliveryChargeInsideDhaka = product.DeliveryChargeInsideDhaka?.Amount;
+        dto.DeliveryChargeOutsideDhaka = product.DeliveryChargeOutsideDhaka?.Amount;
         dto.SeoTitle = product.SeoTitle;
         dto.SeoDescription = product.SeoDescription;
         dto.OgImagePath = product.OgImagePath;
@@ -185,7 +186,8 @@ public static class CatalogMapper
         dto.FinishType = product.FinishType;
         dto.WarrantyMonths = product.WarrantyMonths;
         dto.AssemblyRequired = product.AssemblyRequired;
-        dto.DeliverySurcharge = product.DeliverySurcharge?.Amount;
+        dto.DeliveryChargeInsideDhaka = product.DeliveryChargeInsideDhaka?.Amount;
+        dto.DeliveryChargeOutsideDhaka = product.DeliveryChargeOutsideDhaka?.Amount;
 
         dto.Breadcrumbs = [.. ancestors.Select(c => new StorefrontBreadcrumbDto
         {

@@ -19,6 +19,12 @@ public class CartConfiguration : IEntityTypeConfiguration<Cart>
         // Base64 of a SHA-256 digest. Fixed width, so the column is too.
         builder.Property(x => x.AnonymousToken).HasMaxLength(64);
 
+        builder.Property(x => x.DeliveryFeeOverride)
+            .HasConversion(ValueObjectConverters.Money!, ValueObjectConverters.MoneyComparer!)
+            .HasColumnType("numeric(18,2)");
+
+        builder.Property(x => x.DeliveryFeeOverrideNote).HasMaxLength(300);
+
         builder.HasOne(x => x.Customer)
             .WithMany()
             .HasForeignKey(x => x.CustomerId)

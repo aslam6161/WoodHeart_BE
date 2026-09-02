@@ -78,7 +78,11 @@ public class ProductDetailDto : ProductListItemDto
 
     public bool AssemblyRequired { get; set; }
 
-    public decimal? DeliverySurcharge { get; set; }
+    /// <summary>What one costs to deliver inside Dhaka. Null uses the store default.</summary>
+    public decimal? DeliveryChargeInsideDhaka { get; set; }
+
+    /// <summary>The same, for everywhere else.</summary>
+    public decimal? DeliveryChargeOutsideDhaka { get; set; }
 
     public string? SeoTitle { get; set; }
 
@@ -223,8 +227,20 @@ public class CreateProductDto
 
     public bool AssemblyRequired { get; set; }
 
+    /// <summary>
+    /// What one of these costs to deliver inside Dhaka.
+    /// </summary>
+    /// <remarks>
+    /// Leave blank to use the store's default rate. <b>Blank means "the
+    /// ordinary charge", not "free"</b> — the most common mistake here would
+    /// otherwise be shipping a wardrobe for nothing.
+    /// </remarks>
     [Range(0, 99_999_999)]
-    public decimal? DeliverySurcharge { get; set; }
+    public decimal? DeliveryChargeInsideDhaka { get; set; }
+
+    /// <summary>What one costs to deliver outside Dhaka. Blank uses the store default.</summary>
+    [Range(0, 99_999_999)]
+    public decimal? DeliveryChargeOutsideDhaka { get; set; }
 
     public bool IsFeatured { get; set; }
 
@@ -321,8 +337,20 @@ public class UpdateProductDto
 
     public bool AssemblyRequired { get; set; }
 
+    /// <summary>
+    /// What one of these costs to deliver inside Dhaka.
+    /// </summary>
+    /// <remarks>
+    /// Leave blank to use the store's default rate. <b>Blank means "the
+    /// ordinary charge", not "free"</b> — the most common mistake here would
+    /// otherwise be shipping a wardrobe for nothing.
+    /// </remarks>
     [Range(0, 99_999_999)]
-    public decimal? DeliverySurcharge { get; set; }
+    public decimal? DeliveryChargeInsideDhaka { get; set; }
+
+    /// <summary>What one costs to deliver outside Dhaka. Blank uses the store default.</summary>
+    [Range(0, 99_999_999)]
+    public decimal? DeliveryChargeOutsideDhaka { get; set; }
 
     public bool IsFeatured { get; set; }
 
