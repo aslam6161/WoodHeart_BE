@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <PackageReference Include="Riok.Mapperly" />
+    <!-- Signs access tokens. See TokenService. -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <!-- Hangfire.Core only: the attributes ([AutomaticRetry],
          [DisableConcurrentExecution]) go on service interfaces so the job
          Hangfire stores actually carries them. The server itself is started in
