@@ -49,6 +49,8 @@ public class DataContext(
 
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
 
+    public DbSet<NumberSequence> NumberSequences => Set<NumberSequence>();
+
     // --- Catalog ------------------------------------------------------------
 
     public DbSet<Category> Categories => Set<Category>();
@@ -68,6 +70,12 @@ public class DataContext(
     public DbSet<Cart> Carts => Set<Cart>();
 
     public DbSet<CartLine> CartLines => Set<CartLine>();
+
+    public DbSet<Order> Orders => Set<Order>();
+
+    public DbSet<OrderLine> OrderLines => Set<OrderLine>();
+
+    public DbSet<OrderTimelineEntry> OrderTimelineEntries => Set<OrderTimelineEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

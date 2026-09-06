@@ -69,3 +69,25 @@ public class FeatureFlagConfiguration : IEntityTypeConfiguration<FeatureFlag>
         builder.HasIndex(x => x.Name).IsUnique();
     }
 }
+
+public class NumberSequenceConfiguration : IEntityTypeConfiguration<NumberSequence>
+{
+    public void Configure(EntityTypeBuilder<NumberSequence> builder)
+    {
+        builder.ToTable("number_sequences");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Name).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.Period).HasMaxLength(8).IsRequired();
+        builder.Property(x => x.NextValue).IsRequired();
+
+        // Unique, and not merely for tidiness: the allocator's
+        // INSERT ... ON CONFLICT (name, period) needs this index to exist or the
+        // statement is rejected outright, and every order placement fails with
+        // it.
+        builder.HasIndex(x => new { x.Name, x.Period })
+            .IsUnique()
+            .HasDatabaseName("ux_number_sequences_name_period");
+    }
+}

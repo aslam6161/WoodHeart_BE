@@ -86,6 +86,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IOutboxRepository, OutboxRepository>();
         services.AddScoped<IStoreSettingRepository, StoreSettingRepository>();
         services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
+        services.AddScoped<INumberSequenceRepository, NumberSequenceRepository>();
 
         // Identity
         services.AddScoped<IUserRefreshTokenRepository, UserRefreshTokenRepository>();
@@ -116,6 +117,11 @@ public static class ApplicationServiceExtensions
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+        // Scoped, not singleton, unlike the settings services beside it: every
+        // allocation is a database write that must join the caller's
+        // transaction.
+        services.AddScoped<INumberSequenceService, NumberSequenceService>();
         services.AddScoped<ICorrelationContext, CorrelationContext>();
 
         services.AddSingleton<ITokenHasher, TokenHasher>();

@@ -66,3 +66,38 @@ public class FeatureFlagRepository(DataContext context)
         string name, CancellationToken cancellationToken = default) =>
         await Set.FirstOrDefaultAsync(x => x.Name == name, cancellationToken);
 }
+
+public class NumberSequenceRepository(DataContext context)
+    : Repository<NumberSequence>(context), INumberSequenceRepository
+{
+    public async Task<int> ReserveNextAsync(
+        string name, string period, CancellationToken cancellationToken = default)
+    {
+        // One statement, and that is the whole design. The tempting version —
+        // read the row, add one, save — hands two customers checking out in the
+        // same second the same order number, and the unique index then fails a
+        // real sale at its last step.
+        //
+        // ON CONFLICT makes the first order of a new month need no setup: the
+        // row is created and returns 1. Without it, September works and October
+        // throws at one minute past midnight.
+        var values = await Context.Database
+            .SqlQueryRaw<int>(
+                """
+                INSERT INTO number_sequences (name, period, next_value, created_at)
+                VALUES ({0}, {1}, 1, now())
+                ON CONFLICT (name, period) DO UPDATE
+                    SET next_value = number_sequences.next_value + 1,
+                        updated_at = now()
+                RETURNING next_value AS "Value"
+                """,
+                name,
+                period)
+            .ToListAsync(cancellationToken);
+
+        return values.Count > 0
+            ? values[0]
+            : throw new InvalidOperationException(
+                $"Number sequence '{name}' for period '{period}' returned no value.");
+    }
+}
