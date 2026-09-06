@@ -23,6 +23,19 @@ public static class GlobalConstants
     public const string AnonymousIdHeader = "X-Anonymous-Id";
 
     public const string AnonymousIdCookie = "wh_anon";
+
+    /// <summary>
+    /// What an order number starts with, when the shop has not said otherwise.
+    /// </summary>
+    /// <remarks>
+    /// The prefix is a store setting so a second brand could use the same
+    /// installation; this is the fallback, and the reason a missing setting
+    /// produces <c>WH-2609-00042</c> rather than <c>-2609-00042</c>.
+    /// </remarks>
+    public const string DefaultOrderNumberPrefix = "WH";
+
+    /// <summary>The idempotency header checkout reads to make a retry safe.</summary>
+    public const string IdempotencyKeyHeader = "Idempotency-Key";
 }
 
 /// <summary>Store setting keys. Typed access lives in <c>IStoreSettingService</c>.</summary>

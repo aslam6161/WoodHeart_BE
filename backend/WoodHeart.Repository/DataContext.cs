@@ -12,6 +12,7 @@ using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Common;
 using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Entity.Ordering;
+using WoodHeart.Domain.Entity.Payments;
 using WoodHeart.Domain.Helpers;
 
 namespace WoodHeart.Repository;
@@ -50,6 +51,8 @@ public class DataContext(
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
 
     public DbSet<NumberSequence> NumberSequences => Set<NumberSequence>();
+
+    public DbSet<PaymentMethodConfig> PaymentMethodConfigs => Set<PaymentMethodConfig>();
 
     // --- Catalog ------------------------------------------------------------
 

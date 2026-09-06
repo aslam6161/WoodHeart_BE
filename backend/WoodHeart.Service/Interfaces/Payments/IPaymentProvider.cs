@@ -1,3 +1,4 @@
+using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Enums.Payments;
 using WoodHeart.Domain.ValueObjects;
 using WoodHeart.Repository;
@@ -5,200 +6,119 @@ using WoodHeart.Repository;
 namespace WoodHeart.Service.Interfaces.Payments;
 
 /// <summary>
-/// One way to take money. Cash on delivery, bKash, and later Nagad or
-/// SSLCOMMERZ all implement this same port.
+/// What a payment method can actually do.
+/// </summary>
+/// <remarks>
+/// Read by the checkout and by the admin screens so neither has to know the
+/// name of any particular gateway. Cash on delivery has no redirect and no
+/// automated refund; bKash has both. Branching on
+/// <c>code == "cod"</c> instead would put a gateway's name into three layers.
+/// </remarks>
+/// <param name="SupportsRedirect">
+/// The customer leaves the site and comes back — so placement returns a URL
+/// rather than a finished order.
+/// </param>
+/// <param name="SupportsRefund">Money can be sent back through the gateway itself.</param>
+/// <param name="SupportsWebhook">The gateway calls us, so a callback route must exist.</param>
+/// <param name="SettlesImmediately">
+/// The order can be confirmed the moment it is placed. True for cash on
+/// delivery, which settles at the door rather than at the gateway.
+/// </param>
+public readonly record struct PaymentCapabilities(
+    bool SupportsRedirect,
+    bool SupportsRefund,
+    bool SupportsWebhook,
+    bool SettlesImmediately);
+
+/// <summary>Everything a provider needs to start taking money for one order.</summary>
+/// <param name="Order">The placed order, already written and numbered.</param>
+/// <param name="Amount">What to collect. Includes any payment surcharge.</param>
+/// <param name="ReturnUrl">Where the gateway sends the customer back to.</param>
+/// <param name="IdempotencyKey">
+/// Unique per attempt, so a retried request never charges twice.
+/// </param>
+public readonly record struct PaymentContext(
+    Order Order,
+    Money Amount,
+    string? ReturnUrl,
+    string IdempotencyKey);
+
+/// <summary>What came back from starting a payment.</summary>
+/// <param name="State">Where the money stands now.</param>
+/// <param name="Reference">
+/// The gateway's id for this payment, stored so reconciliation has something to
+/// ask about later.
+/// </param>
+/// <param name="RedirectUrl">Where to send the customer, when there is anywhere.</param>
+public readonly record struct InitiateResult(
+    PaymentState State,
+    string? Reference,
+    string? RedirectUrl);
+
+/// <summary>The result of completing a payment the customer has returned from.</summary>
+public readonly record struct ExecuteResult(
+    PaymentState State,
+    string? Reference,
+    Money? AmountCollected);
+
+/// <summary>What the gateway says about a payment when asked.</summary>
+/// <remarks>
+/// This is what the reconciliation job calls, for the case that costs a shop
+/// real money: the customer paid, the callback never arrived, and nobody knows
+/// until they phone up asking where their sofa is.
+/// </remarks>
+public readonly record struct PaymentStatusResult(
+    PaymentState State,
+    Money? AmountCollected);
+
+public readonly record struct RefundRequest(
+    string Reference,
+    Money Amount,
+    string Reason,
+    string IdempotencyKey);
+
+public readonly record struct RefundResult(
+    PaymentState State,
+    string? RefundReference,
+    Money? AmountRefunded);
+
+/// <summary>
+/// One way of taking money. Implemented per gateway.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The registry behind this interface is what turns "we only support cash on
-/// delivery now, but I want to switch bKash on myself later" into a database
-/// toggle rather than a deployment. A provider reaches a customer only when it
-/// is registered in DI <em>and</em> enabled in <c>PaymentMethodConfig</c>
-/// <em>and</em> eligible for that particular cart.
+/// The port exists so that adding bKash is adding a class, not editing
+/// checkout. Everything above this line — the cart, the order, the confirmation
+/// — is written against these four methods and against
+/// <see cref="Capabilities"/>, and none of it names a gateway.
 /// </para>
 /// <para>
-/// Every implementation must be idempotent on <see cref="ExecuteAsync"/>.
-/// Mobile networks here drop callbacks routinely and the reconciliation job
-/// will retry; charging a customer twice is the one genuinely unrecoverable bug
-/// in this system.
+/// Failures come back as a failed <see cref="GeneralResponse{T}"/> rather than
+/// as exceptions, because "the gateway declined this card" is an ordinary
+/// business outcome that the checkout page has to render. Exceptions stay
+/// reserved for a gateway being unreachable, which is a different problem with
+/// a different response.
 /// </para>
 /// </remarks>
 public interface IPaymentProvider
 {
-    /// <summary>Stable code matching <c>PaymentMethodConfig.Code</c> — <c>cod</c>, <c>bkash</c>.</summary>
+    /// <summary>Matches <c>PaymentMethodConfig.Code</c>. This is the join between them.</summary>
     string Code { get; }
 
     PaymentCapabilities Capabilities { get; }
 
-    /// <summary>
-    /// Starts a payment. For COD this simply confirms; for bKash it creates the
-    /// payment and returns the URL to send the customer to.
-    /// </summary>
-    Task<GeneralResponse<PaymentInitiation>> InitiateAsync(
+    /// <summary>Starts taking payment for an order that has already been written.</summary>
+    Task<GeneralResponse<InitiateResult>> InitiateAsync(
         PaymentContext context, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Completes a payment after the customer returns from the gateway. Must be
-    /// safe to call more than once with the same reference.
-    /// </summary>
-    Task<GeneralResponse<PaymentOutcome>> ExecuteAsync(
-        string providerReference, CancellationToken cancellationToken = default);
+    /// <summary>Completes a payment the customer has come back from.</summary>
+    Task<GeneralResponse<ExecuteResult>> ExecuteAsync(
+        string reference, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Asks the gateway what actually happened — the answer to "the customer
-    /// says they paid but we never got the callback".
-    /// </summary>
-    Task<GeneralResponse<PaymentOutcome>> QueryAsync(
-        string providerReference, CancellationToken cancellationToken = default);
+    /// <summary>Asks the gateway what it thinks the state is. Used by reconciliation.</summary>
+    Task<GeneralResponse<PaymentStatusResult>> QueryAsync(
+        string reference, CancellationToken cancellationToken = default);
 
-    Task<GeneralResponse<RefundOutcome>> RefundAsync(
+    Task<GeneralResponse<RefundResult>> RefundAsync(
         RefundRequest request, CancellationToken cancellationToken = default);
-}
-
-/// <summary>What a provider can actually do, so the UI never offers an impossible action.</summary>
-public record PaymentCapabilities
-{
-    /// <summary>The customer leaves the site and comes back (bKash) rather than staying (COD).</summary>
-    public bool RequiresRedirect { get; init; }
-
-    public bool SupportsRefund { get; init; }
-
-    public bool SupportsPartialRefund { get; init; }
-
-    /// <summary>Money arrives before dispatch (bKash) rather than after (COD).</summary>
-    public bool IsPrepaid { get; init; }
-
-    public bool SupportsWebhook { get; init; }
-}
-
-/// <summary>Everything a provider needs to start taking a payment.</summary>
-public record PaymentContext
-{
-    public required long OrderId { get; init; }
-
-    public required string OrderNumber { get; init; }
-
-    public required Money Amount { get; init; }
-
-    public required PhoneNumber CustomerPhone { get; init; }
-
-    public string? CustomerEmail { get; init; }
-
-    /// <summary>Deduplicates retries of the same logical attempt at the gateway.</summary>
-    public required string IdempotencyKey { get; init; }
-
-    public string? ReturnUrl { get; init; }
-
-    public string? CancelUrl { get; init; }
-}
-
-public record PaymentInitiation
-{
-    public required PaymentState State { get; init; }
-
-    /// <summary>The gateway's own id for this payment. Persist it, always.</summary>
-    public required string ProviderReference { get; init; }
-
-    /// <summary>Where to send the customer, when <see cref="PaymentCapabilities.RequiresRedirect"/>.</summary>
-    public string? RedirectUrl { get; init; }
-
-    /// <summary>Raw gateway response, stored for dispute resolution.</summary>
-    public string? RawResponse { get; init; }
-}
-
-public record PaymentOutcome
-{
-    public required PaymentState State { get; init; }
-
-    public required string ProviderReference { get; init; }
-
-    /// <summary>The customer-quotable transaction id, e.g. a bKash trxID.</summary>
-    public string? TransactionId { get; init; }
-
-    public Money? AmountPaid { get; init; }
-
-    public string? CustomerAccount { get; init; }
-
-    public DateTimeOffset? CompletedAt { get; init; }
-
-    public string? FailureReason { get; init; }
-
-    public string? RawResponse { get; init; }
-}
-
-public record RefundRequest
-{
-    public required string ProviderReference { get; init; }
-
-    public required string TransactionId { get; init; }
-
-    public required Money Amount { get; init; }
-
-    public required string Reason { get; init; }
-
-    public required string IdempotencyKey { get; init; }
-}
-
-public record RefundOutcome
-{
-    public required bool Succeeded { get; init; }
-
-    public string? RefundTransactionId { get; init; }
-
-    public Money? AmountRefunded { get; init; }
-
-    public string? FailureReason { get; init; }
-
-    public string? RawResponse { get; init; }
-}
-
-/// <summary>Picks the providers a given cart may actually use.</summary>
-public interface IPaymentProviderResolver
-{
-    /// <summary>Providers enabled in configuration and eligible for this order value and zone.</summary>
-    Task<IReadOnlyList<AvailablePaymentMethod>> GetAvailableAsync(
-        PaymentEligibilityContext context, CancellationToken cancellationToken = default);
-
-    /// <summary>Resolves one provider by code, or fails if it is disabled or unknown.</summary>
-    Task<GeneralResponse<IPaymentProvider>> ResolveAsync(
-        string code, CancellationToken cancellationToken = default);
-}
-
-public record PaymentEligibilityContext
-{
-    public required Money OrderTotal { get; init; }
-
-    public string? DeliveryZone { get; init; }
-
-    /// <summary>Made-to-order carts may be restricted to prepaid methods only.</summary>
-    public bool ContainsMadeToOrder { get; init; }
-}
-
-public record AvailablePaymentMethod
-{
-    public required string Code { get; init; }
-
-    public required LocalizedText DisplayName { get; init; }
-
-    public LocalizedText? Description { get; init; }
-
-    public string? IconUrl { get; init; }
-
-    public required bool RequiresRedirect { get; init; }
-
-    /// <summary>Surcharge for choosing this method, already computed for this cart.</summary>
-    public Money? ExtraCharge { get; init; }
-
-    /// <summary>
-    /// Advance the customer must pay now even under cash on delivery.
-    /// </summary>
-    /// <remarks>
-    /// COD refusal is a real cost in Bangladesh — a rider delivers a wardrobe
-    /// and the customer declines it. A partial advance on high-value or
-    /// made-to-order items is the standard defence, so the model carries it
-    /// from the start.
-    /// </remarks>
-    public Money? RequiredAdvance { get; init; }
-
-    public int SortOrder { get; init; }
 }

@@ -11,6 +11,8 @@ using WoodHeart.Repository.Repositories.Catalog;
 using WoodHeart.Repository.Repositories.Common;
 using WoodHeart.Repository.Repositories.Identity;
 using WoodHeart.Repository.Repositories.Ordering;
+using WoodHeart.Repository.Interfaces.Payments;
+using WoodHeart.Repository.Repositories.Payments;
 using WoodHeart.Repository;
 using WoodHeart.Service.Infrastructure.Correlation;
 using WoodHeart.Service.Infrastructure.Security;
@@ -27,6 +29,8 @@ using WoodHeart.Service.Services.Identity;
 using WoodHeart.Service.Services.Media;
 using WoodHeart.Service.Services.Notifications;
 using WoodHeart.Service.Services.Ordering;
+using WoodHeart.Service.Interfaces.Payments;
+using WoodHeart.Service.Services.Payments;
 namespace WoodHeart.Presentation.Extensions;
 
 /// <summary>
@@ -102,6 +106,11 @@ public static class ApplicationServiceExtensions
         // --- Ordering --------------------------------------------------------
 
         services.AddScoped<ICartRepository, CartRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
+
+        // --- Payments --------------------------------------------------------
+
+        services.AddScoped<IPaymentMethodConfigRepository, PaymentMethodConfigRepository>();
 
         return services;
     }
@@ -177,6 +186,15 @@ public static class ApplicationServiceExtensions
         // order placement — so the two can never disagree about the VAT rate.
         services.AddScoped<IPricingContextFactory, PricingContextFactory>();
         services.AddScoped<ICartService, CartService>();
+        services.AddScoped<ICheckoutService, CheckoutService>();
+        services.AddScoped<IOrderService, OrderService>();
+
+        // Registered as IPaymentProvider, not as themselves. The resolver takes
+        // IEnumerable<IPaymentProvider> and pairs each with its configuration
+        // row, so adding bKash in Phase 5 is one more line here and nothing
+        // else — no branch in checkout, no name of a gateway above this layer.
+        services.AddScoped<IPaymentProvider, CodPaymentProvider>();
+        services.AddScoped<IPaymentProviderResolver, PaymentProviderResolver>();
 
         // Singleton: it holds one configured Cloudinary client, which is
         // thread-safe and wraps a pooled HttpClient. A scoped registration

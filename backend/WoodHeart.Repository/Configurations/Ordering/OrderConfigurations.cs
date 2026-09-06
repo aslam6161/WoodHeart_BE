@@ -39,6 +39,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
                      nameof(Order.GoodsNet),
                      nameof(Order.VatAmount),
                      nameof(Order.DeliveryFee),
+                     nameof(Order.PaymentSurcharge),
                      nameof(Order.GrandTotal)
                  })
         {

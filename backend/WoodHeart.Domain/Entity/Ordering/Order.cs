@@ -123,8 +123,20 @@ public class Order : BaseEntity
     public Money DeliveryFee { get; set; } = null!;
 
     /// <summary>
-    /// <see cref="GoodsNet"/> + <see cref="VatAmount"/> + <see cref="DeliveryFee"/>,
-    /// exactly.
+    /// What the chosen payment method added, if anything.
+    /// </summary>
+    /// <remarks>
+    /// A cash-handling charge on COD, or a gateway's percentage. Held as its own
+    /// figure rather than folded into the delivery fee, because a customer who
+    /// sees "delivery 500৳" on the cart page and "delivery 550৳" on the invoice
+    /// has been misled — and because the shop needs to know what taking cash
+    /// costs it.
+    /// </remarks>
+    public Money PaymentSurcharge { get; set; } = null!;
+
+    /// <summary>
+    /// <see cref="GoodsNet"/> + <see cref="VatAmount"/> + <see cref="DeliveryFee"/>
+    /// + <see cref="PaymentSurcharge"/>, exactly.
     /// </summary>
     public Money GrandTotal { get; set; } = null!;
 
