@@ -61,4 +61,16 @@ public interface IOrderRepository : IRepository<Order>
 
     Task<int> CountAsync(
         OrderStatus? status, string? term, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How many orders sit in each status, in one round trip.
+    /// </summary>
+    /// <remarks>
+    /// A GROUP BY rather than ten counts. The admin board draws a tab per
+    /// status with a badge on it, and ten separate queries to render one row of
+    /// tabs is the sort of thing that is invisible locally and obvious on a
+    /// shared database.
+    /// </remarks>
+    Task<IReadOnlyDictionary<OrderStatus, int>> CountByStatusAsync(
+        CancellationToken cancellationToken = default);
 }

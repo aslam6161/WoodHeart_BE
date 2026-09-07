@@ -60,6 +60,17 @@ public class OrderRepository(DataContext context)
         OrderStatus? status, string? term, CancellationToken cancellationToken = default) =>
         await Filtered(status, term).CountAsync(cancellationToken);
 
+    public async Task<IReadOnlyDictionary<OrderStatus, int>> CountByStatusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await Set.AsNoTracking()
+            .GroupBy(x => x.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(row => row.Status, row => row.Count);
+    }
+
     /// <summary>
     /// The admin list's filter: a status, and a search over the three things
     /// staff have in front of them when someone phones up.
