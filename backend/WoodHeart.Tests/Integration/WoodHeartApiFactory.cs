@@ -41,5 +41,11 @@ public class WoodHeartApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:4200");
 
         builder.UseSetting("Seed:Enabled", "false");
+
+        // No background worker either, for the same reason. Hangfire prepares
+        // its schema on first use, so leaving this on would have every test
+        // class reach for a database to create job tables nothing here reads —
+        // and hang when it cannot.
+        builder.UseSetting("BackgroundJobs:Enabled", "false");
     }
 }

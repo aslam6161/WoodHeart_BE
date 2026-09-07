@@ -24,6 +24,7 @@ builder.AddApplicationService();
 builder.AddIdentityService();
 builder.ConfigureCors();
 builder.ConfigureRateLimiting();
+builder.AddBackgroundJobs();
 
 builder.Services.AddHealthChecks()
     .AddNpgSql(
@@ -70,6 +71,11 @@ app.UseMiddleware<AnonymousIdMiddleware>();
 app.UseRateLimiter();
 
 app.MapControllers();
+
+// After UseAuthentication/UseAuthorization: the dashboard is mounted with the
+// admin policy on it, and a policy cannot be evaluated before the middleware
+// that establishes who is asking.
+app.UseBackgroundJobs();
 
 // Liveness must not touch the database: a database outage should page someone,
 // not make the orchestrator kill an otherwise healthy container.

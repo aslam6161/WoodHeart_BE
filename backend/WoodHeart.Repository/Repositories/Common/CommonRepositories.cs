@@ -15,10 +15,16 @@ public class OutboxRepository(DataContext context)
         // delivery workers select the same rows and the customer gets the same
         // SMS twice — which in this market is a duplicate charge on the gateway
         // invoice, not just an annoyance.
+        //
+        // "SELECT *, xmin" rather than "SELECT *". Every entity here maps
+        // BaseEntity.Version onto PostgreSQL's system xmin column, and a system
+        // column is not part of "*" — so the plain form throws "The required
+        // column 'xmin' was not present in the results" at run time, on the one
+        // query in the codebase that hand-writes its own SQL.
         var claimed = await Set
             .FromSqlRaw(
                 """
-                SELECT * FROM outbox_messages
+                SELECT *, xmin FROM outbox_messages
                 WHERE status = 'Pending'
                   AND (not_before IS NULL OR not_before <= {0})
                   AND (next_attempt_at IS NULL OR next_attempt_at <= {0})
@@ -42,6 +48,26 @@ public class OutboxRepository(DataContext context)
     public async Task<bool> ExistsByIdempotencyKeyAsync(
         string key, CancellationToken cancellationToken = default) =>
         await Set.AnyAsync(x => x.IdempotencyKey == key, cancellationToken);
+
+    /// <remarks>
+    /// One UPDATE, applied immediately rather than staged. This is maintenance
+    /// rather than a business change — there is no unit of work for it to join,
+    /// and loading the rows to touch two columns on each would be a round trip
+    /// for nothing.
+    /// </remarks>
+    public async Task<int> ReclaimStaleAsync(
+        DateTimeOffset olderThan, CancellationToken cancellationToken = default) =>
+        await Set
+            // Coalesced, because a row is only stale relative to when it was
+            // last touched — and a row written and claimed in the same pass may
+            // have no UpdatedAt yet.
+            .Where(x => x.Status == OutboxStatus.Processing
+                        && (x.UpdatedAt ?? x.CreatedAt) < olderThan)
+            .ExecuteUpdateAsync(
+                update => update
+                    .SetProperty(x => x.Status, OutboxStatus.Pending)
+                    .SetProperty(x => x.NextAttemptAt, olderThan),
+                cancellationToken);
 }
 
 public class StoreSettingRepository(DataContext context)

@@ -524,6 +524,7 @@ public class AdminOrderService(
                     contactName = order.ContactName,
                     contactPhone = order.ContactPhone,
                     contactEmail = order.ContactEmail,
+                    language = order.CustomerLanguage,
                     grandTotal = order.GrandTotal.Amount,
                     currency = order.Currency,
                     paymentStatus = order.PaymentStatus.ToString()
