@@ -68,5 +68,7 @@ public interface ICartService
 public interface IPricingContextFactory
 {
     Task<PricingContext> BuildAsync(
-        Domain.Enums.Ordering.DeliveryZone? zone, CancellationToken cancellationToken = default);
+        Domain.Enums.Ordering.DeliveryZone? zone,
+        Domain.ValueObjects.Money? deliveryFeeOverride = null,
+        CancellationToken cancellationToken = default);
 }

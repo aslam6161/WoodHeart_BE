@@ -72,6 +72,34 @@ public class Cart : BaseEntity
     /// </remarks>
     public DateTimeOffset ExpiresAt { get; set; }
 
+    /// <summary>
+    /// A delivery charge set by staff, replacing the calculated one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the "both of those fit in the same van" field.</b> Delivery
+    /// is summed from each product's own charge, which is right when the items
+    /// are separate jobs and wrong when they are not — a bed and its two
+    /// bedside tables are one pickup, one trip, the same two men. No rate card
+    /// expresses that; the person looking at the order sees it immediately.
+    /// </para>
+    /// <para>
+    /// Never settable by the customer. It reduces what they pay, so a client
+    /// that could name it could name zero.
+    /// </para>
+    /// </remarks>
+    public Money? DeliveryFeeOverride { get; set; }
+
+    /// <summary>
+    /// Why the charge was adjusted, for whoever asks later.
+    /// </summary>
+    /// <remarks>
+    /// "Delivered with order WH-2609-00041" is the difference between an
+    /// adjustment that can be explained to an accountant and one that looks
+    /// like somebody discounting deliveries at will.
+    /// </remarks>
+    public string? DeliveryFeeOverrideNote { get; set; }
+
     public ICollection<CartLine> Lines { get; set; } = [];
 }
 

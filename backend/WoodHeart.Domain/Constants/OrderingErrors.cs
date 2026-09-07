@@ -50,4 +50,61 @@ public static class OrderingErrors
 
     /// <summary>Adding a line priced in a different currency than the cart holds.</summary>
     public const string CurrencyMismatch = Prefix + "currency_mismatch.conflict";
+
+    // --- Checkout ------------------------------------------------------------
+
+    /// <summary>
+    /// Something in the basket cannot be bought any more.
+    /// </summary>
+    /// <remarks>
+    /// The cart page shows such a line greyed out and prices around it; checkout
+    /// refuses outright. The difference is deliberate — browsing past an
+    /// unavailable item is fine, placing an order that silently drops one is
+    /// how a customer receives two of the three things they paid for.
+    /// </remarks>
+    public const string LineNotPurchasable = Prefix + "line_not_purchasable.conflict";
+
+    /// <summary>The phone number could not be read as a Bangladeshi mobile number.</summary>
+    public const string ContactPhoneInvalid = Prefix + "contact_phone_invalid";
+
+    /// <summary>The delivery address is missing something a rider would need.</summary>
+    public const string AddressInvalid = Prefix + "address_invalid";
+
+    // --- Orders --------------------------------------------------------------
+
+    public const string OrderNotFound = Prefix + "order.not_found";
+
+    /// <summary>
+    /// The order exists, but not for whoever is asking.
+    /// </summary>
+    /// <remarks>
+    /// Returned as a not-found rather than a forbidden, so the endpoint cannot
+    /// be used to confirm which order numbers exist.
+    /// </remarks>
+    public const string OrderNotYours = Prefix + "order.not_found";
+
+    /// <summary>The move is not one the status machine allows from here.</summary>
+    public const string OrderTransitionInvalid = Prefix + "order.transition_invalid.conflict";
+
+    /// <summary>Past the point where a customer can stop it themselves.</summary>
+    public const string OrderNotCancellable = Prefix + "order.not_cancellable.conflict";
+
+    // --- Admin order management ----------------------------------------------
+
+    /// <summary>The move is not one <c>PaymentStatusMachine</c> allows from here.</summary>
+    public const string PaymentTransitionInvalid = Prefix + "order.payment_transition_invalid.conflict";
+
+    /// <summary>
+    /// The total can no longer be edited, because money has already changed
+    /// hands or the goods have already left.
+    /// </summary>
+    /// <remarks>
+    /// Editing it anyway would leave the order saying one thing and the till
+    /// saying another. The correction from here is a refund or a second
+    /// collection, both of which leave a record.
+    /// </remarks>
+    public const string OrderAmountLocked = Prefix + "order.amount_locked.conflict";
+
+    /// <summary>A staff-facing change that must say why, and did not.</summary>
+    public const string ReasonRequired = Prefix + "reason_required";
 }

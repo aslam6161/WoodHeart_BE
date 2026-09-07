@@ -517,9 +517,13 @@ namespace WoodHeart.Repository.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("deleted_by");
 
-                    b.Property<decimal?>("DeliverySurcharge")
+                    b.Property<decimal?>("DeliveryChargeInsideDhaka")
                         .HasColumnType("numeric(18,2)")
-                        .HasColumnName("delivery_surcharge");
+                        .HasColumnName("delivery_charge_inside_dhaka");
+
+                    b.Property<decimal?>("DeliveryChargeOutsideDhaka")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("delivery_charge_outside_dhaka");
 
                     b.Property<string>("Description")
                         .HasColumnType("jsonb")
@@ -980,6 +984,63 @@ namespace WoodHeart.Repository.Migrations
                     b.ToTable("feature_flags", (string)null);
                 });
 
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Common.NumberSequence", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("NextValue")
+                        .HasColumnType("integer")
+                        .HasColumnName("next_value");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("period");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_number_sequences");
+
+                    b.HasIndex("Name", "Period")
+                        .IsUnique()
+                        .HasDatabaseName("ux_number_sequences_name_period");
+
+                    b.ToTable("number_sequences", (string)null);
+                });
+
             modelBuilder.Entity("WoodHeart.Domain.Entity.Common.OutboxMessage", b =>
                 {
                     b.Property<long>("Id")
@@ -1427,6 +1488,15 @@ namespace WoodHeart.Repository.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("customer_id");
 
+                    b.Property<decimal?>("DeliveryFeeOverride")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("delivery_fee_override");
+
+                    b.Property<string>("DeliveryFeeOverrideNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("delivery_fee_override_note");
+
                     b.Property<string>("DeliveryZone")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
@@ -1534,6 +1604,492 @@ namespace WoodHeart.Repository.Migrations
                         .HasDatabaseName("ux_cart_lines_one_per_variant");
 
                     b.ToTable("cart_lines", (string)null);
+                });
+
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.Order", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long?>("CartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("cart_id");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("contact_email");
+
+                    b.Property<string>("ContactName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("contact_name");
+
+                    b.Property<string>("ContactPhone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("contact_phone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<long?>("CustomerId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("customer_id");
+
+                    b.Property<decimal>("DeliveryFee")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("delivery_fee");
+
+                    b.Property<string>("DeliveryNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delivery_note");
+
+                    b.Property<bool>("DeliveryOverridden")
+                        .HasColumnType("boolean")
+                        .HasColumnName("delivery_overridden");
+
+                    b.Property<bool>("DeliveryWaived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("delivery_waived");
+
+                    b.Property<string>("DeliveryZone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("delivery_zone");
+
+                    b.Property<decimal>("DiscountTotal")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("discount_total");
+
+                    b.Property<string>("FulfilmentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("fulfilment_status");
+
+                    b.Property<decimal>("GoodsNet")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("goods_net");
+
+                    b.Property<decimal>("GrandTotal")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("grand_total");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("InternalNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("internal_notes");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("order_number");
+
+                    b.Property<string>("PaymentMethodCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("payment_method_code");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("payment_status");
+
+                    b.Property<decimal>("PaymentSurcharge")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("payment_surcharge");
+
+                    b.Property<DateTimeOffset>("PlacedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("placed_at");
+
+                    b.Property<bool>("PricesIncludeVat")
+                        .HasColumnType("boolean")
+                        .HasColumnName("prices_include_vat");
+
+                    b.Property<decimal?>("RequiredAdvanceAmount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("required_advance_amount");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("subtotal");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("vat_amount");
+
+                    b.Property<decimal>("VatRatePercent")
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("vat_rate_percent");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_orders");
+
+                    b.HasIndex("ContactPhone")
+                        .HasDatabaseName("ix_orders_contact_phone");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_orders_idempotency_key")
+                        .HasFilter("idempotency_key IS NOT NULL");
+
+                    b.HasIndex("OrderNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ux_orders_order_number");
+
+                    b.HasIndex("CustomerId", "PlacedAt")
+                        .HasDatabaseName("ix_orders_customer_placed")
+                        .HasFilter("customer_id IS NOT NULL");
+
+                    b.HasIndex("Status", "PlacedAt")
+                        .HasDatabaseName("ix_orders_status_placed");
+
+                    b.ToTable("orders", (string)null);
+                });
+
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.OrderLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<decimal>("DeliveryChargeApplied")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("delivery_charge_applied");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("discount_amount");
+
+                    b.Property<string>("ImagePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("image_path");
+
+                    b.Property<int?>("LeadTimeDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("lead_time_days");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("line_total");
+
+                    b.Property<long>("OrderId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("order_id");
+
+                    b.Property<long>("ProductId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ProductNameBn")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("product_name_bn");
+
+                    b.Property<string>("ProductNameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("product_name_en");
+
+                    b.Property<string>("ProductSlug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("product_slug");
+
+                    b.Property<long>("ProductVariantId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("product_variant_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sku");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("unit_price");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("VariantName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("variant_name");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_lines");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("ix_order_lines_order_id");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_order_lines_product");
+
+                    b.HasIndex("ProductVariantId")
+                        .HasDatabaseName("ix_order_lines_variant");
+
+                    b.ToTable("order_lines", (string)null);
+                });
+
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.OrderTimelineEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("actor_name");
+
+                    b.Property<long?>("ActorUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("from_status");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<long>("OrderId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("to_status");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_order_timeline_entries");
+
+                    b.HasIndex("OrderId", "OccurredAt")
+                        .HasDatabaseName("ix_order_timeline_order_occurred");
+
+                    b.ToTable("order_timeline_entries", (string)null);
+                });
+
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Payments.PaymentMethodConfig", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("AvailableInsideDhaka")
+                        .HasColumnType("boolean")
+                        .HasColumnName("available_inside_dhaka");
+
+                    b.Property<bool>("AvailableOutsideDhaka")
+                        .HasColumnType("boolean")
+                        .HasColumnName("available_outside_dhaka");
+
+                    b.Property<string>("ChargeType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("charge_type");
+
+                    b.Property<decimal>("ChargeValue")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("charge_value");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Credentials")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("credentials");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("description");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("IconUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("icon_url");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<decimal?>("MaxOrderAmount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("max_order_amount");
+
+                    b.Property<decimal?>("MinOrderAmount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("min_order_amount");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("mode");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payment_method_configs");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_payment_method_configs_code");
+
+                    b.ToTable("payment_method_configs", (string)null);
                 });
 
             modelBuilder.Entity("CollectionProduct", b =>
@@ -1721,6 +2277,106 @@ namespace WoodHeart.Repository.Migrations
                     b.Navigation("ProductVariant");
                 });
 
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.Order", b =>
+                {
+                    b.HasOne("WoodHeart.Domain.Entity.Identity.AppUser", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_orders_users_customer_id");
+
+                    b.OwnsOne("WoodHeart.Domain.ValueObjects.DeliveryAddress", "ShippingAddress", b1 =>
+                        {
+                            b1.Property<long>("OrderId")
+                                .HasColumnType("bigint")
+                                .HasColumnName("id");
+
+                            b1.Property<string>("AddressLine")
+                                .IsRequired()
+                                .HasMaxLength(400)
+                                .HasColumnType("character varying(400)")
+                                .HasColumnName("shipping_address_line");
+
+                            b1.Property<string>("Area")
+                                .HasMaxLength(120)
+                                .HasColumnType("character varying(120)")
+                                .HasColumnName("shipping_area");
+
+                            b1.Property<string>("District")
+                                .IsRequired()
+                                .HasMaxLength(60)
+                                .HasColumnType("character varying(60)")
+                                .HasColumnName("shipping_district");
+
+                            b1.Property<string>("Division")
+                                .IsRequired()
+                                .HasMaxLength(60)
+                                .HasColumnType("character varying(60)")
+                                .HasColumnName("shipping_division");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("shipping_landmark");
+
+                            b1.Property<string>("Postcode")
+                                .HasMaxLength(10)
+                                .HasColumnType("character varying(10)")
+                                .HasColumnName("shipping_postcode");
+
+                            b1.Property<string>("Upazila")
+                                .HasMaxLength(80)
+                                .HasColumnType("character varying(80)")
+                                .HasColumnName("shipping_upazila");
+
+                            b1.HasKey("OrderId");
+
+                            b1.ToTable("orders");
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderId")
+                                .HasConstraintName("fk_orders_orders_id");
+                        });
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("ShippingAddress")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.OrderLine", b =>
+                {
+                    b.HasOne("WoodHeart.Domain.Entity.Ordering.Order", "Order")
+                        .WithMany("Lines")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_lines_orders_order_id");
+
+                    b.HasOne("WoodHeart.Domain.Entity.Catalog.ProductVariant", "ProductVariant")
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_lines_product_variants_product_variant_id");
+
+                    b.Navigation("Order");
+
+                    b.Navigation("ProductVariant");
+                });
+
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.OrderTimelineEntry", b =>
+                {
+                    b.HasOne("WoodHeart.Domain.Entity.Ordering.Order", "Order")
+                        .WithMany("Timeline")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_order_timeline_entries_orders_order_id");
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("WoodHeart.Domain.Entity.Catalog.Brand", b =>
                 {
                     b.Navigation("Products");
@@ -1760,6 +2416,13 @@ namespace WoodHeart.Repository.Migrations
             modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.Cart", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.Order", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("Timeline");
                 });
 #pragma warning restore 612, 618
         }

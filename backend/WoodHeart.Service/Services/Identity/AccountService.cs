@@ -47,6 +47,7 @@ public class AccountService(
     IDateTimeProvider clock,
     ICurrentUserService currentUser,
     ICartService carts,
+    IOrderService orders,
     IOptions<JwtSettings> jwtOptions,
     ILogger<AccountService> logger) : IAccountService
 {
@@ -109,6 +110,7 @@ public class AccountService(
         IdentityLog.LoginSucceeded(logger, phone.Masked);
 
         await AdoptGuestBasketAsync(user.Id, cancellationToken);
+        await ClaimGuestOrdersAsync(user.Id, user.UserName, cancellationToken);
 
         return await IssueSessionAsync(user, dto.DeviceLabel, cancellationToken);
     }
@@ -187,6 +189,7 @@ public class AccountService(
         IdentityLog.Registered(logger, phone.Masked);
 
         await AdoptGuestBasketAsync(user.Id, cancellationToken);
+        await ClaimGuestOrdersAsync(user.Id, user.UserName, cancellationToken);
 
         return await IssueSessionAsync(user, dto.DeviceLabel, cancellationToken);
     }
@@ -448,6 +451,40 @@ public class AccountService(
         catch (Exception ex)
         {
             IdentityLog.GuestCartMergeFailed(logger, userId, ex);
+        }
+    }
+
+    /// <summary>
+    /// Attaches orders this person already placed as a guest to their account.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Matched on the normalised phone number, which is why it is stored
+    /// normalised. Somebody who has bought twice without an account and then
+    /// signs up finds their history already there — and a customer who can see
+    /// what they bought is a customer who buys again.
+    /// </para>
+    /// <para>
+    /// Wrapped for the same reason as the basket merge: a failure here must
+    /// never fail the sign-in. Missing order history is a support call; a
+    /// customer locked out of their account is a lost one.
+    /// </para>
+    /// </remarks>
+    private async Task ClaimGuestOrdersAsync(
+        long userId, string? phoneNumber, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            return;
+        }
+
+        try
+        {
+            await orders.ClaimGuestOrdersAsync(userId, phoneNumber, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            IdentityLog.GuestOrderClaimFailed(logger, userId, ex);
         }
     }
 

@@ -45,3 +45,97 @@ public enum CartStatus
     /// <summary>Past its expiry with nothing ordered. Kept for recovery.</summary>
     Abandoned = 2
 }
+
+/// <summary>
+/// Where an order stands as a piece of work.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>This axis is about the order, not about the money.</b> Payment lives on
+/// <see cref="PaymentStatus"/> and moves independently — a cash-on-delivery
+/// order is <see cref="Confirmed"/> and <c>Unpaid</c> for its entire life until
+/// the rider collects. Collapsing the two into one field is the classic
+/// modelling mistake here, and its cost is precise: "how much cash is out with
+/// riders right now" stops being answerable.
+/// </para>
+/// <para>
+/// The permitted moves are in <c>OrderStatusMachine</c> rather than in comments,
+/// so that "can this be cancelled?" has one answer that the admin UI, the API
+/// and the tests all read from.
+/// </para>
+/// </remarks>
+public enum OrderStatus
+{
+    /// <summary>Placed, but not yet accepted by the shop.</summary>
+    /// <remarks>
+    /// Where an online payment sits while the customer is at the gateway. COD
+    /// passes straight through it — the provider confirms immediately.
+    /// </remarks>
+    Pending = 0,
+
+    /// <summary>The shop has accepted it. The customer has been told.</summary>
+    Confirmed = 1,
+
+    /// <summary>Being picked, built or finished.</summary>
+    Processing = 2,
+
+    /// <summary>Finished and waiting for a vehicle.</summary>
+    ReadyToShip = 3,
+
+    /// <summary>With the delivery team.</summary>
+    Shipped = 4,
+
+    /// <summary>Handed over. For COD this is also when the money arrives.</summary>
+    Delivered = 5,
+
+    /// <summary>Delivered, settled, and past the returns window.</summary>
+    Completed = 6,
+
+    /// <summary>Stopped before delivery, by either side.</summary>
+    Cancelled = 7,
+
+    /// <summary>Came back after delivery.</summary>
+    Returned = 8,
+
+    /// <summary>Returned and the money sent back.</summary>
+    Refunded = 9
+}
+
+/// <summary>
+/// Where the money stands, independently of where the goods are.
+/// </summary>
+public enum PaymentStatus
+{
+    /// <summary>Nothing collected. The whole life of a COD order until delivery.</summary>
+    Unpaid = 0,
+
+    /// <summary>A deposit taken against a made-to-order item; the balance is due.</summary>
+    AdvancePaid = 1,
+
+    Paid = 2,
+
+    PartiallyRefunded = 3,
+
+    Refunded = 4,
+
+    /// <summary>The gateway declined it. The order survives so it can be retried.</summary>
+    Failed = 5
+}
+
+/// <summary>
+/// How far the goods have got, for the warehouse rather than the customer.
+/// </summary>
+/// <remarks>
+/// A third axis because a part-shipped order is real: a bed ready today and its
+/// wardrobe in three weeks is one order, one invoice, two vans.
+/// </remarks>
+public enum FulfilmentStatus
+{
+    Unfulfilled = 0,
+
+    PartiallyFulfilled = 1,
+
+    Fulfilled = 2,
+
+    Returned = 3
+}
