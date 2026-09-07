@@ -31,6 +31,17 @@ public static class SettingKeys
     public const string VatRate = "tax.vat_rate";
     public const string PricesIncludeVat = "tax.prices_include_vat";
 
+    /// <summary>
+    /// Whether the delivery charge is itself taxable.
+    /// </summary>
+    /// <remarks>
+    /// A setting rather than a constant because it is a business question
+    /// (PLAN.md §16.1) and the answer differs by how the shop is registered.
+    /// Defaults to false, which is the safer wrong answer: it under-charges
+    /// rather than over-charges while the real answer is pending.
+    /// </remarks>
+    public const string VatOnDelivery = "tax.vat_on_delivery";
+
     public const string DeliveryChargeInsideDhaka = "delivery.charge_inside_dhaka";
     public const string DeliveryChargeOutsideDhaka = "delivery.charge_outside_dhaka";
     public const string FreeDeliveryThreshold = "delivery.free_threshold";

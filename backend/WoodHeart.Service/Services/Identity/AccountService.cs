@@ -12,6 +12,7 @@ using WoodHeart.Repository.Interfaces.Identity;
 using WoodHeart.Service.DTOs.Identity;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Identity;
+using WoodHeart.Service.Interfaces.Ordering;
 
 namespace WoodHeart.Service.Services.Identity;
 
@@ -45,6 +46,7 @@ public class AccountService(
     IUnitOfWork unitOfWork,
     IDateTimeProvider clock,
     ICurrentUserService currentUser,
+    ICartService carts,
     IOptions<JwtSettings> jwtOptions,
     ILogger<AccountService> logger) : IAccountService
 {
@@ -105,6 +107,8 @@ public class AccountService(
         await users.UpdateAsync(user);
 
         IdentityLog.LoginSucceeded(logger, phone.Masked);
+
+        await AdoptGuestBasketAsync(user.Id, cancellationToken);
 
         return await IssueSessionAsync(user, dto.DeviceLabel, cancellationToken);
     }
@@ -181,6 +185,8 @@ public class AccountService(
         await users.AddToRoleAsync(user, Roles.Customer);
 
         IdentityLog.Registered(logger, phone.Masked);
+
+        await AdoptGuestBasketAsync(user.Id, cancellationToken);
 
         return await IssueSessionAsync(user, dto.DeviceLabel, cancellationToken);
     }
@@ -408,6 +414,43 @@ public class AccountService(
     /// which <see cref="RefreshAsync"/> needs in order to point the token it is
     /// replacing at its successor.
     /// </remarks>
+    /// <summary>
+    /// Folds whatever the visitor had in a guest basket into their account.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Called on sign-in and on registration, not on refresh: a refresh is the
+    /// same session continuing, and there is no guest basket left to adopt by
+    /// then.
+    /// </para>
+    /// <para>
+    /// <b>A failure here never fails the sign-in.</b> Someone who cannot get
+    /// into their account is a much worse outcome than someone who has to add a
+    /// lamp to their basket again, and the merge is a convenience hanging off
+    /// the login rather than part of it. The exception is logged rather than
+    /// swallowed silently, because a merge that stops working would otherwise
+    /// look exactly like customers changing their minds.
+    /// </para>
+    /// </remarks>
+    private async Task AdoptGuestBasketAsync(long userId, CancellationToken cancellationToken)
+    {
+        var anonymousId = currentUser.AnonymousId;
+
+        if (string.IsNullOrWhiteSpace(anonymousId))
+        {
+            return;
+        }
+
+        try
+        {
+            await carts.MergeGuestCartAsync(anonymousId, userId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            IdentityLog.GuestCartMergeFailed(logger, userId, ex);
+        }
+    }
+
     private async Task<GeneralResponse<AuthenticatedUserDto>> IssueSessionAsync(
         AppUser user, string? deviceLabel, CancellationToken cancellationToken)
     {

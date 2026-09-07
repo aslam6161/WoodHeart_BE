@@ -62,6 +62,11 @@ else
 app.UseCors(CorsExtension.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authentication, so a signed-in customer is never given a second,
+// anonymous identity for the same basket.
+app.UseMiddleware<AnonymousIdMiddleware>();
+
 app.UseRateLimiter();
 
 app.MapControllers();

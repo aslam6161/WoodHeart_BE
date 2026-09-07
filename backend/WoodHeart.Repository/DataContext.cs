@@ -11,6 +11,7 @@ using WoodHeart.Domain.Entity;
 using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Common;
 using WoodHeart.Domain.Entity.Identity;
+using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Helpers;
 
 namespace WoodHeart.Repository;
@@ -61,6 +62,12 @@ public class DataContext(
     public DbSet<ProductMedia> ProductMedia => Set<ProductMedia>();
 
     public DbSet<Collection> Collections => Set<Collection>();
+
+    // --- Ordering -----------------------------------------------------------
+
+    public DbSet<Cart> Carts => Set<Cart>();
+
+    public DbSet<CartLine> CartLines => Set<CartLine>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

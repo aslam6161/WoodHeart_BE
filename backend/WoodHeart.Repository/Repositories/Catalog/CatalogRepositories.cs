@@ -453,6 +453,12 @@ public class ProductVariantRepository(DataContext context)
             .Where(v => v.ProductId == productId)
             .OrderBy(v => v.SortOrder)
             .ToListAsync(cancellationToken);
+
+    public async Task<ProductVariant?> GetWithProductAsync(
+        long variantId, CancellationToken cancellationToken = default) =>
+        await Set
+            .Include(v => v.Product)
+            .FirstOrDefaultAsync(v => v.Id == variantId, cancellationToken);
 }
 
 public class CollectionRepository(DataContext context)
