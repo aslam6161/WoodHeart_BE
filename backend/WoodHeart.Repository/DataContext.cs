@@ -12,6 +12,7 @@ using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Common;
 using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Entity.Ordering;
+using WoodHeart.Domain.Entity.Payments;
 using WoodHeart.Domain.Helpers;
 
 namespace WoodHeart.Repository;
@@ -49,6 +50,10 @@ public class DataContext(
 
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
 
+    public DbSet<NumberSequence> NumberSequences => Set<NumberSequence>();
+
+    public DbSet<PaymentMethodConfig> PaymentMethodConfigs => Set<PaymentMethodConfig>();
+
     // --- Catalog ------------------------------------------------------------
 
     public DbSet<Category> Categories => Set<Category>();
@@ -68,6 +73,12 @@ public class DataContext(
     public DbSet<Cart> Carts => Set<Cart>();
 
     public DbSet<CartLine> CartLines => Set<CartLine>();
+
+    public DbSet<Order> Orders => Set<Order>();
+
+    public DbSet<OrderLine> OrderLines => Set<OrderLine>();
+
+    public DbSet<OrderTimelineEntry> OrderTimelineEntries => Set<OrderTimelineEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

@@ -59,4 +59,11 @@ internal static partial class IdentityLog
         Message = "Could not merge the guest basket into user {UserId}'s account. The sign-in "
                   + "itself succeeded; the customer has lost whatever was in their basket.")]
     public static partial void GuestCartMergeFailed(ILogger logger, long userId, Exception exception);
+
+    [LoggerMessage(
+        EventId = 1306,
+        Level = LogLevel.Error,
+        Message = "Could not attach user {UserId}'s guest orders to their new account. The "
+                  + "sign-in itself succeeded; their past orders are missing from their history.")]
+    public static partial void GuestOrderClaimFailed(ILogger logger, long userId, Exception exception);
 }

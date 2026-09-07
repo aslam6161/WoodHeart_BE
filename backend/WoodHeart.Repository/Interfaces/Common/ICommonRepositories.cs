@@ -33,3 +33,32 @@ public interface IFeatureFlagRepository : IRepository<FeatureFlag>
 {
     Task<FeatureFlag?> GetByNameAsync(string name, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Hands out the next value in a human-facing number series.
+/// </summary>
+/// <remarks>
+/// One method, and it is a single statement against the database rather than a
+/// read followed by a write. Two customers checking out in the same second must
+/// not be given the same order number, and any implementation that reads a
+/// value into memory before incrementing it will eventually do exactly that.
+/// </remarks>
+public interface INumberSequenceRepository : IRepository<NumberSequence>
+{
+    /// <summary>
+    /// Reserves and returns the next value for a sequence within a period.
+    /// </summary>
+    /// <remarks>
+    /// Creates the row on first use, so a new month needs no setup and no
+    /// migration.
+    /// <para>
+    /// It runs inside whatever transaction the caller has open, and holds the
+    /// row lock until that transaction ends. Order placement is therefore
+    /// serialised on this one row — deliberately. At this shop's volume the
+    /// wait is microseconds, and in exchange a placement that rolls back
+    /// returns its number instead of burning it.
+    /// </para>
+    /// </remarks>
+    Task<int> ReserveNextAsync(
+        string name, string period, CancellationToken cancellationToken = default);
+}

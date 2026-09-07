@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WoodHeart.Repository;
@@ -11,9 +12,11 @@ using WoodHeart.Repository;
 namespace WoodHeart.Repository.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20260906143901_OrdersAndNumberSequences")]
+    partial class OrdersAndNumberSequences
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1723,10 +1726,6 @@ namespace WoodHeart.Repository.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("payment_status");
 
-                    b.Property<decimal>("PaymentSurcharge")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("payment_surcharge");
-
                     b.Property<DateTimeOffset>("PlacedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("placed_at");
@@ -1984,112 +1983,6 @@ namespace WoodHeart.Repository.Migrations
                         .HasDatabaseName("ix_order_timeline_order_occurred");
 
                     b.ToTable("order_timeline_entries", (string)null);
-                });
-
-            modelBuilder.Entity("WoodHeart.Domain.Entity.Payments.PaymentMethodConfig", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<bool>("AvailableInsideDhaka")
-                        .HasColumnType("boolean")
-                        .HasColumnName("available_inside_dhaka");
-
-                    b.Property<bool>("AvailableOutsideDhaka")
-                        .HasColumnType("boolean")
-                        .HasColumnName("available_outside_dhaka");
-
-                    b.Property<string>("ChargeType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("charge_type");
-
-                    b.Property<decimal>("ChargeValue")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("charge_value");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("code");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<long?>("CreatedBy")
-                        .HasColumnType("bigint")
-                        .HasColumnName("created_by");
-
-                    b.Property<string>("Credentials")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)")
-                        .HasColumnName("credentials");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("description");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("display_name");
-
-                    b.Property<string>("IconUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("icon_url");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_enabled");
-
-                    b.Property<decimal?>("MaxOrderAmount")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("max_order_amount");
-
-                    b.Property<decimal?>("MinOrderAmount")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("min_order_amount");
-
-                    b.Property<string>("Mode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("mode");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("sort_order");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<long?>("UpdatedBy")
-                        .HasColumnType("bigint")
-                        .HasColumnName("updated_by");
-
-                    b.Property<uint>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.HasKey("Id")
-                        .HasName("pk_payment_method_configs");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("ux_payment_method_configs_code");
-
-                    b.ToTable("payment_method_configs", (string)null);
                 });
 
             modelBuilder.Entity("CollectionProduct", b =>

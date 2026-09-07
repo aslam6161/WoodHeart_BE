@@ -53,6 +53,8 @@ public class AccountServiceTests
     /// </summary>
     private readonly ICartService _carts = Substitute.For<ICartService>();
 
+    private readonly IOrderService _orders = Substitute.For<IOrderService>();
+
     private const string Phone = "01712345678";
     private const string E164 = "+8801712345678";
     private const string Password = "correct-horse-battery";
@@ -100,6 +102,7 @@ public class AccountServiceTests
             _clock,
             _currentUser,
             _carts,
+            _orders,
             Options.Create(new JwtSettings { RefreshTokenDays = 30 }),
             NullLogger<AccountService>.Instance);
 

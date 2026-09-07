@@ -93,7 +93,7 @@ public static class DeliveryPricer
         }
 
         var fee = lines.Aggregate(zero, (running, line) =>
-            running + ChargeFor(line, zone, context.DefaultDeliveryCharge, currency));
+            running + ChargeForLine(line, zone, context.DefaultDeliveryCharge, currency));
 
         return new DeliveryQuote(fee, false, false, false);
     }
@@ -103,11 +103,18 @@ public static class DeliveryPricer
     /// default, times the quantity.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Multiplied by quantity because two beds are two beds. Where they are not
     /// — two items that genuinely travel together — that is what the override
     /// is for.
+    /// </para>
+    /// <para>
+    /// Public because an order line stores what it contributed, so that "why is
+    /// delivery 2,300৳ on this order" is still answerable a year later, after
+    /// the products' charges have been edited.
+    /// </para>
     /// </remarks>
-    private static Money ChargeFor(
+    public static Money ChargeForLine(
         PricedLine line, DeliveryZone zone, Money? storeDefault, string currency)
     {
         var perUnit = zone == DeliveryZone.InsideDhaka
