@@ -45,7 +45,8 @@ public class CartServiceTests
     {
         _hasher.Hash(Arg.Any<string>()).Returns(call => $"hashed:{call.Arg<string>()}");
 
-        _pricing.BuildAsync(Arg.Any<DeliveryZone?>(), Arg.Any<CancellationToken>())
+        _pricing.BuildAsync(
+                Arg.Any<DeliveryZone?>(), Arg.Any<Money?>(), Arg.Any<CancellationToken>())
             .Returns(new PricingContext(0m, PricesIncludeVat: true));
 
         // The real unit of work runs the delegate inside a transaction. The
@@ -294,7 +295,8 @@ public class CartServiceTests
 
         result.IsSuccess.ShouldBeTrue();
         cart.DeliveryZone.ShouldBe(DeliveryZone.OutsideDhaka);
-        await _pricing.Received().BuildAsync(DeliveryZone.OutsideDhaka, Arg.Any<CancellationToken>());
+        await _pricing.Received().BuildAsync(
+            DeliveryZone.OutsideDhaka, Arg.Any<Money?>(), Arg.Any<CancellationToken>());
     }
 
     // -------------------------------------------------------------------------

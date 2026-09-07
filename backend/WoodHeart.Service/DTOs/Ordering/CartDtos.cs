@@ -150,8 +150,18 @@ public class CartTotalsDto
 
     public decimal GrandTotal { get; init; }
 
-    /// <summary>True when the free-delivery threshold waived the zone charge.</summary>
+    /// <summary>True when the free-delivery threshold waived the charge.</summary>
     public bool DeliveryWaived { get; init; }
+
+    /// <summary>
+    /// True when staff set the delivery charge by hand.
+    /// </summary>
+    /// <remarks>
+    /// Shown to the customer, because otherwise the delivery line does not
+    /// follow from the items and it looks like a mistake. "Delivery adjusted by
+    /// WoodHeart" reads as attention; an unexplained number reads as an error.
+    /// </remarks>
+    public bool DeliveryOverridden { get; init; }
 
     /// <summary>
     /// Null once a zone is chosen. Until then the cart says "calculated at

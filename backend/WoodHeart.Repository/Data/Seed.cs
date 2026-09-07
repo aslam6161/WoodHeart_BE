@@ -66,19 +66,21 @@ public static class Seed
     {
         var defaults = new (string Key, string Value, SettingValueType Type, string Category, string Description)[]
         {
-            (SettingKeys.VatRate, "0", SettingValueType.Decimal, "Tax",
-                "VAT percentage applied at checkout. PLACEHOLDER — confirm the rate before go-live."),
+            (SettingKeys.VatRate, "7.5", SettingValueType.Decimal, "Tax",
+                "VAT percentage applied at checkout. Admin-editable — change it here, not in code."),
             (SettingKeys.PricesIncludeVat, "true", SettingValueType.Boolean, "Tax",
                 "Whether catalog prices already include VAT. Bangladeshi retail normally quotes inclusive."),
             (SettingKeys.VatOnDelivery, "false", SettingValueType.Boolean, "Tax",
                 "Whether the delivery charge is itself taxable. PLACEHOLDER — confirm with the "
                 + "shop's VAT registration."),
             (SettingKeys.DeliveryChargeInsideDhaka, "0", SettingValueType.Decimal, "Delivery",
-                "Flat delivery charge inside Dhaka, in BDT. PLACEHOLDER."),
+                "Fallback inside-Dhaka delivery charge for products that have not been costed "
+                + "individually. Delivery is priced per product; this is the default, not the price."),
             (SettingKeys.DeliveryChargeOutsideDhaka, "0", SettingValueType.Decimal, "Delivery",
-                "Flat delivery charge outside Dhaka, in BDT. PLACEHOLDER."),
+                "The same fallback, for everywhere outside Dhaka."),
             (SettingKeys.FreeDeliveryThreshold, "0", SettingValueType.Decimal, "Delivery",
-                "Order total above which delivery is free. Zero disables the rule."),
+                "Order total above which delivery is free. Zero disables the rule. Note that with "
+                + "per-product delivery this waives the whole charge, bulky items included."),
             (SettingKeys.OrderNumberPrefix, "WH", SettingValueType.String, "Orders",
                 "Prefix for human-facing order numbers, e.g. WH-2608-00042."),
             (SettingKeys.LowStockThreshold, "5", SettingValueType.Integer, "Inventory",

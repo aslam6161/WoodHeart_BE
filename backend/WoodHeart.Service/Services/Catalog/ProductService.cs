@@ -144,7 +144,10 @@ public class ProductService(
             WarrantyMonths = dto.WarrantyMonths,
             LeadTimeDays = dto.LeadTimeDays,
             AssemblyRequired = dto.AssemblyRequired,
-            DeliverySurcharge = dto.DeliverySurcharge is { } surcharge ? Money.Taka(surcharge) : null,
+            DeliveryChargeInsideDhaka =
+                dto.DeliveryChargeInsideDhaka is { } inside ? Money.Taka(inside) : null,
+            DeliveryChargeOutsideDhaka =
+                dto.DeliveryChargeOutsideDhaka is { } outside ? Money.Taka(outside) : null,
             IsFeatured = dto.IsFeatured,
             SeoTitle = dto.SeoTitle,
             SeoDescription = dto.SeoDescription
@@ -221,7 +224,11 @@ public class ProductService(
         product.WarrantyMonths = dto.WarrantyMonths;
         product.LeadTimeDays = dto.LeadTimeDays;
         product.AssemblyRequired = dto.AssemblyRequired;
-        product.DeliverySurcharge = dto.DeliverySurcharge is { } surcharge ? Money.Taka(surcharge) : null;
+        product.DeliveryChargeInsideDhaka =
+            dto.DeliveryChargeInsideDhaka is { } inside ? Money.Taka(inside) : null;
+
+        product.DeliveryChargeOutsideDhaka =
+            dto.DeliveryChargeOutsideDhaka is { } outside ? Money.Taka(outside) : null;
         product.IsFeatured = dto.IsFeatured;
         product.SeoTitle = dto.SeoTitle;
         product.SeoDescription = dto.SeoDescription;

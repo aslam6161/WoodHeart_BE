@@ -113,11 +113,34 @@ public class Product : SoftDeletableEntity
     public bool AssemblyRequired { get; set; }
 
     /// <summary>
-    /// Extra delivery cost for something bulky, on top of the zone rate. A
-    /// three-seater sofa is not a table lamp and the flat zone charge does not
-    /// cover it.
+    /// What it costs to deliver one of these inside Dhaka.
     /// </summary>
-    public Money? DeliverySurcharge { get; set; }
+    /// <remarks>
+    /// <para>
+    /// <b>Delivery is priced per product, not per order.</b> A three-seater
+    /// sofa is not a table lamp: one needs a pickup and two men, the other goes
+    /// on a bike. A single flat charge either loses money on the sofa or prices
+    /// the lamp out of the market, so the charge lives here, beside the thing
+    /// being carried.
+    /// </para>
+    /// <para>
+    /// Null means "use the store default" rather than "free". A new product
+    /// nobody has costed yet should quote the shop's ordinary rate, not zero —
+    /// a forgotten field must not become a giveaway.
+    /// </para>
+    /// </remarks>
+    public Money? DeliveryChargeInsideDhaka { get; set; }
+
+    /// <summary>
+    /// What it costs to deliver one of these outside Dhaka.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the inside-Dhaka charge because the difference is not
+    /// marginal: a wardrobe to Sylhet is a different job from a wardrobe across
+    /// Dhanmondi, and one number cannot be right for both. Null falls back to
+    /// the store default for the zone.
+    /// </remarks>
+    public Money? DeliveryChargeOutsideDhaka { get; set; }
 
     // --- Merchandising and SEO ----------------------------------------------
 
