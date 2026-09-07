@@ -39,4 +39,27 @@ internal static partial class OrderLog
         Level = LogLevel.Information,
         Message = "Claimed {Count} guest order(s) for customer {CustomerId}.")]
     public static partial void GuestOrdersClaimed(ILogger logger, int count, long customerId);
+
+    [LoggerMessage(
+        EventId = 1603,
+        Level = LogLevel.Information,
+        Message = "Order {OrderNumber} payment moved {FromStatus} -> {ToStatus} by {Actor}.")]
+    public static partial void PaymentRecorded(
+        ILogger logger, string orderNumber, string fromStatus, string toStatus, string actor);
+
+    /// <summary>
+    /// A member of staff changing what a customer is charged.
+    /// </summary>
+    /// <remarks>
+    /// Logged at Warning rather than Information, and not because anything has
+    /// gone wrong. This is the one operation in the shop where one person can
+    /// move money on somebody else's order, and it should be visible in a log
+    /// filtered to warnings without anybody having to know to look for it.
+    /// </remarks>
+    [LoggerMessage(
+        EventId = 1604,
+        Level = LogLevel.Warning,
+        Message = "Order {OrderNumber} delivery charge changed {From} -> {To} by {Actor}.")]
+    public static partial void DeliveryFeeOverridden(
+        ILogger logger, string orderNumber, decimal from, decimal to, string actor);
 }

@@ -88,4 +88,23 @@ public static class OrderingErrors
 
     /// <summary>Past the point where a customer can stop it themselves.</summary>
     public const string OrderNotCancellable = Prefix + "order.not_cancellable.conflict";
+
+    // --- Admin order management ----------------------------------------------
+
+    /// <summary>The move is not one <c>PaymentStatusMachine</c> allows from here.</summary>
+    public const string PaymentTransitionInvalid = Prefix + "order.payment_transition_invalid.conflict";
+
+    /// <summary>
+    /// The total can no longer be edited, because money has already changed
+    /// hands or the goods have already left.
+    /// </summary>
+    /// <remarks>
+    /// Editing it anyway would leave the order saying one thing and the till
+    /// saying another. The correction from here is a refund or a second
+    /// collection, both of which leave a record.
+    /// </remarks>
+    public const string OrderAmountLocked = Prefix + "order.amount_locked.conflict";
+
+    /// <summary>A staff-facing change that must say why, and did not.</summary>
+    public const string ReasonRequired = Prefix + "reason_required";
 }
