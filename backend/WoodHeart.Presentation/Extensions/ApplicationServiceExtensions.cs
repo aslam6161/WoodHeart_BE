@@ -15,6 +15,7 @@ using WoodHeart.Repository.Interfaces.Payments;
 using WoodHeart.Repository.Repositories.Payments;
 using WoodHeart.Repository;
 using WoodHeart.Service.Infrastructure.Correlation;
+using WoodHeart.Service.Infrastructure.Notifications;
 using WoodHeart.Service.Infrastructure.Security;
 using WoodHeart.Service.Infrastructure.Time;
 using WoodHeart.Service.Interfaces.Catalog;
@@ -49,6 +50,7 @@ public static class ApplicationServiceExtensions
         builder.Services.AddDataAccess(builder.Configuration);
         builder.Services.AddSystemServices();
         builder.Services.AddMediaSettings(builder.Configuration);
+        builder.Services.AddNotificationSettings(builder.Configuration);
         builder.Services.AddBusinessServices();
         builder.Services.AddWebServices();
 
@@ -164,6 +166,63 @@ public static class ApplicationServiceExtensions
         return services;
     }
 
+    /// <summary>
+    /// The SMS and email senders, and the retry policy behind them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Which sender is registered depends on whether credentials exist.</b>
+    /// With none, the logging pair is used: it writes what it would have sent
+    /// and reports success, so a fresh clone can place an order end to end
+    /// without an SMS account, and so a notification is never silently dropped.
+    /// The startup line below says which is in force, because "why did the
+    /// customer not get a text" should be answerable from the log rather than
+    /// by reading this method.
+    /// </para>
+    /// <para>
+    /// Like Cloudinary and unlike <c>Jwt:SigningKey</c>, a missing credential
+    /// does not stop the API booting. An unsent SMS is a message in a queue
+    /// waiting for configuration; an unsigned token is a security hole.
+    /// </para>
+    /// </remarks>
+    private static IServiceCollection AddNotificationSettings(
+        this IServiceCollection services, ConfigurationManager configuration)
+    {
+        services.Configure<OutboxSettings>(configuration.GetSection(OutboxSettings.SectionName));
+        services.Configure<SmsSettings>(configuration.GetSection(SmsSettings.SectionName));
+        services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
+
+        var sms = configuration.GetSection(SmsSettings.SectionName).Get<SmsSettings>() ?? new SmsSettings();
+        var email = configuration.GetSection(EmailSettings.SectionName).Get<EmailSettings>() ?? new EmailSettings();
+
+        if (sms.IsConfigured)
+        {
+            // Through IHttpClientFactory so the handler is pooled and its
+            // lifetime is managed — a new HttpClient per send exhausts sockets
+            // under any real volume.
+            services.AddHttpClient<ISmsSender, AlphaSmsSender>(client =>
+            {
+                client.BaseAddress = new Uri(sms.BaseUrl);
+                client.Timeout = TimeSpan.FromSeconds(sms.TimeoutSeconds);
+            });
+        }
+        else
+        {
+            services.AddScoped<ISmsSender, LoggingSmsSender>();
+        }
+
+        if (email.IsConfigured)
+        {
+            services.AddScoped<IEmailSender, SmtpEmailSender>();
+        }
+        else
+        {
+            services.AddScoped<IEmailSender, LoggingEmailSender>();
+        }
+
+        return services;
+    }
+
     private static IServiceCollection AddBusinessServices(this IServiceCollection services)
     {
         services.AddScoped<IDiagnosticsService, DiagnosticsService>();
@@ -175,6 +234,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IAccountService, AccountService>();
 
         services.AddScoped<INotificationQueue, NotificationQueue>();
+        services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
 
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBrandService, BrandService>();

@@ -19,6 +19,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.ContactName).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ContactPhone).HasMaxLength(20).IsRequired();
         builder.Property(x => x.ContactEmail).HasMaxLength(256);
+        builder.Property(x => x.CustomerLanguage).HasMaxLength(8).IsRequired();
 
         builder.Property(x => x.DeliveryNote).HasMaxLength(500);
         builder.Property(x => x.InternalNotes).HasMaxLength(2000);

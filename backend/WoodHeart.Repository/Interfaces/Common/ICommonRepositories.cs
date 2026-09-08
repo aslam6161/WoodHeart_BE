@@ -19,6 +19,19 @@ public interface IOutboxRepository : IRepository<OutboxMessage>
         DateTimeOffset now, int batchSize, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByIdempotencyKeyAsync(string key, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns messages a stopped worker left mid-flight to the queue.
+    /// </summary>
+    /// <remarks>
+    /// <b>Without this, a deploy loses notifications permanently.</b>
+    /// <see cref="ClaimDueBatchAsync"/> selects only <c>Pending</c> rows, so a
+    /// message marked <c>Processing</c> by a worker that was then killed — a
+    /// restart, a container eviction, a crash — is never looked at again, and
+    /// the customer is simply never told about their order.
+    /// </remarks>
+    Task<int> ReclaimStaleAsync(
+        DateTimeOffset olderThan, CancellationToken cancellationToken = default);
 }
 
 public interface IStoreSettingRepository : IRepository<StoreSetting>
