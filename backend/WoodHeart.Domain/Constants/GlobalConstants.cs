@@ -85,6 +85,28 @@ public static class SettingKeys
 
     public const string StorePhone = "store.phone";
     public const string StoreEmail = "store.email";
+
+    /// <summary>The trading name printed at the top of an invoice.</summary>
+    /// <remarks>
+    /// A setting rather than a constant because it is the one string that has
+    /// to match the shop's paperwork exactly, and correcting it should not be a
+    /// deployment.
+    /// </remarks>
+    public const string StoreName = "store.name";
+
+    /// <summary>The shop's own address, as it should appear on an invoice.</summary>
+    public const string StoreAddress = "store.address";
+
+    /// <summary>
+    /// The Business Identification Number issued by the NBR.
+    /// </summary>
+    /// <remarks>
+    /// <b>Printed only when it is set.</b> An invoice that shows "BIN: —" is
+    /// worse than one that shows no BIN line at all: the first looks like a
+    /// registered business that failed to fill the field in, and a VAT
+    /// registration number is a claim worth making only when it is true.
+    /// </remarks>
+    public const string StoreBin = "store.bin";
 }
 
 /// <summary>Feature flag names.</summary>

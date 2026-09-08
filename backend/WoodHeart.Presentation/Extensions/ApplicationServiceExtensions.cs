@@ -249,6 +249,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<ICheckoutService, CheckoutService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IAdminOrderService, AdminOrderService>();
+        services.AddScoped<IInvoiceService, InvoiceService>();
 
         // Registered as IPaymentProvider, not as themselves. The resolver takes
         // IEnumerable<IPaymentProvider> and pairs each with its configuration
