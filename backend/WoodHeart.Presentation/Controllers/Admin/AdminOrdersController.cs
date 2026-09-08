@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WoodHeart.Domain.Constants;
+using WoodHeart.Repository;
 using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Ordering;
@@ -27,7 +28,9 @@ namespace WoodHeart.Presentation.Controllers.Admin;
 /// </remarks>
 [Authorize(Policy = Policies.RequireStaff)]
 [Route("api/admin/orders")]
-public class AdminOrdersController(IAdminOrderService orders) : BaseApiController
+public class AdminOrdersController(
+    IAdminOrderService orders,
+    IInvoiceService invoices) : BaseApiController
 {
     /// <summary>The board, filtered by status and searched by number, phone or name.</summary>
     [HttpGet]
@@ -99,6 +102,52 @@ public class AdminOrdersController(IAdminOrderService orders) : BaseApiControlle
         [FromBody] OverrideDeliveryFeeDto dto,
         CancellationToken cancellationToken) =>
         HandleResult(await orders.OverrideDeliveryFeeAsync(orderNumber, dto, cancellationToken));
+
+    /// <summary>
+    /// The invoice, as a PDF.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one endpoint on this controller that does not return a
+    /// <c>GeneralResponse</c>, because the caller is a browser being handed a
+    /// file rather than Angular reading a payload. A failure still does — the
+    /// service returns the same shape as everything else, and only the success
+    /// path becomes bytes.
+    /// </para>
+    /// <para>
+    /// <c>inline</c> rather than <c>attachment</c>: staff open the invoice to
+    /// check it and then print it, and a download that lands in a folder is one
+    /// more step and one more stale copy on somebody's desktop.
+    /// </para>
+    /// <para>
+    /// <b>No <c>[Produces]</c> attribute, deliberately.</b> It sets the content
+    /// types the result may be formatted as, and the success path here is a
+    /// <c>FileContentResult</c> that writes its own. Naming the PDF type there
+    /// leaves the framework with no formatter for the <c>GeneralResponse</c> on
+    /// the failure path, so a missing order number answers 406 Not Acceptable
+    /// with an empty body instead of the 404 the client knows how to read. The
+    /// response types below document the same thing without changing
+    /// negotiation.
+    /// </para>
+    /// </remarks>
+    [HttpGet("{orderNumber}/invoice")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, InvoiceFile.Pdf)]
+    [ProducesResponseType(typeof(GeneralResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Invoice(
+        string orderNumber, CancellationToken cancellationToken)
+    {
+        var result = await invoices.RenderAsync(orderNumber, cancellationToken);
+
+        if (!result.IsSuccess || result.Data is null)
+        {
+            return HandleResult(result);
+        }
+
+        Response.Headers.ContentDisposition =
+            $"inline; filename=\"{result.Data.FileName}\"";
+
+        return File(result.Data.Content, InvoiceFile.Pdf);
+    }
 
     /// <summary>The staff notepad. Never reaches a customer-facing DTO.</summary>
     [HttpPut("{orderNumber}/notes")]

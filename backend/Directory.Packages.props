@@ -61,6 +61,20 @@
       keep in step with the original, and no second thing to back up.
     -->
     <PackageVersion Include="CloudinaryDotNet" Version="1.29.3" />
+
+    <!--
+      Invoice rendering. QuestPDF is dual-licensed: the Community licence is
+      free for organisations under $1M USD annual revenue, which WoodHeart is by
+      a wide margin, and InvoiceRenderer states the licence in code because the
+      library refuses to run until something does.
+
+      It was chosen over the pure-managed alternatives (PDFsharp, iText's free
+      tier) for one reason: it draws through Skia and HarfBuzz, so Bangla
+      conjuncts and vowel reordering come out right. A customer whose delivery
+      address is written in Bangla gets an address the rider can read, rather
+      than the correct letters in the wrong order.
+    -->
+    <PackageVersion Include="QuestPDF" Version="2026.8.0" />
   </ItemGroup>
 
   <!-- =================== Framework abstractions ================ -->
