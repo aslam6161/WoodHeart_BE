@@ -1,3 +1,4 @@
+using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Enums.Ordering;
@@ -78,6 +79,18 @@ public class Order : BaseEntity
 
     /// <summary>Optional. Many customers here have no email they read.</summary>
     public string? ContactEmail { get; set; }
+
+    /// <summary>
+    /// Which language to write to this customer in — <c>en</c> or <c>bn</c>.
+    /// </summary>
+    /// <remarks>
+    /// Snapshotted for the same reason the VAT rate is. The confirmation is
+    /// sent while the customer is still on the page, but the "on its way"
+    /// message is sent days later by a member of staff whose own browser is in
+    /// English — and without this the shipping SMS would arrive in a different
+    /// language from the one that confirmed the order.
+    /// </remarks>
+    public string CustomerLanguage { get; set; } = GlobalConstants.DefaultLanguage;
 
     // --- Delivery ------------------------------------------------------------
 
