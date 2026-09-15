@@ -6,9 +6,9 @@ namespace WoodHeart.Service.Services.Ordering;
 /// Source-generated logging for orders, in the 1600 block.
 /// </summary>
 /// <remarks>
-/// Three events, all of which change money or the customer's expectations.
-/// Reads are not logged — an order detail page is fetched constantly and
-/// logging it would bury the three lines that matter.
+/// Events that change money or the customer's expectations, plus the one
+/// read worth a line. An order detail page is fetched constantly and logging
+/// it would bury everything else.
 /// </remarks>
 internal static partial class OrderLog
 {
@@ -62,4 +62,18 @@ internal static partial class OrderLog
         Message = "Order {OrderNumber} delivery charge changed {From} -> {To} by {Actor}.")]
     public static partial void DeliveryFeeOverridden(
         ILogger logger, string orderNumber, decimal from, decimal to, string actor);
+
+    /// <summary>
+    /// An invoice being drawn.
+    /// </summary>
+    /// <remarks>
+    /// The one read in this file, and it earns the exception: "how many times
+    /// was this invoice reprinted, and when" is asked during a dispute, and the
+    /// document is not stored anywhere for anyone to count.
+    /// </remarks>
+    [LoggerMessage(
+        EventId = 1605,
+        Level = LogLevel.Information,
+        Message = "Invoice for order {OrderNumber} rendered, {Bytes} bytes.")]
+    public static partial void InvoiceRendered(ILogger logger, string orderNumber, int bytes);
 }

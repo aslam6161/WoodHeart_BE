@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WoodHeart.Domain.Constants;
@@ -45,6 +46,7 @@ public class AdminOrderEndpointRegistrationTests(WoodHeartApiFactory factory)
     [InlineData("POST", "api/admin/orders/{orderNumber}/payment")]
     [InlineData("POST", "api/admin/orders/{orderNumber}/delivery-fee")]
     [InlineData("PUT", "api/admin/orders/{orderNumber}/notes")]
+    [InlineData("GET", "api/admin/orders/{orderNumber}/invoice")]
     public void The_routes_are_registered(string method, string pattern) =>
         Find(method, pattern).ShouldNotBeNull($"{method} /{pattern} is not routed");
 
@@ -57,6 +59,7 @@ public class AdminOrderEndpointRegistrationTests(WoodHeartApiFactory factory)
     [InlineData("POST", "api/admin/orders/{orderNumber}/payment")]
     [InlineData("POST", "api/admin/orders/{orderNumber}/delivery-fee")]
     [InlineData("PUT", "api/admin/orders/{orderNumber}/notes")]
+    [InlineData("GET", "api/admin/orders/{orderNumber}/invoice")]
     public void Nothing_on_the_order_board_is_open(string method, string pattern)
     {
         var endpoint = Find(method, pattern);
@@ -99,5 +102,30 @@ public class AdminOrderEndpointRegistrationTests(WoodHeartApiFactory factory)
 
         scope.ServiceProvider.GetService<IAdminOrderService>()
             .ShouldNotBeNull("IAdminOrderService is not registered");
+    }
+
+    [Fact]
+    public void The_invoice_endpoint_does_not_restrict_what_it_may_return()
+    {
+        // A regression guard for a bug this endpoint actually had.
+        // [Produces("application/pdf")] reads as documentation, but it sets the
+        // content types the result may be formatted as — and the success path
+        // is a FileContentResult that writes its own. It left no formatter for
+        // the GeneralResponse on the failure path, so asking for an order
+        // number that does not exist answered 406 Not Acceptable with an empty
+        // body instead of the 404 the Angular client knows how to read.
+        // [ProducesResponseType] documents the same thing and changes nothing.
+        Find("GET", "api/admin/orders/{orderNumber}/invoice")!.Metadata
+            .OfType<ProducesAttribute>()
+            .ShouldBeEmpty("[Produces] here breaks the 404 into a 406");
+    }
+
+    [Fact]
+    public void The_invoice_service_resolves_from_the_container()
+    {
+        using var scope = factory.Services.CreateScope();
+
+        scope.ServiceProvider.GetService<IInvoiceService>()
+            .ShouldNotBeNull("IInvoiceService is not registered");
     }
 }
