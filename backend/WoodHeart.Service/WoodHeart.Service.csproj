@@ -28,8 +28,23 @@
     <!-- Referenced by exactly one class, CloudinaryMediaStorage. Everything
          above it speaks in public ids and StoredMedia. -->
     <PackageReference Include="CloudinaryDotNet" />
+    <!-- Draws the invoice. See InvoiceRenderer for the licence declaration and
+         the fonts; the version note in Directory.Packages.props says why this
+         library rather than a pure-managed one. -->
+    <PackageReference Include="QuestPDF" />
     <!-- Http, Options, Logging and Caching.Memory all arrive with the
          Microsoft.AspNetCore.App framework reference above. -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The invoice's fonts, embedded rather than installed. A container has no
+      fonts of its own, and an invoice that renders as boxes on the server but
+      correctly on a developer's Windows machine is a bug nobody finds until a
+      customer is holding the paper. See Resources/Fonts/OFL.txt for the
+      licence; the files are the upstream Noto releases, unmodified.
+    -->
+    <EmbeddedResource Include="Resources\Fonts\*.ttf" />
   </ItemGroup>
 
   <ItemGroup>
