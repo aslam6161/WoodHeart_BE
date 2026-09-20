@@ -51,7 +51,13 @@ public interface IOrderRepository : IRepository<Order>
     Task<IReadOnlyList<Order>> GetUnclaimedForPhoneAsync(
         string contactPhone, CancellationToken cancellationToken = default);
 
-    /// <summary>The admin list: filtered by status, newest first.</summary>
+    /// <summary>
+    /// The admin list: filtered by status, newest first, with lines.
+    /// </summary>
+    /// <remarks>
+    /// The exception to the rule above. The board prints an item count on
+    /// every row, and a count is a sum over the lines.
+    /// </remarks>
     Task<IReadOnlyList<Order>> SearchAsync(
         OrderStatus? status,
         string? term,

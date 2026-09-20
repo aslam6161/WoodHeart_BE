@@ -50,6 +50,13 @@ public class OrderRepository(DataContext context)
         CancellationToken cancellationToken = default) =>
         await Filtered(status, term)
             .AsNoTracking()
+            // Lines are loaded here, against the rule for lists stated on the
+            // interface, because the board shows "3 items" on every row and
+            // that figure is a sum over them. Without this it read "0 items"
+            // on every order in the shop — found by looking at the screen,
+            // not by a test, because the fixture orders had lines attached
+            // in memory. A page is twenty orders of a few lines each.
+            .Include(x => x.Lines)
             .OrderByDescending(x => x.PlacedAt)
             .ThenByDescending(x => x.Id)
             .Skip(skip)
