@@ -141,6 +141,8 @@ public static class ApplicationServiceExtensions
         // Singletons that need a repository resolve their own scope per read —
         // see StoreSettingService for why these are cached rather than scoped.
         services.AddSingleton<IStoreSettingService, StoreSettingService>();
+        // Scoped, unlike the cached reader above: it holds the unit of work.
+        services.AddScoped<ISettingsAdminService, SettingsAdminService>();
         services.AddSingleton<IFeatureFlagService, FeatureFlagService>();
 
         return services;

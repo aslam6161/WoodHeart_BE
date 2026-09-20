@@ -88,17 +88,39 @@ public static class Seed
             (SettingKeys.OrderNumberPrefix, "WH", SettingValueType.String, "Orders",
                 "Prefix for human-facing order numbers, e.g. WH-2608-00042."),
             (SettingKeys.LowStockThreshold, "5", SettingValueType.Integer, "Inventory",
-                "Units at or below which a product is flagged low on the admin dashboard.")
+                "Units at or below which a product is flagged low on the admin dashboard."),
+
+            // The shop's own particulars, as they go on an invoice. Blank on
+            // purpose: the invoice prints only what is set, and a made-up
+            // address or BIN would be worse than none.
+            (SettingKeys.StoreName, "WoodHeart", SettingValueType.String, "Store",
+                "The trading name printed at the top of every invoice."),
+            (SettingKeys.StoreAddress, "", SettingValueType.String, "Store",
+                "The shop's address as it should appear on an invoice."),
+            (SettingKeys.StorePhone, "", SettingValueType.String, "Store",
+                "The number customers ring. Printed on invoices."),
+            (SettingKeys.StoreEmail, "", SettingValueType.String, "Store",
+                "The shop's email, printed on invoices when set."),
+            (SettingKeys.StoreBin, "", SettingValueType.String, "Store",
+                "Business Identification Number from the NBR. Printed on invoices only when set.")
         };
 
         var existing = await context.StoreSettings
-            .Select(x => x.Key)
-            .ToListAsync(cancellationToken);
+            .Where(x => x.IsSystem)
+            .ToDictionaryAsync(x => x.Key, cancellationToken);
 
         foreach (var (key, value, type, category, description) in defaults)
         {
-            if (existing.Contains(key))
+            if (existing.TryGetValue(key, out var current))
             {
+                // The value is the shop's; the help text, section and type are
+                // the code's. Refreshing those on boot means the settings
+                // screen never explains a field with last release's words.
+                // The value is never touched here — that is what the screen
+                // is for.
+                current.ValueType = type;
+                current.Category = category;
+                current.Description = description;
                 continue;
             }
 
