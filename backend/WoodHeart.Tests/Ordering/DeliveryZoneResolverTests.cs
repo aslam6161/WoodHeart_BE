@@ -55,4 +55,20 @@ public class DeliveryZoneResolverTests
     [Fact]
     public void An_upazila_inside_the_city_stays_inside_Dhaka() =>
         DeliveryZoneResolver.Resolve(At("Dhaka", "Mirpur")).ShouldBe(DeliveryZone.InsideDhaka);
+
+    [Fact]
+    public void A_Bangla_address_in_the_city_is_inside_Dhaka()
+    {
+        // Half the customers will type the address in Bangla. "ঢাকা" is
+        // Dhaka, and until this test it was priced as Sylhet.
+        DeliveryZoneResolver.Resolve(At("ঢাকা", area: "ধানমন্ডি"))
+            .ShouldBe(DeliveryZone.InsideDhaka);
+    }
+
+    [Theory]
+    [InlineData("সাভার")]
+    [InlineData("ধামরাই")]
+    [InlineData("কেরানীগঞ্জ")]
+    public void The_outlying_parts_are_recognised_in_Bangla_too(string upazila) =>
+        DeliveryZoneResolver.Resolve(At("ঢাকা", upazila)).ShouldBe(DeliveryZone.OutsideDhaka);
 }
