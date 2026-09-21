@@ -14,6 +14,7 @@ using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
+using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Interfaces.Payments;
 using WoodHeart.Service.Services.Common;
@@ -52,6 +53,7 @@ public class CheckoutService(
     IPaymentProviderResolver payments,
     INumberSequenceService numbers,
     INotificationQueue notifications,
+    IInventoryService inventory,
     IStoreSettingService settings,
     ICurrentUserService currentUser,
     ITokenHasher hasher,
@@ -191,6 +193,22 @@ public class CheckoutService(
             // provider throwing takes the whole transaction down rather than
             // leaving a payment against nothing.
             await unitOfWork.SaveChangesAsync(ct);
+
+            // The shelf, after the order has an id to hold against and
+            // before any money moves. A refusal here rolls the order back
+            // with it: an order that exists for a bed that does not is a
+            // phone call the shop should not have to make. Two checkouts
+            // racing for the last unit are settled by the row version on
+            // the stock item — the second commit fails as a 409.
+            var reserved = await inventory.ReserveForOrderAsync(order, ct);
+
+            if (!reserved.IsSuccess)
+            {
+                return GeneralResponse<PlacedOrderDto>.Invalid(
+                    reserved.ErrorCode ?? InventoryErrors.InsufficientStock,
+                    reserved.Message,
+                    reserved.Errors ?? new Dictionary<string, string[]>());
+            }
 
             var initiated = await chosen.Provider.InitiateAsync(
                 new PaymentContext(order, order.GrandTotal, dto.ReturnUrl, order.IdempotencyKey ?? order.OrderNumber),

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Catalog;
+using WoodHeart.Domain.Entity.Inventory;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Enums.Catalog;
 using WoodHeart.Domain.Enums.Ordering;
@@ -466,11 +467,25 @@ public class CartServiceTests
             Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task A_sold_out_variant_cannot_be_added()
+    {
+        // A basket is not a reservation, but adding something that is already
+        // gone only sets up a refusal three pages later.
+        var variant = Variant(onHand: 0);
+        _variants.GetWithProductAsync(variant.Id, Arg.Any<CancellationToken>()).Returns(variant);
+
+        var result = await CreateService().AddAsync(new AddToCartDto { VariantId = variant.Id, Quantity = 1 });
+
+        result.IsSuccess.ShouldBeFalse();
+        result.ErrorCode.ShouldBe(InventoryErrors.InsufficientStock);
+    }
+
     // -------------------------------------------------------------------------
     // Fixtures
     // -------------------------------------------------------------------------
 
-    private static ProductVariant Variant(long id = 1, decimal price = 1000m) =>
+    private static ProductVariant Variant(long id = 1, decimal price = 1000m, int onHand = 100) =>
         new()
         {
             Id = id,
@@ -479,6 +494,9 @@ public class CartServiceTests
             IsActive = true,
             PriceOverride = Money.Taka(price),
             ProductId = id,
+            // Stocked products need a count to be addable; "never stocked"
+            // is sold out, not unlimited. Plenty, unless a test says otherwise.
+            Stock = new StockItem { Id = id, ProductVariantId = id, OnHand = onHand },
             Product = new Product
             {
                 Id = id,

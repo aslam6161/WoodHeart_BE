@@ -11,6 +11,7 @@ using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
+using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Services.Ordering;
 using WoodHeart.Tests.Helper;
 
@@ -60,10 +61,13 @@ public class AdminOrderServiceTests
         });
     }
 
+    private readonly IInventoryService _inventory = Substitute.For<IInventoryService>();
+
     private AdminOrderService CreateService() =>
         new(_orders,
             _users,
             _notifications,
+            _inventory,
             _currentUser,
             _clock,
             _unitOfWork,

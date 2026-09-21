@@ -58,5 +58,9 @@ public class CartRepository(DataContext context)
             // unfiltered include would drag every photograph of every product
             // in the cart across the wire to render a 64-pixel thumbnail.
             .ThenInclude(product => product.Media.Where(m => m.IsPrimary))
+            // And the count, so the basket can say a line has sold out
+            // before checkout refuses it.
+            .Include(x => x.Lines)
+            .ThenInclude(line => line.ProductVariant.Stock)
             .AsSplitQuery();
 }

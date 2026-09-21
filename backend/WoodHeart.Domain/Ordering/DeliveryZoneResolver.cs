@@ -40,16 +40,28 @@ public static class DeliveryZoneResolver
     private static readonly HashSet<string> OutlyingUpazilas =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            "Savar", "Dhamrai", "Nawabganj", "Dohar", "Keraniganj"
+            "Savar", "Dhamrai", "Nawabganj", "Dohar", "Keraniganj",
+            "সাভার", "ধামরাই", "নবাবগঞ্জ", "দোহার", "কেরানীগঞ্জ"
         };
 
-    private const string DhakaDistrict = "Dhaka";
+    /// <summary>
+    /// The district, in both scripts.
+    /// </summary>
+    /// <remarks>
+    /// Half of this shop's customers will type the address in Bangla, and
+    /// "ঢাকা" compared to "Dhaka" is a miss — which priced every Bangla
+    /// address in the city as an out-of-town delivery. The storefront's
+    /// dropdowns send English today; the API must not depend on that, because
+    /// the phone order that staff type in will not.
+    /// </remarks>
+    private static readonly HashSet<string> DhakaDistrict =
+        new(StringComparer.OrdinalIgnoreCase) { "Dhaka", "ঢাকা" };
 
     public static DeliveryZone Resolve(DeliveryAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
 
-        if (!string.Equals(address.District?.Trim(), DhakaDistrict, StringComparison.OrdinalIgnoreCase))
+        if (address.District is not { } district || !DhakaDistrict.Contains(district.Trim()))
         {
             return DeliveryZone.OutsideDhaka;
         }

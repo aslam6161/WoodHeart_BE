@@ -11,6 +11,7 @@ using WoodHeart.Domain.Entity;
 using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Common;
 using WoodHeart.Domain.Entity.Identity;
+using WoodHeart.Domain.Entity.Inventory;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Entity.Payments;
 using WoodHeart.Domain.Helpers;
@@ -80,6 +81,14 @@ public class DataContext(
 
     public DbSet<OrderTimelineEntry> OrderTimelineEntries => Set<OrderTimelineEntry>();
 
+    // --- Inventory ---------------------------------------------------------
+
+    public DbSet<StockItem> StockItems => Set<StockItem>();
+
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+
+    public DbSet<StockReservation> StockReservations => Set<StockReservation>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -128,7 +137,20 @@ public class DataContext(
             try
             {
                 var result = await operation(ct);
-                await transaction.CommitAsync(ct);
+
+                // A use case that says it failed has not happened. The
+                // placement path saves the order before it reserves stock
+                // and before it asks the payment provider; a refusal at
+                // either point returns a failure rather than throwing, and
+                // that failure must take the saved order down with it.
+                if (result is GeneralResponse { IsSuccess: false })
+                {
+                    await transaction.RollbackAsync(ct);
+                }
+                else
+                {
+                    await transaction.CommitAsync(ct);
+                }
 
                 return result;
             }

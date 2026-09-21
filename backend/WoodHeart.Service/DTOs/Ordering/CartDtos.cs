@@ -127,6 +127,16 @@ public class CartLineDto
     /// </summary>
     public bool IsAvailable { get; init; }
 
+    /// <summary>
+    /// The product is still sold, but there are none to sell. Distinguished
+    /// from a withdrawn product because the advice differs: "check back" as
+    /// opposed to "remove it".
+    /// </summary>
+    public bool IsSoldOut { get; init; }
+
+    /// <summary>The count, when it is small enough to matter. Null otherwise.</summary>
+    public int? AvailableQuantity { get; init; }
+
     /// <summary>Working days to build, for made-to-order items. Null for stocked ones.</summary>
     public int? LeadTimeDays { get; init; }
 }
