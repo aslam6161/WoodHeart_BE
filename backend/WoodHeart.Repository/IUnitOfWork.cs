@@ -31,11 +31,21 @@ public interface IUnitOfWork
     /// one already in progress rather than nesting.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Wrapped in the provider's execution strategy, so a transient
     /// connection drop retries the whole unit instead of failing with
     /// "the configured execution strategy does not support user-initiated
     /// transactions" — the error every EF retry policy hits the first time it
     /// meets an explicit transaction.
+    /// </para>
+    /// <para>
+    /// <b>A failed result rolls back.</b> When <typeparamref name="TResult"/>
+    /// is a <see cref="GeneralResponse"/> and it says <c>IsSuccess == false</c>,
+    /// the transaction is rolled back, whatever was saved inside it. A use
+    /// case that reports failure has not happened; an order written, saved,
+    /// and then refused for stock must not be in the database when the
+    /// customer is told it was refused. Exceptions roll back as before.
+    /// </para>
     /// </remarks>
     Task<TResult> ExecuteInTransactionAsync<TResult>(
         Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken = default);

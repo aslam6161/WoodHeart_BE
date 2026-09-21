@@ -14,6 +14,7 @@ using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
+using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Interfaces.Payments;
 using WoodHeart.Service.Services.Ordering;
@@ -91,19 +92,29 @@ public class CheckoutServiceTests
                     CancellationToken.None));
     }
 
-    private CheckoutService CreateService() =>
-        new(_carts,
+    private readonly IInventoryService _inventory = Substitute.For<IInventoryService>();
+
+    private CheckoutService CreateService()
+    {
+        // Stock says yes unless a test says otherwise. The ledger has its
+        // own tests; here it is the order that is under test.
+        _inventory.ReserveForOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
+            .Returns(GeneralResponse.Success());
+
+        return new(_carts,
             _orders,
             _pricing,
             _payments,
             _numbers,
             _notifications,
+            _inventory,
             _settings,
             _currentUser,
             _hasher,
             _clock,
             _unitOfWork,
             NullLogger<CheckoutService>.Instance);
+    }
 
     // -------------------------------------------------------------------------
     // The happy path

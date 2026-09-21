@@ -416,6 +416,9 @@ public class ProductRepository(DataContext context)
             .Include(p => p.Category)
             .Include(p => p.Brand)
             .Include(p => p.Variants.Where(v => !v.IsDeleted).OrderBy(v => v.SortOrder))
+            // The count rides along with each variant, so the product page
+            // can say "out of stock" without a second query per variant.
+            .ThenInclude(v => v.Stock)
             .Include(p => p.Media.Where(m => !m.IsDeleted).OrderBy(m => m.SortOrder))
             .AsSplitQuery();
 }
@@ -458,6 +461,9 @@ public class ProductVariantRepository(DataContext context)
         long variantId, CancellationToken cancellationToken = default) =>
         await Set
             .Include(v => v.Product)
+            // And the count: "can this be added to a basket" includes
+            // "is there one", not only "is it still sold".
+            .Include(v => v.Stock)
             .FirstOrDefaultAsync(v => v.Id == variantId, cancellationToken);
 }
 

@@ -32,6 +32,10 @@ public interface IOrderRepository : IRepository<Order>
 
     Task<int> CountForCustomerAsync(long customerId, CancellationToken cancellationToken = default);
 
+    /// <summary>Order numbers by id, for screens that hold ids and print numbers — the stock ledger.</summary>
+    Task<IReadOnlyDictionary<long, string>> GetNumbersAsync(
+        IReadOnlyCollection<long> orderIds, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// The order already written for this idempotency key, if there is one.
     /// </summary>

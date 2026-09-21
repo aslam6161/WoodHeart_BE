@@ -5,10 +5,12 @@ using WoodHeart.Domain.Settings;
 using WoodHeart.Presentation.Middleware;
 using WoodHeart.Repository.Interfaces.Catalog;
 using WoodHeart.Repository.Interfaces.Common;
+using WoodHeart.Repository.Interfaces.Inventory;
 using WoodHeart.Repository.Interfaces.Identity;
 using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Repository.Repositories.Catalog;
 using WoodHeart.Repository.Repositories.Common;
+using WoodHeart.Repository.Repositories.Inventory;
 using WoodHeart.Repository.Repositories.Identity;
 using WoodHeart.Repository.Repositories.Ordering;
 using WoodHeart.Repository.Interfaces.Payments;
@@ -20,12 +22,14 @@ using WoodHeart.Service.Infrastructure.Security;
 using WoodHeart.Service.Infrastructure.Time;
 using WoodHeart.Service.Interfaces.Catalog;
 using WoodHeart.Service.Interfaces.Common;
+using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Identity;
 using WoodHeart.Service.Interfaces.Media;
 using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Services.Catalog;
 using WoodHeart.Service.Services.Common;
+using WoodHeart.Service.Services.Inventory;
 using WoodHeart.Service.Services.Identity;
 using WoodHeart.Service.Services.Media;
 using WoodHeart.Service.Services.Notifications;
@@ -91,6 +95,7 @@ public static class ApplicationServiceExtensions
         // Common
         services.AddScoped<IOutboxRepository, OutboxRepository>();
         services.AddScoped<IStoreSettingRepository, StoreSettingRepository>();
+        services.AddScoped<IStockRepository, StockRepository>();
         services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
         services.AddScoped<INumberSequenceRepository, NumberSequenceRepository>();
 
@@ -143,6 +148,7 @@ public static class ApplicationServiceExtensions
         services.AddSingleton<IStoreSettingService, StoreSettingService>();
         // Scoped, unlike the cached reader above: it holds the unit of work.
         services.AddScoped<ISettingsAdminService, SettingsAdminService>();
+        services.AddScoped<IInventoryService, InventoryService>();
         services.AddSingleton<IFeatureFlagService, FeatureFlagService>();
 
         return services;

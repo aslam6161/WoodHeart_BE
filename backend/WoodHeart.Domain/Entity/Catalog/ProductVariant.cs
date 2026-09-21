@@ -96,6 +96,13 @@ public class ProductVariant : SoftDeletableEntity
     public ICollection<ProductMedia> Media { get; set; } = [];
 
     /// <summary>
+    /// The count, for a stocked product. Null until the first stock-in — and
+    /// null means "none", never "unlimited": a variant that has never been
+    /// received cannot be sold.
+    /// </summary>
+    public Inventory.StockItem? Stock { get; set; }
+
+    /// <summary>
     /// What the customer pays before discounts: the override if present,
     /// otherwise the product's base price.
     /// </summary>

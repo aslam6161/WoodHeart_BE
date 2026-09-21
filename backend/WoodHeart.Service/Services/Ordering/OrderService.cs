@@ -9,6 +9,7 @@ using WoodHeart.Repository;
 using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Common;
+using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Mapping.Ordering;
 
@@ -32,6 +33,7 @@ namespace WoodHeart.Service.Services.Ordering;
 /// </remarks>
 public class OrderService(
     IOrderRepository orders,
+    IInventoryService inventory,
     ICurrentUserService currentUser,
     IDateTimeProvider clock,
     IUnitOfWork unitOfWork,
@@ -153,6 +155,11 @@ public class OrderService(
         order.Status = OrderStatus.Cancelled;
 
         orders.Update(order);
+        // Frees the hold, so the bed goes back on sale the moment the
+        // customer changes their mind rather than when somebody notices.
+        await inventory.ApplyStatusChangeAsync(
+            order, from, OrderStatus.Cancelled, "Customer", cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         OrderLog.StatusChanged(

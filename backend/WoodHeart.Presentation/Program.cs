@@ -131,6 +131,7 @@ static async Task SeedDatabaseAsync(WebApplication app)
         if (app.Configuration.GetValue("Seed:Catalog", false))
         {
             await CatalogSeed.RunAsync(context, clock);
+            await StockSeed.RunAsync(context, clock);
         }
     }
     catch (Exception exception)

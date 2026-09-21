@@ -132,6 +132,20 @@ public class StorefrontVariantDto
     public bool IsOnOffer { get; set; }
 
     public bool IsDefault { get; set; }
+
+    /// <summary>
+    /// Whether one can be bought right now. Always true for made-to-order —
+    /// those are built, not shelved — and false for a stocked variant with
+    /// nothing available, including one nobody has stocked yet.
+    /// </summary>
+    public bool IsInStock { get; set; }
+
+    /// <summary>
+    /// How many can be bought, when that number is small enough to matter.
+    /// Null for made-to-order and when there are plenty; "only 2 left" is
+    /// worth saying, "47 left" is not.
+    /// </summary>
+    public int? AvailableQuantity { get; set; }
 }
 
 public class StorefrontMediaDto
