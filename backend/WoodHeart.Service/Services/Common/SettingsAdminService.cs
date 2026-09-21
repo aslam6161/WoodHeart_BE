@@ -53,8 +53,8 @@ public class SettingsAdminService(
         SettingKeys.VatRate, SettingKeys.PricesIncludeVat, SettingKeys.VatOnDelivery,
         SettingKeys.DeliveryChargeInsideDhaka, SettingKeys.DeliveryChargeOutsideDhaka,
         SettingKeys.FreeDeliveryThreshold,
-        SettingKeys.OrderNumberPrefix,
-        SettingKeys.LowStockThreshold
+        SettingKeys.OrderNumberPrefix, SettingKeys.UnpaidOrderExpiryMinutes,
+        SettingKeys.LowStockThreshold, SettingKeys.LowStockDigest
     ];
 
     public async Task<GeneralResponse<IReadOnlyList<StoreSettingDto>>> GetAllAsync(
