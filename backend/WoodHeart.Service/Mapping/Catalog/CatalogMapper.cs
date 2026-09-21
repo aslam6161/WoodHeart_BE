@@ -222,7 +222,9 @@ public static class CatalogMapper
                 Price = EffectivePrice(v, product),
                 CompareAtPrice = EffectiveCompareAt(v, product),
                 IsOnOffer = EffectiveCompareAt(v, product) > EffectivePrice(v, product),
-                IsDefault = v.IsDefault
+                IsDefault = v.IsDefault,
+                IsInStock = Availability.IsInStock(product, v),
+                AvailableQuantity = Availability.ScarceQuantity(product, v)
             })];
 
         dto.Media = [.. product.Media
@@ -318,4 +320,35 @@ public static class CatalogMapper
 
     private static decimal? EffectiveCompareAt(ProductVariant variant, Product product) =>
         variant.CompareAtPriceOverride?.Amount ?? product.CompareAtPrice?.Amount;
+}
+
+/// <summary>
+/// What the storefront says about a variant's stock. One place, so the
+/// product page and the basket cannot disagree about whether a bed is there.
+/// </summary>
+public static class Availability
+{
+    /// <summary>Below this the number is shown. Above it, "In stock" is enough.</summary>
+    public const int ScarcityThreshold = 5;
+
+    /// <summary>
+    /// Made-to-order and service products are always in stock: they have no
+    /// shelf. A stocked variant is in stock when its count says at least one
+    /// is available — and a variant with no count has none.
+    /// </summary>
+    public static bool IsInStock(Product product, ProductVariant variant) =>
+        !product.TracksStock || (variant.Stock?.Available ?? 0) > 0;
+
+    /// <summary>The available count, only when it is small enough to be worth saying.</summary>
+    public static int? ScarceQuantity(Product product, ProductVariant variant)
+    {
+        if (!product.TracksStock)
+        {
+            return null;
+        }
+
+        var available = Math.Max(variant.Stock?.Available ?? 0, 0);
+
+        return available <= ScarcityThreshold ? available : null;
+    }
 }

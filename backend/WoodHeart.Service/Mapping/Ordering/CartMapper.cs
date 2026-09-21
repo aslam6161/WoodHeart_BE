@@ -3,6 +3,8 @@ using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Enums.Catalog;
 using WoodHeart.Domain.Pricing;
 
+using WoodHeart.Service.Mapping.Catalog;
+
 namespace WoodHeart.Service.Mapping.Ordering;
 
 /// <summary>
@@ -70,7 +72,15 @@ public static class CartMapper
             PriceChanged = unitPrice.Amount != line.UnitPriceAtAdd.Amount,
 
             LineTotal = unitPrice.Multiply(line.Quantity).Amount,
-            IsAvailable = variant.IsActive && product.Status == ProductStatus.Active,
+            // Withdrawn, or sold out. Both are shown greyed out on the basket
+            // page and both are refused at checkout; the message differs.
+            IsAvailable = variant.IsActive
+                          && product.Status == ProductStatus.Active
+                          && Availability.IsInStock(product, variant),
+            IsSoldOut = variant.IsActive
+                        && product.Status == ProductStatus.Active
+                        && !Availability.IsInStock(product, variant),
+            AvailableQuantity = Availability.ScarceQuantity(product, variant),
 
             // Only meaningful for something being built to order. Sending it on
             // a stocked item would put "ready in 14 days" next to a lamp that

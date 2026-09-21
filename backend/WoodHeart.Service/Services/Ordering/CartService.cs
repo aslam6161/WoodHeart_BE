@@ -11,6 +11,7 @@ using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Ordering;
+using WoodHeart.Service.Mapping.Catalog;
 using WoodHeart.Service.Mapping.Ordering;
 
 namespace WoodHeart.Service.Services.Ordering;
@@ -77,6 +78,15 @@ public class CartService(
         {
             return Fail(OrderingErrors.ProductNotPurchasable,
                 "That item is not currently available to buy.");
+        }
+
+        // Sold out is refused at the door rather than at checkout. A basket
+        // is not a reservation — the count can still fall before they pay —
+        // but adding something that is already gone only sets up a refusal
+        // three pages later.
+        if (!Availability.IsInStock(variant.Product, variant))
+        {
+            return Fail(InventoryErrors.InsufficientStock, "That item has sold out.");
         }
 
         var price = variant.EffectivePrice;

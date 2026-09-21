@@ -14,6 +14,7 @@ using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
+using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Mapping.Ordering;
 
@@ -42,6 +43,7 @@ public class AdminOrderService(
     IOrderRepository orders,
     UserManager<AppUser> users,
     INotificationQueue notifications,
+    IInventoryService inventory,
     ICurrentUserService currentUser,
     IDateTimeProvider clock,
     IUnitOfWork unitOfWork,
@@ -161,6 +163,11 @@ public class AdminOrderService(
 
         ApplyConsequences(order, dto.Status);
         Record(order, from, dto.Status, actor, dto.Note?.Trim());
+
+        // The shelf moves with the order: shipping books the sale, a
+        // cancellation frees the hold, a return puts the units back. Staged
+        // into the same save, so the status and the count cannot disagree.
+        await inventory.ApplyStatusChangeAsync(order, from, dto.Status, actor, cancellationToken);
 
         orders.Update(order);
         await unitOfWork.SaveChangesAsync(cancellationToken);

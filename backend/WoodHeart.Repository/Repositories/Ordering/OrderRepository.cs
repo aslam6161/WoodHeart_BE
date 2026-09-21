@@ -78,6 +78,13 @@ public class OrderRepository(DataContext context)
         return rows.ToDictionary(row => row.Status, row => row.Count);
     }
 
+    public async Task<IReadOnlyDictionary<long, string>> GetNumbersAsync(
+        IReadOnlyCollection<long> orderIds, CancellationToken cancellationToken = default) =>
+        await Set.AsNoTracking()
+            .Where(x => orderIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.OrderNumber })
+            .ToDictionaryAsync(x => x.Id, x => x.OrderNumber, cancellationToken);
+
     /// <summary>
     /// The admin list's filter: a status, and a search over the three things
     /// staff have in front of them when someone phones up.
