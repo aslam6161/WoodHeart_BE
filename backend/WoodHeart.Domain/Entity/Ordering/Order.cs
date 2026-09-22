@@ -217,6 +217,57 @@ public class Order : BaseEntity
     public ICollection<OrderLine> Lines { get; set; } = [];
 
     public ICollection<OrderTimelineEntry> Timeline { get; set; } = [];
+
+    /// <summary>
+    /// The discounts that applied, frozen — name, code and amount.
+    /// </summary>
+    /// <remarks>
+    /// The sum of these is <see cref="DiscountTotal"/>. Kept as rows so the
+    /// invoice can say <i>why</i> 2,000৳ came off rather than only that it did,
+    /// and so the figure survives the discount being renamed, retargeted or
+    /// archived next month.
+    /// </remarks>
+    public ICollection<OrderDiscount> Discounts { get; set; } = [];
+}
+
+/// <summary>
+/// One discount as it applied to one order: what it was called, what was
+/// typed, and what it took off.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Snapshotted for the same reason every other display field on an order is.
+/// <see cref="DiscountId"/> survives so "what did the September sale cost us"
+/// is answerable, but nothing here is read through it — a discount edited or
+/// archived later must not rewrite what an old invoice says was given.
+/// </para>
+/// <para>
+/// <see cref="DiscountId"/> is nullable only so that archiving a discount can
+/// never be blocked by the orders that used it; in practice it is always set.
+/// </para>
+/// </remarks>
+public class OrderDiscount : BaseEntity
+{
+    public long OrderId { get; set; }
+
+    public Order Order { get; set; } = null!;
+
+    public long? DiscountId { get; set; }
+
+    public Promotions.Discount? Discount { get; set; }
+
+    /// <summary>What the basket page called it, at placement.</summary>
+    public string Name { get; set; } = null!;
+
+    /// <summary>The code the customer typed. Null for an automatic promotion.</summary>
+    public string? Code { get; set; }
+
+    public Enums.Promotions.DiscountType Type { get; set; }
+
+    /// <summary>
+    /// What it took off. For free shipping, the delivery charge that was waived.
+    /// </summary>
+    public Money Amount { get; set; } = null!;
 }
 
 /// <summary>

@@ -1,7 +1,9 @@
 using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Enums.Catalog;
+using WoodHeart.Domain.Enums.Promotions;
 using WoodHeart.Domain.Pricing;
+using WoodHeart.Domain.Promotions;
 
 using WoodHeart.Service.Mapping.Catalog;
 
@@ -18,7 +20,12 @@ namespace WoodHeart.Service.Mapping.Ordering;
 /// </remarks>
 public static class CartMapper
 {
-    public static DTOs.Ordering.CartDto ToDto(Cart cart, CartTotals totals, PricingContext context)
+    public static DTOs.Ordering.CartDto ToDto(
+        Cart cart,
+        CartTotals totals,
+        PricingContext context,
+        IReadOnlyList<AppliedDiscount> applied,
+        IReadOnlyList<RejectedCoupon> rejected)
     {
         var lines = cart.Lines.Select(ToLineDto).ToList();
 
@@ -30,7 +37,45 @@ public static class CartMapper
             Lines = lines,
             Totals = ToTotalsDto(totals, context),
             HasPriceChanges = lines.Any(l => l.PriceChanged),
-            HasUnavailableLines = lines.Any(l => !l.IsAvailable)
+            HasUnavailableLines = lines.Any(l => !l.IsAvailable),
+
+            // Only the ones that gave something. A discount recorded at zero —
+            // a free-shipping coupon on an order whose delivery staff have
+            // already set by hand — would read on the basket as an offer that
+            // is not working.
+            Discounts =
+            [
+                .. applied
+                    .Where(discount => discount.Amount.IsPositive)
+                    .Select(discount => new DTOs.Ordering.CartDiscountDto
+                    {
+                        DiscountId = discount.DiscountId,
+                        Name = discount.Name,
+                        Code = discount.Code,
+                        Type = discount.Type,
+                        Amount = discount.Amount.Amount
+                    })
+            ],
+
+            // Every code the customer has typed, applying or not. A code that
+            // has stopped applying is removed from the total and kept on the
+            // basket with its reason: silently dropping it would leave them
+            // hunting for a code they had already found.
+            Coupons =
+            [
+                .. cart.Coupons.Select(coupon => new DTOs.Ordering.CartCouponDto
+                {
+                    Code = coupon.Code,
+                    IsApplied = applied.Any(discount =>
+                        string.Equals(discount.Code, coupon.Code, StringComparison.Ordinal)),
+                    Reason = rejected
+                        .FirstOrDefault(refusal =>
+                            string.Equals(refusal.Code, coupon.Code, StringComparison.Ordinal))
+                        ?.Reason
+                })
+            ],
+
+            FreeShipping = applied.Any(discount => discount.Type == DiscountType.FreeShipping)
         };
     }
 

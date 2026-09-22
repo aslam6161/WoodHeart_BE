@@ -71,6 +71,9 @@ public class OrderDetailDto
 
     public OrderTotalsDto Totals { get; init; } = new();
 
+    /// <summary>What came off, named — as it was at placement.</summary>
+    public IReadOnlyList<OrderDiscountDto> Discounts { get; init; } = [];
+
     public IReadOnlyList<OrderTimelineEntryDto> Timeline { get; init; } = [];
 
     public bool CanCancel { get; init; }
@@ -106,6 +109,19 @@ public class OrderLineDto
 }
 
 /// <summary>The bill, exactly as it was charged.</summary>
+/// <summary>One discount as it applied to an order, frozen at placement.</summary>
+public class OrderDiscountDto
+{
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>The code the customer typed. Null for an automatic promotion.</summary>
+    public string? Code { get; init; }
+
+    public Domain.Enums.Promotions.DiscountType Type { get; init; }
+
+    public decimal Amount { get; init; }
+}
+
 public class OrderTotalsDto
 {
     public decimal Subtotal { get; init; }

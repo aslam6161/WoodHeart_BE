@@ -13,7 +13,10 @@ using WoodHeart.Repository.Interfaces.Catalog;
 using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Common;
+using WoodHeart.Domain.Enums.Promotions;
+using WoodHeart.Domain.Promotions;
 using WoodHeart.Service.Interfaces.Ordering;
+using WoodHeart.Service.Interfaces.Promotions;
 using WoodHeart.Service.Services.Ordering;
 using WoodHeart.Tests.Helper;
 
@@ -37,6 +40,7 @@ public class CartServiceTests
     private readonly ICartRepository _carts = Substitute.For<ICartRepository>();
     private readonly IProductVariantRepository _variants = Substitute.For<IProductVariantRepository>();
     private readonly IPricingContextFactory _pricing = Substitute.For<IPricingContextFactory>();
+    private readonly IPromotionService _promotions = Substitute.For<IPromotionService>();
     private readonly ICurrentUserService _currentUser = Substitute.For<ICurrentUserService>();
     private readonly ITokenHasher _hasher = Substitute.For<ITokenHasher>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
@@ -45,6 +49,11 @@ public class CartServiceTests
     public CartServiceTests()
     {
         _hasher.Hash(Arg.Any<string>()).Returns(call => $"hashed:{call.Arg<string>()}");
+
+        // No discounts unless a test says so. The engine has its own suite;
+        // here it is the basket that is under test.
+        _promotions.EvaluateAsync(Arg.Any<PromotionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(DiscountOutcome.None());
 
         _pricing.BuildAsync(
                 Arg.Any<DeliveryZone?>(), Arg.Any<Money?>(), Arg.Any<CancellationToken>())
@@ -72,6 +81,7 @@ public class CartServiceTests
         new(_carts,
             _variants,
             _pricing,
+            _promotions,
             _currentUser,
             _hasher,
             _clock,
@@ -480,6 +490,132 @@ public class CartServiceTests
         result.IsSuccess.ShouldBeFalse();
         result.ErrorCode.ShouldBe(InventoryErrors.InsufficientStock);
     }
+
+    // -------------------------------------------------------------------------
+    // Coupons
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_code_the_engine_refuses_is_not_kept_on_the_basket()
+    {
+        // Stored-and-ignored is the worst of the three outcomes: the customer
+        // believes they have a discount until the till says otherwise.
+        var cart = OwnCart(out var service);
+
+        Refuses("EID25", PromotionErrors.CouponExpired);
+
+        var result = await service.ApplyCouponAsync(new ApplyCouponDto { Code = "eid25" });
+
+        result.IsSuccess.ShouldBeFalse();
+        result.ErrorCode.ShouldBe(PromotionErrors.CouponExpired);
+        cart.Coupons.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task An_accepted_code_is_stored_upper_cased_whatever_was_typed()
+    {
+        var cart = OwnCart(out var service);
+
+        Applies("EID25", 250m);
+
+        var result = await service.ApplyCouponAsync(new ApplyCouponDto { Code = " eid25 " });
+
+        result.IsSuccess.ShouldBeTrue();
+
+        // The customer typing, the admin writing and the unique index all have
+        // to agree on what "the same code" means.
+        cart.Coupons.ShouldHaveSingleItem().Code.ShouldBe("EID25");
+
+        var coupon = result.Data!.Coupons.ShouldHaveSingleItem();
+        coupon.IsApplied.ShouldBeTrue();
+        coupon.Reason.ShouldBeNull();
+        result.Data.Discounts.ShouldHaveSingleItem().Amount.ShouldBe(250m);
+    }
+
+    [Fact]
+    public async Task The_same_code_twice_is_a_double_click_not_a_second_discount()
+    {
+        var cart = OwnCart(out var service);
+
+        cart.Coupons.Add(new CartCoupon { CartId = cart.Id, Code = "EID25" });
+
+        var result = await service.ApplyCouponAsync(new ApplyCouponDto { Code = "EID25" });
+
+        result.ErrorCode.ShouldBe(PromotionErrors.CouponAlreadyApplied);
+        cart.Coupons.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_code_that_has_stopped_applying_stays_on_the_basket_with_its_reason()
+    {
+        // The customer took the sofa out that qualified them. Dropping the code
+        // silently would leave them hunting for something they had already found.
+        var cart = OwnCart(out var service);
+
+        cart.Coupons.Add(new CartCoupon { CartId = cart.Id, Code = "EID25" });
+
+        Refuses("EID25", PromotionErrors.CouponMinSubtotal);
+
+        var result = await service.GetAsync();
+
+        var coupon = result.Data!.Coupons.ShouldHaveSingleItem();
+        coupon.Code.ShouldBe("EID25");
+        coupon.IsApplied.ShouldBeFalse();
+        coupon.Reason.ShouldBe(PromotionErrors.CouponMinSubtotal);
+        result.Data.Discounts.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Removing_a_code_that_is_not_there_says_so()
+    {
+        OwnCart(out var service);
+
+        var result = await service.RemoveCouponAsync("EID25");
+
+        result.ErrorCode.ShouldBe(PromotionErrors.CouponNotFound);
+    }
+
+    [Fact]
+    public async Task Removing_a_code_takes_it_off()
+    {
+        var cart = OwnCart(out var service);
+
+        cart.Coupons.Add(new CartCoupon { CartId = cart.Id, Code = "EID25" });
+
+        var result = await service.RemoveCouponAsync("eid25");
+
+        result.IsSuccess.ShouldBeTrue();
+        cart.Coupons.ShouldBeEmpty();
+    }
+
+    /// <summary>The caller's own basket, with the service that will read it.</summary>
+    private Cart OwnCart(out CartService service)
+    {
+        var cart = CartWith(Variant(price: 5_000m));
+
+        _currentUser.UserId.Returns(CustomerId);
+        _carts.GetActiveForCustomerAsync(CustomerId, Arg.Any<CancellationToken>()).Returns(cart);
+
+        service = CreateService();
+
+        return cart;
+    }
+
+    private void Refuses(string code, string reason) =>
+        _promotions.EvaluateAsync(Arg.Any<PromotionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new DiscountOutcome([], Money.Zero(), false, [new RejectedCoupon(code, reason)]));
+
+    private void Applies(string code, decimal amount) =>
+        _promotions.EvaluateAsync(Arg.Any<PromotionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new DiscountOutcome(
+                [
+                    new AppliedDiscount(
+                        1, "Eid sale", code, DiscountType.Percentage, Money.Taka(amount),
+                        new Dictionary<long, Money>())
+                ],
+                Money.Taka(amount),
+                false,
+                []));
 
     // -------------------------------------------------------------------------
     // Fixtures

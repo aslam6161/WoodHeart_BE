@@ -67,6 +67,33 @@ public class CartController(ICartService cart) : BaseApiController
         HandleResult(await cart.ClearAsync(cancellationToken));
 
     /// <summary>
+    /// Puts a coupon code on the basket.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Refused with a specific reason when it does not apply — expired, not
+    /// started, below the minimum, already claimed. A code accepted and then
+    /// silently ignored is the worst of the three outcomes: the customer only
+    /// finds out at the till.
+    /// </para>
+    /// <para>
+    /// Rate limited like the rest of the basket. PLAN.md §9 calls for a tighter
+    /// policy on coupon validation specifically, because a code is a secret
+    /// short enough to guess at; that belongs with the rest of the abuse work
+    /// and is noted rather than half-done here.
+    /// </para>
+    /// </remarks>
+    [HttpPost("coupons")]
+    public async Task<IActionResult> ApplyCoupon(
+        [FromBody] ApplyCouponDto dto, CancellationToken cancellationToken) =>
+        HandleResult(await cart.ApplyCouponAsync(dto, cancellationToken));
+
+    [HttpDelete("coupons/{code}")]
+    public async Task<IActionResult> RemoveCoupon(
+        string code, CancellationToken cancellationToken) =>
+        HandleResult(await cart.RemoveCouponAsync(code, cancellationToken));
+
+    /// <summary>
     /// Records where the order is going, which is what makes delivery
     /// priceable.
     /// </summary>

@@ -62,5 +62,12 @@ public class CartRepository(DataContext context)
             // before checkout refuses it.
             .Include(x => x.Lines)
             .ThenInclude(line => line.ProductVariant.Stock)
+            // The product's category, for a discount targeted at one: the
+            // engine matches on the category's materialized path.
+            .Include(x => x.Lines)
+            .ThenInclude(line => line.ProductVariant.Product.Category)
+            // And the codes the customer has typed, which are part of what
+            // the basket costs.
+            .Include(x => x.Coupons.OrderBy(coupon => coupon.Id))
             .AsSplitQuery();
 }
