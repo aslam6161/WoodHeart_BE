@@ -131,6 +131,16 @@ public class OrderRepository(DataContext context)
     /// withdrawn from sale.
     /// </para>
     /// </remarks>
+    public async Task<IReadOnlyList<Order>> GetUnpaidPendingBeforeAsync(
+        DateTimeOffset placedBefore, int take, CancellationToken cancellationToken = default) =>
+        await WithDetail()
+            .Where(x => x.Status == OrderStatus.Pending
+                        && x.PaymentStatus == PaymentStatus.Unpaid
+                        && x.PlacedAt < placedBefore)
+            .OrderBy(x => x.PlacedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
     private IQueryable<Order> WithDetail() =>
         Set.Include(x => x.Lines.OrderBy(line => line.Id))
             .Include(x => x.Timeline.OrderBy(entry => entry.OccurredAt).ThenBy(entry => entry.Id))

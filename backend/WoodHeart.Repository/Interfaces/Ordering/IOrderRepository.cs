@@ -69,6 +69,14 @@ public interface IOrderRepository : IRepository<Order>
         int take,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Orders still <see cref="OrderStatus.Pending"/> and unpaid, placed
+    /// before <paramref name="placedBefore"/>: the ones whose customer went to
+    /// a gateway and did not come back. Oldest first, with lines and timeline.
+    /// </summary>
+    Task<IReadOnlyList<Order>> GetUnpaidPendingBeforeAsync(
+        DateTimeOffset placedBefore, int take, CancellationToken cancellationToken = default);
+
     Task<int> CountAsync(
         OrderStatus? status, string? term, CancellationToken cancellationToken = default);
 
