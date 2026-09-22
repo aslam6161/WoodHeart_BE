@@ -71,4 +71,19 @@ public class PricingContextFactory(IStoreSettingService settings) : IPricingCont
             DeliveryFeeOverride: deliveryFeeOverride,
             VatOnDelivery: vatOnDelivery);
     }
+
+    /// <summary>
+    /// The same context with a discount outcome folded in.
+    /// </summary>
+    /// <remarks>
+    /// Pricing runs twice on every basket: once to learn what delivery costs,
+    /// because a free-shipping discount is worth exactly that and the shop
+    /// needs the figure; then again with the engine's answer. Both passes are
+    /// pure arithmetic over a handful of lines, and the alternative — the
+    /// engine guessing the delivery fee — is the kind of second opinion that
+    /// drifts.
+    /// </remarks>
+    public static PricingContext WithDiscount(
+        PricingContext context, Money? discount, bool freeShipping) =>
+        context with { Discount = discount, FreeShipping = freeShipping };
 }

@@ -62,9 +62,15 @@ public readonly record struct PricedLine(
 /// question rather than a code one.
 /// </param>
 /// <param name="Discount">
-/// Money already taken off the goods, resolved elsewhere. Zero until the
-/// discount engine arrives in Phase 3; it is a parameter now so that adding
-/// discounts does not change this function's shape or its tests.
+/// Money already taken off the goods, resolved by <c>DiscountEngine</c>. A
+/// figure rather than the rules that produced it, so this function stays pure
+/// arithmetic and the engine stays the only place that decides what applies.
+/// </param>
+/// <param name="FreeShipping">
+/// A discount waives the delivery charge. Separate from <see cref="Discount"/>
+/// because free shipping is not money off the goods: it must not reduce the
+/// VAT base, and it must not count towards the free-delivery threshold it
+/// would otherwise make redundant.
 /// </param>
 public readonly record struct PricingContext(
     decimal VatRatePercent,
@@ -74,7 +80,8 @@ public readonly record struct PricingContext(
     Money? FreeDeliveryThreshold = null,
     Money? DeliveryFeeOverride = null,
     bool VatOnDelivery = false,
-    Money? Discount = null);
+    Money? Discount = null,
+    bool FreeShipping = false);
 
 /// <summary>
 /// The bill, broken into the lines a customer expects to see.

@@ -82,6 +82,17 @@ public static class DeliveryPricer
             return new DeliveryQuote(zero, false, false, true);
         }
 
+        // A free-shipping discount, from a coupon or an automatic promotion.
+        // Below the override rather than above it: staff who type a delivery
+        // figure have looked at the order, and a coupon that silently
+        // overwrote it would make the field untrustworthy. Above the
+        // threshold, because both waive the same charge and reaching either
+        // is enough.
+        if (context.FreeShipping)
+        {
+            return new DeliveryQuote(zero, true, false, false);
+        }
+
         if (context.FreeDeliveryThreshold is { IsPositive: true } threshold
             && goodsTotal >= threshold)
         {

@@ -56,6 +56,25 @@ public interface IOrderRepository : IRepository<Order>
         string contactPhone, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Whether this buyer has ordered before, by account or by phone number.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Behind "new customers only". Either identity counts, and a signed-in
+    /// customer is matched on both: somebody who ordered as a guest last year
+    /// and has since registered is not a new customer, and a discount that
+    /// said otherwise would be handing the new-customer offer to everybody who
+    /// made an account.
+    /// </para>
+    /// <para>
+    /// Cancelled orders count. The question is whether this person has bought
+    /// here before, not whether the shop kept the money.
+    /// </para>
+    /// </remarks>
+    Task<bool> HasPlacedOrderAsync(
+        long? customerId, string? contactPhone, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// The admin list: filtered by status, newest first, with lines.
     /// </summary>
     /// <remarks>

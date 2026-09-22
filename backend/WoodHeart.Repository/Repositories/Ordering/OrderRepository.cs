@@ -42,6 +42,20 @@ public class OrderRepository(DataContext context)
             .Where(x => x.ContactPhone == contactPhone && x.CustomerId == null)
             .ToListAsync(cancellationToken);
 
+    public async Task<bool> HasPlacedOrderAsync(
+        long? customerId, string? contactPhone, CancellationToken cancellationToken = default)
+    {
+        if (customerId is null && string.IsNullOrWhiteSpace(contactPhone))
+        {
+            return false;
+        }
+
+        return await Set.AnyAsync(
+            x => (customerId != null && x.CustomerId == customerId)
+                 || (contactPhone != null && x.ContactPhone == contactPhone),
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Order>> SearchAsync(
         OrderStatus? status,
         string? term,
@@ -144,5 +158,9 @@ public class OrderRepository(DataContext context)
     private IQueryable<Order> WithDetail() =>
         Set.Include(x => x.Lines.OrderBy(line => line.Id))
             .Include(x => x.Timeline.OrderBy(entry => entry.OccurredAt).ThenBy(entry => entry.Id))
+            // What came off, and why. The invoice prints these, and an order
+            // whose total does not follow from its lines without them looks
+            // like an arithmetic error.
+            .Include(x => x.Discounts.OrderBy(discount => discount.Id))
             .AsSplitQuery();
 }

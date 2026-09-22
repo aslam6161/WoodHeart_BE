@@ -8,6 +8,7 @@ using WoodHeart.Domain.Enums.Payments;
 using WoodHeart.Domain.Helpers;
 using WoodHeart.Domain.Ordering;
 using WoodHeart.Domain.Pricing;
+using WoodHeart.Domain.Promotions;
 using WoodHeart.Domain.ValueObjects;
 using WoodHeart.Repository;
 using WoodHeart.Repository.Interfaces.Ordering;
@@ -17,7 +18,9 @@ using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Interfaces.Payments;
+using WoodHeart.Service.Interfaces.Promotions;
 using WoodHeart.Service.Services.Common;
+using WoodHeart.Service.Services.Promotions;
 
 namespace WoodHeart.Service.Services.Ordering;
 
@@ -51,6 +54,7 @@ public class CheckoutService(
     IOrderRepository orders,
     IPricingContextFactory pricing,
     IPaymentProviderResolver payments,
+    IPromotionService promotions,
     INumberSequenceService numbers,
     INotificationQueue notifications,
     IInventoryService inventory,
@@ -160,9 +164,35 @@ public class CheckoutService(
                     "Something in your basket is no longer available. Please review it.");
             }
 
-            var context = await pricing.BuildAsync(zone, cart.DeliveryFeeOverride, ct);
+            var undiscountedContext = await pricing.BuildAsync(zone, cart.DeliveryFeeOverride, ct);
             var priced = cart.Lines.Select(ToPricedLine).ToList();
+
+            // Priced once without discounts, because a free-shipping discount
+            // is worth exactly what delivery costs and the engine is not
+            // allowed a second opinion on that figure.
+            var undiscounted = CartPricer.Price(priced, undiscountedContext);
+
+            // The same engine the basket page ran, with two things it did not
+            // have: the payment method, and a phone number. Both can turn a
+            // discount off — "5% with bKash" and "first order only" — so a
+            // basket may legitimately be worth less here than it looked, and
+            // the confirmation says what actually applied.
+            var outcome = await promotions.EvaluateAsync(
+                new PromotionRequest(
+                    Lines: CartPromotions.LinesFrom(cart.Lines),
+                    DeliveryFee: undiscounted.DeliveryFee,
+                    Zone: zone,
+                    PaymentMethodCode: dto.PaymentMethodCode,
+                    Codes: [.. cart.Coupons.Select(coupon => coupon.Code)],
+                    CustomerId: currentUser.UserId,
+                    ContactPhone: phone.Value),
+                ct);
+
+            var context = PricingContextFactory.WithDiscount(
+                undiscountedContext, outcome.GoodsDiscount, outcome.FreeShipping);
+
             var totals = CartPricer.Price(priced, context);
+            var applied = CartPromotions.Settle(outcome, undiscounted, totals);
 
             var method = await payments.ResolveAsync(
                 dto.PaymentMethodCode, totals.GrandTotal, zone, ct);
@@ -182,7 +212,8 @@ public class CheckoutService(
                 string.IsNullOrWhiteSpace(prefix) ? GlobalConstants.DefaultOrderNumberPrefix : prefix.Trim(),
                 ct);
 
-            AddLines(order, cart, priced, context, zone);
+            AddLines(order, cart, priced, context, zone, CartPromotions.PerVariant(applied));
+            AddDiscounts(order, applied);
 
             Record(order, from: null, to: OrderStatus.Pending, "Order placed.", ct: ct);
 
@@ -193,6 +224,12 @@ public class CheckoutService(
             // provider throwing takes the whole transaction down rather than
             // leaving a payment against nothing.
             await unitOfWork.SaveChangesAsync(ct);
+
+            // Now that the order has an id. Staged in the same unit of work as
+            // everything else: a redemption that committed on its own would
+            // survive a placement that rolled back, and a coupon limited to a
+            // hundred uses would be a coupon limited to a hundred attempts.
+            await promotions.RecordUsageAsync(order, applied, ct);
 
             // The shelf, after the order has an id to hold against and
             // before any money moves. A refusal here rolls the order back
@@ -306,7 +343,8 @@ public class CheckoutService(
         Cart cart,
         IReadOnlyList<PricedLine> priced,
         PricingContext context,
-        DeliveryZone zone)
+        DeliveryZone zone,
+        IReadOnlyDictionary<long, Money> discountPerVariant)
     {
         var index = 0;
 
@@ -315,6 +353,13 @@ public class CheckoutService(
             var variant = line.ProductVariant;
             var product = variant.Product;
             var unitPrice = variant.EffectivePrice;
+
+            // What the engine allocated to this line, summed across every
+            // discount that touched it. Stored per line so that refunding one
+            // item out of four refunds what that item was actually charged.
+            var discount = discountPerVariant.TryGetValue(variant.Id, out var allocated)
+                ? allocated
+                : Money.Zero(order.Currency);
 
             order.Lines.Add(new OrderLine
             {
@@ -328,14 +373,39 @@ public class CheckoutService(
                 ImagePath = product.Media.FirstOrDefault(m => m.IsPrimary)?.StoragePath,
                 Quantity = line.Quantity,
                 UnitPrice = unitPrice,
-                DiscountAmount = Money.Zero(order.Currency),
-                LineTotal = unitPrice.Multiply(line.Quantity),
+                DiscountAmount = discount,
+                LineTotal = (unitPrice.Multiply(line.Quantity) - discount).OrZeroIfNegative(),
                 DeliveryChargeApplied = DeliveryPricer.ChargeForLine(
                     priced[index], zone, context.DefaultDeliveryCharge, order.Currency),
                 LeadTimeDays = product.LeadTimeDays
             });
 
             index++;
+        }
+    }
+
+    /// <summary>
+    /// Copies each discount onto the order: what it was called, what was typed,
+    /// and what it gave.
+    /// </summary>
+    /// <remarks>
+    /// Snapshotted for the same reason every other display field is. A discount
+    /// renamed, retargeted or archived next month must not change what an old
+    /// invoice says the customer was given — and "why is this order 2,000৳ less
+    /// than its lines" needs an answer that outlives the campaign.
+    /// </remarks>
+    private static void AddDiscounts(Order order, IReadOnlyList<AppliedDiscount> applied)
+    {
+        foreach (var discount in applied.Where(discount => discount.Amount.IsPositive))
+        {
+            order.Discounts.Add(new OrderDiscount
+            {
+                DiscountId = discount.DiscountId,
+                Name = discount.Name,
+                Code = discount.Code,
+                Type = discount.Type,
+                Amount = discount.Amount
+            });
         }
     }
 
@@ -457,13 +527,42 @@ public class CheckoutService(
             : await carts.GetActiveForGuestAsync(hasher.Hash(anonymousId), cancellationToken);
     }
 
+    /// <summary>
+    /// The basket priced with its discounts, for deciding which payment
+    /// methods are eligible.
+    /// </summary>
+    /// <remarks>
+    /// Evaluated with no payment method chosen, because this is the call that
+    /// produces the list to choose from. A discount tied to bKash therefore
+    /// counts towards the total here and is re-checked at placement — it can
+    /// only ever reduce the total, so the effect is that a method with a
+    /// minimum-order band is offered on the strength of a discount that then
+    /// does not apply. The band is re-checked at placement, where the refusal
+    /// is honest.
+    /// </remarks>
     private async Task<CartTotals> PriceAsync(
         Cart cart, DeliveryZone zone, CancellationToken cancellationToken)
     {
         var context = await pricing.BuildAsync(zone, cart.DeliveryFeeOverride, cancellationToken);
 
+        var purchasable = cart.Lines.Where(IsPurchasable).ToList();
+        var priced = purchasable.Select(ToPricedLine).ToList();
+        var undiscounted = CartPricer.Price(priced, context);
+
+        var outcome = await promotions.EvaluateAsync(
+            new PromotionRequest(
+                Lines: CartPromotions.LinesFrom(purchasable),
+                DeliveryFee: undiscounted.DeliveryFee,
+                Zone: zone,
+                PaymentMethodCode: null,
+                Codes: [.. cart.Coupons.Select(coupon => coupon.Code)],
+                CustomerId: currentUser.UserId,
+                ContactPhone: currentUser.PhoneNumber),
+            cancellationToken);
+
         return CartPricer.Price(
-            [.. cart.Lines.Where(IsPurchasable).Select(ToPricedLine)], context);
+            priced,
+            PricingContextFactory.WithDiscount(context, outcome.GoodsDiscount, outcome.FreeShipping));
     }
 
     private static PricedLine ToPricedLine(CartLine line) =>

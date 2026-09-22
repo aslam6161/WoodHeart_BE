@@ -1,18 +1,22 @@
 using Microsoft.Extensions.Logging;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Ordering;
+using WoodHeart.Domain.Entity.Promotions;
 using WoodHeart.Domain.Enums.Catalog;
 using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Domain.Helpers;
 using WoodHeart.Domain.Pricing;
+using WoodHeart.Domain.Promotions;
 using WoodHeart.Repository;
 using WoodHeart.Repository.Interfaces.Catalog;
 using WoodHeart.Repository.Interfaces.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Ordering;
+using WoodHeart.Service.Interfaces.Promotions;
 using WoodHeart.Service.Mapping.Catalog;
 using WoodHeart.Service.Mapping.Ordering;
+using WoodHeart.Service.Services.Promotions;
 
 namespace WoodHeart.Service.Services.Ordering;
 
@@ -38,6 +42,7 @@ public class CartService(
     ICartRepository carts,
     IProductVariantRepository variants,
     IPricingContextFactory pricing,
+    IPromotionService promotions,
     ICurrentUserService currentUser,
     ITokenHasher hasher,
     IDateTimeProvider clock,
@@ -238,6 +243,107 @@ public class CartService(
         return GeneralResponse<CartDto>.Success(await ToDtoAsync(cart, cancellationToken));
     }
 
+    /// <summary>
+    /// Puts a coupon code on the basket, or says why it will not go on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The code is checked against this basket before it is stored.</b> The
+    /// engine is run with the code added, and the row is only written if the
+    /// code actually did something. A code sitting on a basket doing nothing is
+    /// a customer who believes they have a discount and discovers at the till
+    /// that they have not — and the specific refusal ("that code runs from the
+    /// 1st of October") is worth far more to them than a silent acceptance.
+    /// </para>
+    /// <para>
+    /// A code accepted here can stop applying later, when the basket changes
+    /// underneath it. That case is reported on the basket rather than by
+    /// deleting the row, because a customer who removes a sofa and puts it back
+    /// should not have to find their code again.
+    /// </para>
+    /// </remarks>
+    public async Task<GeneralResponse<CartDto>> ApplyCouponAsync(
+        ApplyCouponDto dto, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var code = Discount.NormaliseCode(dto.Code);
+
+        if (code is null)
+        {
+            return Fail(PromotionErrors.CouponNotFound, "Please type a code.");
+        }
+
+        return await unitOfWork.ExecuteInTransactionAsync(async ct =>
+        {
+            var cart = await FindAsync(ct);
+
+            if (cart is null || cart.Lines.Count == 0)
+            {
+                return Fail(OrderingErrors.CartEmpty, "There is nothing in your basket yet.");
+            }
+
+            if (cart.Status != CartStatus.Active)
+            {
+                return Fail(OrderingErrors.CartNotActive, "That basket has already been checked out.");
+            }
+
+            if (cart.Coupons.Any(coupon => string.Equals(coupon.Code, code, StringComparison.Ordinal)))
+            {
+                return Fail(PromotionErrors.CouponAlreadyApplied, "That code is already on your basket.");
+            }
+
+            var trial = await EvaluateAsync(cart, [.. cart.Coupons.Select(c => c.Code), code], ct);
+
+            if (trial.Outcome.Rejected.FirstOrDefault(r =>
+                    string.Equals(r.Code, code, StringComparison.Ordinal)) is { } refused)
+            {
+                return Fail(refused.Reason, MessageFor(refused.Reason));
+            }
+
+            cart.Coupons.Add(new CartCoupon
+            {
+                CartId = cart.Id,
+                Code = code,
+                AppliedAt = clock.UtcNow
+            });
+
+            Touch(cart);
+            carts.Update(cart);
+            await unitOfWork.SaveChangesAsync(ct);
+
+            return GeneralResponse<CartDto>.Success(await ToDtoAsync(cart, ct));
+        }, cancellationToken);
+    }
+
+    public async Task<GeneralResponse<CartDto>> RemoveCouponAsync(
+        string code, CancellationToken cancellationToken = default)
+    {
+        var normalised = Discount.NormaliseCode(code);
+        var cart = await FindAsync(cancellationToken);
+
+        if (cart is null)
+        {
+            return Fail(OrderingErrors.CartNotFound, "You do not have a basket yet.");
+        }
+
+        var existing = cart.Coupons.FirstOrDefault(coupon =>
+            string.Equals(coupon.Code, normalised, StringComparison.Ordinal));
+
+        if (existing is null)
+        {
+            return Fail(PromotionErrors.CouponNotFound, "That code is not on your basket.");
+        }
+
+        cart.Coupons.Remove(existing);
+
+        Touch(cart);
+        carts.Update(cart);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return GeneralResponse<CartDto>.Success(await ToDtoAsync(cart, cancellationToken));
+    }
+
     /// <inheritdoc />
     public async Task<GeneralResponse> MergeGuestCartAsync(
         string anonymousId, long customerId, CancellationToken cancellationToken = default)
@@ -381,14 +487,42 @@ public class CartService(
 
     private async Task<CartDto> ToDtoAsync(Cart cart, CancellationToken cancellationToken)
     {
+        var priced = await EvaluateAsync(
+            cart, [.. cart.Coupons.Select(coupon => coupon.Code)], cancellationToken);
+
+        return CartMapper.ToDto(
+            cart, priced.Totals, priced.Context, priced.Applied, priced.Outcome.Rejected);
+    }
+
+    /// <summary>
+    /// Prices the basket twice: once to learn what delivery costs, then again
+    /// with the discounts the engine allows.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The first pass exists because a free-shipping discount is worth exactly
+    /// the delivery charge, and the engine is not allowed to work that out for
+    /// itself — a second opinion on delivery is a second thing to drift. Both
+    /// passes are pure arithmetic over a handful of lines.
+    /// </para>
+    /// <para>
+    /// Unavailable lines are shown but neither charged for nor discounted.
+    /// Billing someone for a product that has been withdrawn is worse than
+    /// either dropping it silently or refusing the whole basket; letting it
+    /// earn a "spend 20,000৳" discount would be worse still.
+    /// </para>
+    /// </remarks>
+    private async Task<PricedCart> EvaluateAsync(
+        Cart cart, IReadOnlyCollection<string> codes, CancellationToken cancellationToken)
+    {
         var context = await pricing.BuildAsync(
             cart.DeliveryZone, cart.DeliveryFeeOverride, cancellationToken);
 
-        // Unavailable lines are shown but not charged for. Billing someone for
-        // a product that has been withdrawn is worse than either dropping it
-        // silently or refusing the whole basket.
-        var priceable = cart.Lines
+        var purchasable = cart.Lines
             .Where(line => IsPurchasable(line.ProductVariant.Product, line.ProductVariant.IsActive))
+            .ToList();
+
+        var priceable = purchasable
             .Select(line => new PricedLine(
                 line.Quantity,
                 line.ProductVariant.EffectivePrice,
@@ -396,10 +530,64 @@ public class CartService(
                 line.ProductVariant.Product.DeliveryChargeOutsideDhaka))
             .ToList();
 
-        var totals = CartPricer.Price(priceable, context);
+        var undiscounted = CartPricer.Price(priceable, context);
 
-        return CartMapper.ToDto(cart, totals, context);
+        var outcome = await promotions.EvaluateAsync(
+            new PromotionRequest(
+                Lines: CartPromotions.LinesFrom(purchasable),
+                DeliveryFee: undiscounted.DeliveryFee,
+                Zone: cart.DeliveryZone,
+
+                // No payment method on the basket page. A discount tied to
+                // bKash shows here and is refused at checkout if they then pay
+                // cash, which is the truthful order to find that out in.
+                PaymentMethodCode: null,
+                Codes: codes,
+                CustomerId: currentUser.UserId,
+                ContactPhone: currentUser.PhoneNumber),
+            cancellationToken);
+
+        var withDiscount = PricingContextFactory.WithDiscount(
+            context, outcome.GoodsDiscount, outcome.FreeShipping);
+
+        var totals = CartPricer.Price(priceable, withDiscount);
+
+        return new PricedCart(
+            withDiscount, totals, outcome, CartPromotions.Settle(outcome, undiscounted, totals));
     }
+
+    /// <summary>A basket, priced, with the discounts that applied to it.</summary>
+    private readonly record struct PricedCart(
+        PricingContext Context,
+        CartTotals Totals,
+        DiscountOutcome Outcome,
+        IReadOnlyList<AppliedDiscount> Applied);
+
+    /// <summary>
+    /// Prose for a refusal, in English, for a customer.
+    /// </summary>
+    /// <remarks>
+    /// The Angular client branches on the code and shows its own wording; this
+    /// is what anyone calling the API directly sees, and what appears if a
+    /// translation is missing. Written as a sentence a customer could read.
+    /// </remarks>
+    private static string MessageFor(string reason) => reason switch
+    {
+        PromotionErrors.CouponNotFound => "We do not have a code by that name.",
+        PromotionErrors.CouponInactive => "That code is not in use.",
+        PromotionErrors.CouponNotStarted => "That code is not valid yet.",
+        PromotionErrors.CouponExpired => "That code has expired.",
+        PromotionErrors.CouponNoEligibleItems => "That code does not apply to anything in your basket.",
+        PromotionErrors.CouponMinSubtotal => "Your basket is below the minimum for that code.",
+        PromotionErrors.CouponMinQuantity => "That code needs more items in the basket.",
+        PromotionErrors.CouponZone => "That code is not offered for deliveries to your area.",
+        PromotionErrors.CouponPaymentMethod => "That code applies only to certain payment methods.",
+        PromotionErrors.CouponFirstOrderOnly => "That code is for a first order.",
+        PromotionErrors.CouponLimitReached => "That code has been fully claimed.",
+        PromotionErrors.CouponCustomerLimitReached => "You have already used that code.",
+        PromotionErrors.CouponNotCombinable => "That code cannot be combined with the offer already on your basket.",
+        _ => "That code cannot be used on this basket."
+    };
 
     private async Task<CartDto> EmptyAsync(CancellationToken cancellationToken)
     {

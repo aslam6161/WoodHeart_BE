@@ -14,6 +14,7 @@ using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Entity.Inventory;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Entity.Payments;
+using WoodHeart.Domain.Entity.Promotions;
 using WoodHeart.Domain.Helpers;
 
 namespace WoodHeart.Repository;
@@ -80,6 +81,18 @@ public class DataContext(
     public DbSet<OrderLine> OrderLines => Set<OrderLine>();
 
     public DbSet<OrderTimelineEntry> OrderTimelineEntries => Set<OrderTimelineEntry>();
+
+    public DbSet<CartCoupon> CartCoupons => Set<CartCoupon>();
+
+    public DbSet<OrderDiscount> OrderDiscounts => Set<OrderDiscount>();
+
+    // --- Promotions ---------------------------------------------------------
+
+    public DbSet<Discount> Discounts => Set<Discount>();
+
+    public DbSet<DiscountTarget> DiscountTargets => Set<DiscountTarget>();
+
+    public DbSet<PromotionUsage> PromotionUsages => Set<PromotionUsage>();
 
     // --- Inventory ---------------------------------------------------------
 
