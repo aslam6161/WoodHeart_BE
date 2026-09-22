@@ -2,6 +2,7 @@ using Hangfire;
 using Hangfire.PostgreSql;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Settings;
+using WoodHeart.Service.Interfaces.Jobs;
 using WoodHeart.Service.Interfaces.Notifications;
 
 namespace WoodHeart.Presentation.Extensions;
@@ -41,6 +42,20 @@ public static class BackgroundJobExtension
     /// behind an empty queue is one indexed lookup that returns nothing.
     /// </remarks>
     private const string OutboxSchedule = "* * * * *";
+
+    /// <summary>
+    /// How often orders abandoned at a gateway are cancelled and their stock
+    /// released. Every ten minutes: an hour's hold plus ten is close enough
+    /// to an hour, and nobody is waiting on the exact minute.
+    /// </summary>
+    private const string UnpaidExpirySchedule = "*/10 * * * *";
+
+    /// <summary>
+    /// The morning stock message. 03:00 UTC is 09:00 in Dhaka, which keeps
+    /// one offset all year — so the cron is written in UTC rather than
+    /// trusting the host to know a time zone by name.
+    /// </summary>
+    private const string LowStockDigestSchedule = "0 3 * * *";
 
     private static BackgroundJobSettings Read(IConfiguration configuration) =>
         configuration.GetSection(BackgroundJobSettings.SectionName).Get<BackgroundJobSettings>()
@@ -130,6 +145,18 @@ public static class BackgroundJobExtension
             recurringJobId: "outbox-dispatch",
             methodCall: dispatcher => dispatcher.RunAsync(CancellationToken.None),
             cronExpression: OutboxSchedule,
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+        RecurringJob.AddOrUpdate<IUnpaidOrderExpiry>(
+            recurringJobId: "unpaid-order-expiry",
+            methodCall: job => job.RunAsync(CancellationToken.None),
+            cronExpression: UnpaidExpirySchedule,
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+        RecurringJob.AddOrUpdate<ILowStockDigest>(
+            recurringJobId: "low-stock-digest",
+            methodCall: job => job.RunAsync(CancellationToken.None),
+            cronExpression: LowStockDigestSchedule,
             new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
 
         return app;

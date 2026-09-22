@@ -23,6 +23,7 @@ using WoodHeart.Service.Infrastructure.Time;
 using WoodHeart.Service.Interfaces.Catalog;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Inventory;
+using WoodHeart.Service.Interfaces.Jobs;
 using WoodHeart.Service.Interfaces.Identity;
 using WoodHeart.Service.Interfaces.Media;
 using WoodHeart.Service.Interfaces.Notifications;
@@ -30,6 +31,7 @@ using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Services.Catalog;
 using WoodHeart.Service.Services.Common;
 using WoodHeart.Service.Services.Inventory;
+using WoodHeart.Service.Services.Jobs;
 using WoodHeart.Service.Services.Identity;
 using WoodHeart.Service.Services.Media;
 using WoodHeart.Service.Services.Notifications;
@@ -243,6 +245,8 @@ public static class ApplicationServiceExtensions
 
         services.AddScoped<INotificationQueue, NotificationQueue>();
         services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
+        services.AddScoped<IUnpaidOrderExpiry, UnpaidOrderExpiry>();
+        services.AddScoped<ILowStockDigest, LowStockDigest>();
 
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBrandService, BrandService>();

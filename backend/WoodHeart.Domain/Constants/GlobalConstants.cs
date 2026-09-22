@@ -81,7 +81,22 @@ public static class SettingKeys
     public const string FreeDeliveryThreshold = "delivery.free_threshold";
 
     public const string OrderNumberPrefix = "orders.number_prefix";
+
+    /// <summary>
+    /// Minutes an order may sit unpaid at a gateway before it is cancelled
+    /// and its stock released. Zero switches the expiry off.
+    /// </summary>
+    /// <remarks>
+    /// Cash on delivery is never touched by this: a COD order is confirmed at
+    /// placement, and the only orders still Pending are the ones whose
+    /// customer was sent to pay and did not come back.
+    /// </remarks>
+    public const string UnpaidOrderExpiryMinutes = "orders.unpaid_expiry_minutes";
+
     public const string LowStockThreshold = "inventory.low_stock_threshold";
+
+    /// <summary>Whether the morning low-stock message to the shop is sent at all.</summary>
+    public const string LowStockDigest = "inventory.low_stock_digest";
 
     public const string StorePhone = "store.phone";
     public const string StoreEmail = "store.email";

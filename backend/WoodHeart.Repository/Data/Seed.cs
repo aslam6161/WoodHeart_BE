@@ -87,8 +87,13 @@ public static class Seed
                 + "per-product delivery this waives the whole charge, bulky items included."),
             (SettingKeys.OrderNumberPrefix, "WH", SettingValueType.String, "Orders",
                 "Prefix for human-facing order numbers, e.g. WH-2608-00042."),
+            (SettingKeys.UnpaidOrderExpiryMinutes, "60", SettingValueType.Integer, "Orders",
+                "Minutes an order may wait unpaid at a payment gateway before it is cancelled and its stock "
+                + "released. Cash on delivery is never affected. 0 switches this off."),
             (SettingKeys.LowStockThreshold, "5", SettingValueType.Integer, "Inventory",
                 "Units at or below which a product is flagged low on the admin dashboard."),
+            (SettingKeys.LowStockDigest, "true", SettingValueType.Boolean, "Inventory",
+                "Send the shop's phone and email a morning message listing the lines that are low."),
 
             // The shop's own particulars, as they go on an invoice. Blank on
             // purpose: the invoice prints only what is set, and a made-up

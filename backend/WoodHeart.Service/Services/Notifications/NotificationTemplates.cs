@@ -57,7 +57,10 @@ public static class NotificationTemplates
     /// Every type this renders. A message of any other type is suppressed
     /// rather than retried — see <c>OutboxDispatcher</c>.
     /// </summary>
-    public static readonly IReadOnlyList<string> KnownTypes = [OrderPlaced, OrderStatusChanged];
+    /// <summary>To the shop, not a customer: the lines at or below their reorder level.</summary>
+    public const string StockLow = "stock.low";
+
+    public static readonly IReadOnlyList<string> KnownTypes = [OrderPlaced, OrderStatusChanged, StockLow];
 
     public static RenderedNotification? Render(string type, string payload, string shopPhone)
     {
@@ -68,6 +71,7 @@ public static class NotificationTemplates
         {
             OrderPlaced => RenderOrderPlaced(root, shopPhone.Trim()),
             OrderStatusChanged => RenderStatusChanged(root, shopPhone.Trim()),
+            StockLow => RenderStockLow(root, shopPhone.Trim()),
             _ => (RenderedNotification?)null
         };
 
@@ -203,6 +207,62 @@ public static class NotificationTemplates
 
         return new RenderedNotification(
             sms, subject, body, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // stock.low — to the shop
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// The morning list. The SMS names the first few lines and counts the
+    /// rest — a Bangla-free message, because it goes to whoever runs the
+    /// shop and it has to fit in a part or two. The email carries the whole
+    /// table.
+    /// </summary>
+    private static RenderedNotification RenderStockLow(JsonElement root, string shopPhone)
+    {
+        var total = Int_(root, "total");
+        var lines = root.TryGetProperty("lines", out var array) && array.ValueKind == JsonValueKind.Array
+            ? array.EnumerateArray().Select(l => (
+                Product: String_(l, "product"),
+                Variant: String_(l, "variant"),
+                Sku: String_(l, "sku"),
+                Available: Int_(l, "available"),
+                Stocked: !l.TryGetProperty("stocked", out var s) || s.ValueKind != JsonValueKind.False)).ToList()
+            : [];
+
+        static string Count(int available, bool stocked) =>
+            !stocked ? "never stocked" : available <= 0 ? "sold out" : $"{available} left";
+
+        var named = lines.Take(3)
+            .Select(l => $"{l.Product} ({l.Variant}) {Count(l.Available, l.Stocked)}");
+        var more = total > 3 ? $" and {total - 3} more" : string.Empty;
+
+        var sms = $"WoodHeart stock: {total} line{(total == 1 ? string.Empty : "s")} low - "
+                  + string.Join(", ", named) + more + ". See Stock in the admin.";
+
+        var rows = string.Concat(lines.Select(l =>
+            $"<tr><td style=\"padding:6px 8px;border-bottom:1px solid #eee\">{Escape(l.Product)}<br>"
+            + $"<span style=\"color:#8a7f75;font-size:13px\">{Escape(l.Variant)} · {Escape(l.Sku)}</span></td>"
+            + $"<td style=\"padding:6px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap\">"
+            + $"{Escape(Count(l.Available, l.Stocked))}</td></tr>"));
+
+        var table = $"<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+                    + $"style=\"font-size:15px;border-collapse:collapse\">{rows}</table>";
+
+        var body = Email(
+            heading: "Low stock",
+            greeting: total == 1 ? "One line is at or below its reorder level." : $"{total} lines are at or below their reorder level.",
+            lines: [table, "Open <strong>Stock</strong> in the admin to record a stock-in."],
+            shopPhone: shopPhone,
+            bangla: false);
+
+        return new RenderedNotification(
+            sms,
+            $"Low stock: {total} line{(total == 1 ? string.Empty : "s")} — {String_(root, "date")}",
+            body,
+            String_(root, "recipientPhone"),
+            NullIfBlank(String_(root, "recipientEmail")));
     }
 
     // -------------------------------------------------------------------------
