@@ -42,6 +42,19 @@ public interface ICartService
         SetDeliveryZoneDto dto, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Puts a coupon code on the basket, or refuses it with the reason.
+    /// </summary>
+    /// <remarks>
+    /// Refused rather than stored-and-ignored, because a code that sits on a
+    /// basket doing nothing is a customer who thinks they have a discount.
+    /// </remarks>
+    Task<GeneralResponse<CartDto>> ApplyCouponAsync(
+        ApplyCouponDto dto, CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<CartDto>> RemoveCouponAsync(
+        string code, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Folds a guest's basket into the signed-in customer's on sign-in.
     /// </summary>
     /// <remarks>

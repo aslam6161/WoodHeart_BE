@@ -97,3 +97,26 @@ public class CartLineConfiguration : IEntityTypeConfiguration<CartLine>
             .HasDatabaseName("ux_cart_lines_one_per_variant");
     }
 }
+
+public class CartCouponConfiguration : IEntityTypeConfiguration<CartCoupon>
+{
+    public void Configure(EntityTypeBuilder<CartCoupon> builder)
+    {
+        builder.ToTable("cart_coupons");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Code).HasMaxLength(40).IsRequired();
+
+        builder.HasOne(x => x.Cart)
+            .WithMany(x => x.Coupons)
+            .HasForeignKey(x => x.CartId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // The same code twice on one basket is not a second discount, it is a
+        // double-click. Enforced here so two tabs cannot manage it either.
+        builder.HasIndex(x => new { x.CartId, x.Code })
+            .IsUnique()
+            .HasDatabaseName("ux_cart_coupons_one_per_code");
+    }
+}

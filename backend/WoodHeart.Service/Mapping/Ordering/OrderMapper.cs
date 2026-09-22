@@ -71,6 +71,19 @@ public static class OrderMapper
 
             Lines = [.. order.Lines.Select(line => ToLineDto(line, language))],
 
+            // What came off, named. A total that is 2,000 less than its own
+            // lines with nothing saying why reads as an arithmetic error.
+            Discounts =
+            [
+                .. order.Discounts.Select(discount => new OrderDiscountDto
+                {
+                    Name = discount.Name,
+                    Code = discount.Code,
+                    Type = discount.Type,
+                    Amount = discount.Amount.Amount
+                })
+            ],
+
             Totals = new OrderTotalsDto
             {
                 Subtotal = order.Subtotal.Amount,

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using WoodHeart.Domain.Enums.Ordering;
+using WoodHeart.Domain.Enums.Promotions;
 
 namespace WoodHeart.Service.DTOs.Ordering;
 
@@ -26,6 +27,19 @@ public class UpdateCartLineDto
 {
     [Range(0, CartRules.MaxQuantityPerLine)]
     public int Quantity { get; init; }
+}
+
+/// <summary>Put a coupon code on the basket.</summary>
+/// <remarks>
+/// Refused outright when it does not apply, with the reason: a code sitting on
+/// a basket doing nothing is a customer who thinks they have a discount and
+/// finds out at the till that they have not.
+/// </remarks>
+public class ApplyCouponDto
+{
+    [Required]
+    [StringLength(40, MinimumLength = 3)]
+    public string Code { get; init; } = string.Empty;
 }
 
 /// <summary>Tell the cart where it is going, so delivery can be priced.</summary>
@@ -84,6 +98,56 @@ public class CartDto
     /// from sale, or its variant deactivated.
     /// </summary>
     public bool HasUnavailableLines { get; init; }
+
+    /// <summary>
+    /// What came off, named. Automatic promotions and coupons alike.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than summed into one figure, because "−2,000৳" on its own
+    /// reads as an error to anyone who was not expecting it, and because a
+    /// customer who can see "September sale −2,000৳" knows not to go hunting
+    /// for a better code.
+    /// </remarks>
+    public IReadOnlyList<CartDiscountDto> Discounts { get; init; } = [];
+
+    /// <summary>The codes on this basket, and whether each one is actually doing anything.</summary>
+    public IReadOnlyList<CartCouponDto> Coupons { get; init; } = [];
+
+    /// <summary>True when a discount takes the delivery charge off.</summary>
+    public bool FreeShipping { get; init; }
+}
+
+/// <summary>One discount that applied to the basket.</summary>
+public class CartDiscountDto
+{
+    public long DiscountId { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Null for an automatic promotion — nothing was typed.</summary>
+    public string? Code { get; init; }
+
+    public DiscountType Type { get; init; }
+
+    /// <summary>What it took off. For free shipping, the delivery charge waived.</summary>
+    public decimal Amount { get; init; }
+}
+
+/// <summary>A coupon code on the basket.</summary>
+/// <remarks>
+/// A code can stop applying after it was accepted — the customer removes the
+/// sofa that qualified them, or the limit is reached while they hesitate — so
+/// the basket carries both the code and its current standing rather than
+/// silently dropping it.
+/// </remarks>
+public class CartCouponDto
+{
+    public string Code { get; init; } = string.Empty;
+
+    public bool IsApplied { get; init; }
+
+    /// <summary>A <c>PromotionErrors</c> code when it is not applying. Null when it is.</summary>
+    public string? Reason { get; init; }
 }
 
 public class CartLineDto

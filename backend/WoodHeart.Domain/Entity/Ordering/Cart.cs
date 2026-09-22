@@ -101,6 +101,36 @@ public class Cart : BaseEntity
     public string? DeliveryFeeOverrideNote { get; set; }
 
     public ICollection<CartLine> Lines { get; set; } = [];
+
+    /// <summary>
+    /// The coupon codes the customer has typed, kept with the basket.
+    /// </summary>
+    /// <remarks>
+    /// The codes are stored; what they are worth is not. A coupon's value
+    /// depends on what is in the basket, on the delivery zone, and on how many
+    /// times it has been redeemed since — all of which move while the basket
+    /// sits there. Storing the amount would be storing a total, and this class
+    /// stores no totals for exactly that reason.
+    /// </remarks>
+    public ICollection<CartCoupon> Coupons { get; set; } = [];
+}
+
+/// <summary>One coupon code a customer has put on their basket.</summary>
+/// <remarks>
+/// A row rather than a column, because more than one code can be on a basket
+/// at once — an automatic promotion stacked with a newsletter code is the
+/// ordinary case, not an exotic one.
+/// </remarks>
+public class CartCoupon : BaseEntity
+{
+    public long CartId { get; set; }
+
+    public Cart Cart { get; set; } = null!;
+
+    /// <summary>Stored upper-cased, as <c>Discount.NormaliseCode</c> produces it.</summary>
+    public string Code { get; set; } = null!;
+
+    public DateTimeOffset AppliedAt { get; set; }
 }
 
 /// <summary>

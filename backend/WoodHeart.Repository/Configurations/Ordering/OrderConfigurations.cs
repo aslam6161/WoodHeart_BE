@@ -207,3 +207,40 @@ public class OrderTimelineEntryConfiguration : IEntityTypeConfiguration<OrderTim
             .HasDatabaseName("ix_order_timeline_order_occurred");
     }
 }
+
+public class OrderDiscountConfiguration : IEntityTypeConfiguration<OrderDiscount>
+{
+    public void Configure(EntityTypeBuilder<OrderDiscount> builder)
+    {
+        builder.ToTable("order_discounts");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Name).HasMaxLength(160).IsRequired();
+        builder.Property(x => x.Code).HasMaxLength(40);
+        builder.Property(x => x.Type).HasConversion<string>().HasMaxLength(20).IsRequired();
+
+        builder.Property(x => x.Amount)
+            .HasConversion(ValueObjectConverters.Money, ValueObjectConverters.MoneyComparer)
+            .HasColumnType("numeric(18,2)")
+            .IsRequired();
+
+        builder.HasOne(x => x.Order)
+            .WithMany(x => x.Discounts)
+            .HasForeignKey(x => x.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Discount)
+            .WithMany()
+            .HasForeignKey(x => x.DiscountId)
+            // Null rather than blocked: the snapshot on the order is complete
+            // on its own, so a discount can be got rid of one day without
+            // taking a year of invoices with it.
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // "What did the September sale cost us", straight off the orders.
+        builder.HasIndex(x => x.DiscountId)
+            .HasDatabaseName("ix_order_discounts_discount")
+            .HasFilter("discount_id IS NOT NULL");
+    }
+}

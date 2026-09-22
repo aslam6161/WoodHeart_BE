@@ -15,6 +15,8 @@ using WoodHeart.Repository.Repositories.Identity;
 using WoodHeart.Repository.Repositories.Ordering;
 using WoodHeart.Repository.Interfaces.Payments;
 using WoodHeart.Repository.Repositories.Payments;
+using WoodHeart.Repository.Interfaces.Promotions;
+using WoodHeart.Repository.Repositories.Promotions;
 using WoodHeart.Repository;
 using WoodHeart.Service.Infrastructure.Correlation;
 using WoodHeart.Service.Infrastructure.Notifications;
@@ -38,6 +40,8 @@ using WoodHeart.Service.Services.Notifications;
 using WoodHeart.Service.Services.Ordering;
 using WoodHeart.Service.Interfaces.Payments;
 using WoodHeart.Service.Services.Payments;
+using WoodHeart.Service.Interfaces.Promotions;
+using WoodHeart.Service.Services.Promotions;
 namespace WoodHeart.Presentation.Extensions;
 
 /// <summary>
@@ -244,6 +248,10 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IAccountService, AccountService>();
 
         services.AddScoped<INotificationQueue, NotificationQueue>();
+        services.AddScoped<IDiscountRepository, DiscountRepository>();
+        services.AddScoped<IPromotionUsageRepository, PromotionUsageRepository>();
+        services.AddScoped<IPromotionService, PromotionService>();
+        services.AddScoped<IDiscountAdminService, DiscountAdminService>();
         services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
         services.AddScoped<IUnpaidOrderExpiry, UnpaidOrderExpiry>();
         services.AddScoped<ILowStockDigest, LowStockDigest>();

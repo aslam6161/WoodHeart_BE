@@ -7,7 +7,9 @@ using WoodHeart.Domain.Entity.Payments;
 using WoodHeart.Domain.Enums.Catalog;
 using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Domain.Enums.Payments;
+using WoodHeart.Domain.Enums.Promotions;
 using WoodHeart.Domain.Pricing;
+using WoodHeart.Domain.Promotions;
 using WoodHeart.Domain.ValueObjects;
 using WoodHeart.Repository;
 using WoodHeart.Repository.Interfaces.Ordering;
@@ -17,6 +19,7 @@ using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Interfaces.Payments;
+using WoodHeart.Service.Interfaces.Promotions;
 using WoodHeart.Service.Services.Ordering;
 using WoodHeart.Service.Services.Payments;
 using WoodHeart.Tests.Helper;
@@ -63,6 +66,11 @@ public class CheckoutServiceTests
     public CheckoutServiceTests()
     {
         _hasher.Hash(Arg.Any<string>()).Returns(call => $"hashed:{call.Arg<string>()}");
+
+        // No discounts unless a test says so. The engine has its own suite.
+        _promotions.EvaluateAsync(Arg.Any<PromotionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(DiscountOutcome.None());
+
         _currentUser.AnonymousId.Returns(AnonymousId);
         _currentUser.Language.Returns("en");
 
@@ -93,6 +101,7 @@ public class CheckoutServiceTests
     }
 
     private readonly IInventoryService _inventory = Substitute.For<IInventoryService>();
+    private readonly IPromotionService _promotions = Substitute.For<IPromotionService>();
 
     private CheckoutService CreateService()
     {
@@ -105,6 +114,7 @@ public class CheckoutServiceTests
             _orders,
             _pricing,
             _payments,
+            _promotions,
             _numbers,
             _notifications,
             _inventory,
@@ -422,6 +432,104 @@ public class CheckoutServiceTests
     // -------------------------------------------------------------------------
     // Builders
     // -------------------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // Discounts
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_discount_is_frozen_onto_the_order_and_onto_the_line_it_came_off()
+    {
+        GivenABasket(price: 10_000m);
+        GivenADiscount(Money.Taka(1_000m));
+
+        var result = await CreateService().PlaceOrderAsync(Request(), idempotencyKey: null);
+
+        result.IsSuccess.ShouldBeTrue(result.Message);
+
+        var order = _inserted.Single();
+
+        // Snapshotted, so renaming or archiving the campaign next month does
+        // not rewrite what this invoice says was given.
+        var discount = order.Discounts.ShouldHaveSingleItem();
+        discount.Name.ShouldBe("Eid sale");
+        discount.Code.ShouldBe("EID25");
+        discount.Amount.ShouldBe(Money.Taka(1_000m));
+
+        order.DiscountTotal.ShouldBe(Money.Taka(1_000m));
+
+        // And on the line, so refunding one item out of four refunds what that
+        // item was actually charged.
+        var line = order.Lines.ShouldHaveSingleItem();
+        line.DiscountAmount.ShouldBe(Money.Taka(1_000m));
+        line.LineTotal.ShouldBe(Money.Taka(9_000m));
+    }
+
+    [Fact]
+    public async Task The_redemption_is_written_in_the_same_transaction_as_the_order()
+    {
+        GivenABasket();
+        GivenADiscount(Money.Taka(1_000m));
+
+        await CreateService().PlaceOrderAsync(Request(), idempotencyKey: null);
+
+        // A redemption that committed on its own would survive a placement
+        // that rolled back, and a coupon capped at a hundred uses would be a
+        // coupon capped at a hundred attempts.
+        await _promotions.Received(1).RecordUsageAsync(
+            _inserted.Single(),
+            Arg.Is<IReadOnlyList<AppliedDiscount>>(applied => applied.Count == 1),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Free_shipping_is_recorded_at_what_the_delivery_actually_came_to()
+    {
+        GivenABasket();
+
+        _pricing.BuildAsync(Arg.Any<DeliveryZone?>(), Arg.Any<Money?>(), Arg.Any<CancellationToken>())
+            .Returns(new PricingContext(
+                7.5m,
+                PricesIncludeVat: true,
+                Zone: DeliveryZone.InsideDhaka,
+                DefaultDeliveryCharge: Money.Taka(500m)));
+
+        _promotions.EvaluateAsync(Arg.Any<PromotionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new DiscountOutcome(
+                [
+                    new AppliedDiscount(
+                        2, "Free delivery", "FREEDEL", DiscountType.FreeShipping,
+                        Money.Taka(500m), new Dictionary<long, Money>())
+                ],
+                Money.Zero(),
+                FreeShipping: true,
+                []));
+
+        await CreateService().PlaceOrderAsync(Request(), idempotencyKey: null);
+
+        var order = _inserted.Single();
+
+        order.DeliveryFee.ShouldBe(Money.Zero());
+        order.DeliveryWaived.ShouldBeTrue();
+        order.Discounts.ShouldHaveSingleItem().Amount.ShouldBe(Money.Taka(500m));
+
+        // Free shipping is not money off the goods: it must not reduce the
+        // VAT base, so it stays out of the discount total.
+        order.DiscountTotal.ShouldBe(Money.Zero());
+    }
+
+    /// <summary>One coupon, worth a flat amount, allocated to the only line.</summary>
+    private void GivenADiscount(Money amount) =>
+        _promotions.EvaluateAsync(Arg.Any<PromotionRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new DiscountOutcome(
+                [
+                    new AppliedDiscount(
+                        1, "Eid sale", "EID25", DiscountType.Percentage, amount,
+                        new Dictionary<long, Money> { [1] = amount })
+                ],
+                amount,
+                FreeShipping: false,
+                []));
 
     private Cart GivenABasket(decimal price = 10_000m, int quantity = 1)
     {
