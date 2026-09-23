@@ -41,3 +41,28 @@ public interface ILowStockDigest
     [AutomaticRetry(Attempts = 0)]
     Task<int> RunAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Tells customers their consultation is coming: once the day before, once
+/// shortly beforehand.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A consultation is an appointment somebody has to leave the house for, and
+/// the shop has blocked out a consultant's afternoon for it. A no-show costs
+/// the shop that afternoon and costs the customer their place; two SMS are
+/// cheaper than either.
+/// </para>
+/// <para>
+/// Which reminder a booking is owed is <c>BookingReminders</c>'s decision, and
+/// the two stamps on the booking are what stop a second run repeating one.
+/// Only bookings the shop has actually confirmed are reminded about — see
+/// there for why.
+/// </para>
+/// </remarks>
+public interface IBookingReminders
+{
+    [DisableConcurrentExecution(timeoutInSeconds: 300)]
+    [AutomaticRetry(Attempts = 0)]
+    Task<int> RunAsync(CancellationToken cancellationToken = default);
+}

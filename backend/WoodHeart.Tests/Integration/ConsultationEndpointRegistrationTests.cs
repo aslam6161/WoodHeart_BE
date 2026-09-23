@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Service.Interfaces.Consultations;
+using WoodHeart.Service.Interfaces.Jobs;
 
 namespace WoodHeart.Tests.Integration;
 
@@ -60,8 +61,10 @@ public class ConsultationEndpointRegistrationTests(WoodHeartApiFactory factory)
     [InlineData("POST", "api/admin/consultations/consultants")]
     [InlineData("PUT", "api/admin/consultations/consultants/{id:long}")]
     [InlineData("PUT", "api/admin/consultations/consultants/{id:long}/schedule")]
+    [InlineData("GET", "api/admin/consultations/bookings")]
     [InlineData("GET", "api/admin/consultations/bookings/{bookingNumber}")]
     [InlineData("PUT", "api/admin/consultations/bookings/{bookingNumber}/status")]
+    [InlineData("PUT", "api/admin/consultations/bookings/{bookingNumber}/reschedule")]
     public void No_admin_route_is_open(string method, string pattern)
     {
         var endpoint = Find(method, pattern);
@@ -94,5 +97,6 @@ public class ConsultationEndpointRegistrationTests(WoodHeartApiFactory factory)
         scope.ServiceProvider.GetService<IAvailabilityService>().ShouldNotBeNull();
         scope.ServiceProvider.GetService<IBookingService>().ShouldNotBeNull();
         scope.ServiceProvider.GetService<IConsultationAdminService>().ShouldNotBeNull();
+        scope.ServiceProvider.GetService<IBookingReminders>().ShouldNotBeNull();
     }
 }

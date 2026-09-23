@@ -56,7 +56,8 @@ public class BookingServiceTests
         _availability
             .ResolveAsync(
                 Arg.Any<ConsultationService>(), Arg.Any<long?>(),
-                Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+                Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
+                Arg.Any<long?>(), Arg.Any<CancellationToken>())
             .Returns([new ConsultantSlots(RakibId, "Rakib", [Slot])]);
 
         _bookings.InsertAsync(Arg.Any<Booking>(), Arg.Any<CancellationToken>())
@@ -122,7 +123,8 @@ public class BookingServiceTests
         _availability
             .ResolveAsync(
                 Arg.Any<ConsultationService>(), Arg.Any<long?>(),
-                Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+                Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
+                Arg.Any<long?>(), Arg.Any<CancellationToken>())
             .Returns(
             [
                 new ConsultantSlots(RakibId, "Rakib", [Slot.AddHours(2)]),
@@ -250,7 +252,13 @@ public class BookingServiceTests
         entry.ActorName.ShouldBe("+8801712345678");
 
         sent.ShouldNotBeNull();
-        sent.IdempotencyKey.ShouldBe($"booking.status:{BookingNumber}:Confirmed");
+
+        // Keyed on the moment of the move rather than on the status alone: a
+        // booking confirmed, moved and confirmed again would otherwise have its
+        // second confirmation swallowed as a duplicate, and the customer would
+        // be left holding a time that had changed since.
+        sent.IdempotencyKey.ShouldBe(
+            $"booking.status:{BookingNumber}:Confirmed:{_clock.UtcNow:O}");
     }
 
     [Fact]
@@ -316,8 +324,184 @@ public class BookingServiceTests
     }
 
     // -------------------------------------------------------------------------
+    // Moving one
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Moving_a_booking_records_where_it_came_from()
+    {
+        var booking = Existing(BookingStatus.Confirmed);
+        var moved = Slot.AddHours(2);
+
+        Free(moved);
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>()).Returns(booking);
+
+        var result = await _service.RescheduleAsync(
+            BookingNumber, moved, consultantId: null, "The consultant is at a site visit.");
+
+        result.IsSuccess.ShouldBeTrue(result.Message);
+
+        booking.ScheduledAtUtc.ShouldBe(moved);
+        booking.Status.ShouldBe(BookingStatus.Rescheduled);
+
+        // So that "moved from ten o'clock" reads correctly a month later,
+        // rather than the customer's copy of the booking and the shop's
+        // disagreeing about what was ever agreed.
+        booking.PreviousScheduledAtUtc.ShouldBe(Slot);
+
+        booking.Timeline.ShouldHaveSingleItem().ToStatus.ShouldBe(BookingStatus.Rescheduled);
+    }
+
+    [Fact]
+    public async Task The_booking_being_moved_is_taken_out_of_the_diary_first()
+    {
+        var booking = Existing(BookingStatus.Confirmed);
+
+        Free(Slot.AddMinutes(30));
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>()).Returns(booking);
+
+        await _service.RescheduleAsync(
+            BookingNumber, Slot.AddMinutes(30), consultantId: null, null);
+
+        // Without the exclusion a booking could not be shifted by half an hour:
+        // it would collide with the afternoon it is itself occupying.
+        await _availability.Received().ResolveAsync(
+            Arg.Any<ConsultationService>(),
+            Arg.Any<long?>(),
+            Arg.Any<DateOnly>(),
+            Arg.Any<DateOnly>(),
+            booking.Id,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Moving_a_booking_undoes_the_reminders_it_has_already_had()
+    {
+        var booking = Existing(BookingStatus.Confirmed);
+
+        booking.FirstReminderSentAt = _clock.UtcNow.AddHours(-1);
+
+        Free(Slot.AddHours(2));
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>()).Returns(booking);
+
+        await _service.RescheduleAsync(BookingNumber, Slot.AddHours(2), null, null);
+
+        // The reminder the customer has already had was about a time this
+        // appointment is no longer at. Clearing the stamp is what makes them
+        // hear about the new one.
+        booking.FirstReminderSentAt.ShouldBeNull();
+        booking.FinalReminderSentAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_move_to_the_time_it_is_already_at_is_refused()
+    {
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
+            .Returns(Existing(BookingStatus.Confirmed));
+
+        var result = await _service.RescheduleAsync(BookingNumber, Slot, RakibId, null);
+
+        // Not a quiet no-op: it would write a timeline entry and send "we have
+        // moved you" about a move that did not happen.
+        result.ErrorCode.ShouldBe(ConsultationErrors.SlotUnchanged);
+    }
+
+    [Fact]
+    public async Task A_move_to_a_time_nobody_is_free_at_is_refused()
+    {
+        var booking = Existing(BookingStatus.Confirmed);
+
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>()).Returns(booking);
+
+        var result = await _service.RescheduleAsync(
+            BookingNumber, Slot.AddHours(9), consultantId: null, null);
+
+        // The board is checked against the same schedule the booking page is,
+        // so staff cannot put a customer somewhere a customer could not have.
+        result.ErrorCode.ShouldBe(ConsultationErrors.SlotNotAvailable);
+        booking.ScheduledAtUtc.ShouldBe(Slot);
+    }
+
+    [Fact]
+    public async Task A_cancelled_booking_cannot_be_moved()
+    {
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
+            .Returns(Existing(BookingStatus.Cancelled));
+
+        var result = await _service.RescheduleAsync(BookingNumber, Slot.AddHours(2), null, null);
+
+        result.ErrorCode.ShouldBe(ConsultationErrors.TransitionInvalid);
+    }
+
+    // -------------------------------------------------------------------------
+    // The board
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task An_unfiltered_board_opens_on_today()
+    {
+        BookingSearch criteria = default;
+
+        _bookings.SearchAsync(
+                Arg.Do<BookingSearch>(value => criteria = value), Arg.Any<CancellationToken>())
+            .Returns(new PagedList<Booking>([], 0, 1, 20));
+
+        await _service.SearchAsync(new BookingQueryDto());
+
+        // A diary opened at the oldest booking the shop ever took is no use to
+        // anybody; the page staff want is this week.
+        criteria.FromUtc.ShouldBe(SlotGenerator.ToUtc(_clock.DhakaToday, TimeOnly.MinValue));
+        criteria.ToUtc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Searching_for_one_booking_looks_past_today()
+    {
+        BookingSearch criteria = default;
+
+        _bookings.SearchAsync(
+                Arg.Do<BookingSearch>(value => criteria = value), Arg.Any<CancellationToken>())
+            .Returns(new PagedList<Booking>([], 0, 1, 20));
+
+        await _service.SearchAsync(new BookingQueryDto { Term = "01712349999" });
+
+        // Somebody hunting one booking is not browsing the diary, and the
+        // booking they want may well be last month's.
+        criteria.FromUtc.ShouldBeNull();
+        criteria.Term.ShouldBe("01712349999");
+    }
+
+    [Fact]
+    public async Task A_day_asked_for_is_the_shops_day_and_not_the_servers()
+    {
+        BookingSearch criteria = default;
+
+        _bookings.SearchAsync(
+                Arg.Do<BookingSearch>(value => criteria = value), Arg.Any<CancellationToken>())
+            .Returns(new PagedList<Booking>([], 0, 1, 20));
+
+        await _service.SearchAsync(new BookingQueryDto { From = Sunday, To = Sunday });
+
+        // "Bookings on the 27th" means the 27th as Dhaka lives it: from six in
+        // the evening UTC on the 26th to six on the 27th. Read as UTC dates it
+        // would show six hours of the wrong day at each end.
+        criteria.FromUtc.ShouldBe(SlotGenerator.ToUtc(Sunday, TimeOnly.MinValue));
+        criteria.ToUtc.ShouldBe(SlotGenerator.ToUtc(Sunday.AddDays(1), TimeOnly.MinValue));
+    }
+
+    // -------------------------------------------------------------------------
     // Fixtures
     // -------------------------------------------------------------------------
+
+    /// <summary>Makes exactly these times free, and nothing else.</summary>
+    private void Free(params DateTimeOffset[] slots) =>
+        _availability
+            .ResolveAsync(
+                Arg.Any<ConsultationService>(), Arg.Any<long?>(),
+                Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
+                Arg.Any<long?>(), Arg.Any<CancellationToken>())
+            .Returns([new ConsultantSlots(RakibId, "Rakib", slots)]);
+
 
     private static CreateBookingDto Request(
         long? consultantId = RakibId,

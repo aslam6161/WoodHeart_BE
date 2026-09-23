@@ -66,8 +66,18 @@ public static class NotificationTemplates
     /// <summary>A consultation confirmed, moved or called off.</summary>
     public const string BookingStatusChanged = "booking.status_changed";
 
+    /// <summary>"Your consultation is at four" — sent twice before it happens.</summary>
+    public const string BookingReminder = "booking.reminder";
+
     public static readonly IReadOnlyList<string> KnownTypes =
-        [OrderPlaced, OrderStatusChanged, StockLow, BookingRequested, BookingStatusChanged];
+    [
+        OrderPlaced,
+        OrderStatusChanged,
+        StockLow,
+        BookingRequested,
+        BookingStatusChanged,
+        BookingReminder
+    ];
 
     public static RenderedNotification? Render(string type, string payload, string shopPhone)
     {
@@ -81,6 +91,7 @@ public static class NotificationTemplates
             StockLow => RenderStockLow(root, shopPhone.Trim()),
             BookingRequested => RenderBookingRequested(root, shopPhone.Trim()),
             BookingStatusChanged => RenderBookingStatusChanged(root, shopPhone.Trim()),
+            BookingReminder => RenderBookingReminder(root, shopPhone.Trim()),
             _ => (RenderedNotification?)null
         };
 
@@ -398,6 +409,61 @@ public static class NotificationTemplates
                     : bangla
                         ? $"সময়: <strong>{Escape(when)}</strong>"
                         : $"When: <strong>{Escape(when)}</strong>"
+            ],
+            shopPhone: shopPhone,
+            bangla: bangla);
+
+        return new RenderedNotification(
+            sms, subject, body, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // booking.reminder
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// The reminder, sent the day before and again shortly beforehand.
+    /// </summary>
+    /// <remarks>
+    /// <b>It states the time rather than saying "tomorrow".</b> The reminders
+    /// are bands, not moments — somebody who books at nine for four the same
+    /// afternoon gets the first one straight away — so "tomorrow" would be
+    /// wrong often enough to matter, and a customer who turns up on the wrong
+    /// day because of a word is a customer the shop has lost.
+    /// </remarks>
+    private static RenderedNotification RenderBookingReminder(JsonElement root, string shopPhone)
+    {
+        var number = String_(root, "bookingNumber");
+        var name = String_(root, "contactName");
+        var service = String_(root, "serviceName");
+        var when = String_(root, "scheduledAt");
+        var bangla = IsBangla(root);
+
+        var sms = bangla
+            ? $"WoodHeart: মনে করিয়ে দিচ্ছি, আপনার বুকিং {number} এর সময় {when}। {shopPhone}"
+            : $"WoodHeart: a reminder that your booking {number} is at {when}. {shopPhone}";
+
+        var subject = bangla
+            ? $"মনে করিয়ে দিচ্ছি: বুকিং {number}"
+            : $"A reminder: booking {number}";
+
+        var body = Email(
+            heading: bangla ? "মনে করিয়ে দিচ্ছি" : "A reminder",
+            greeting: bangla ? $"প্রিয় {Escape(name)}," : $"Dear {Escape(name)},",
+            lines:
+            [
+                bangla
+                    ? $"আপনার <strong>{Escape(service)}</strong> সেশনটি আসছে।"
+                    : $"Your <strong>{Escape(service)}</strong> is coming up.",
+                bangla
+                    ? $"সময়: <strong>{Escape(when)}</strong>"
+                    : $"When: <strong>{Escape(when)}</strong>",
+                bangla
+                    ? $"বুকিং নম্বর: <strong>{Escape(number)}</strong>"
+                    : $"Booking number: <strong>{Escape(number)}</strong>",
+                bangla
+                    ? "আসতে না পারলে দয়া করে আগেই জানান।"
+                    : "If you cannot make it, please tell us beforehand."
             ],
             shopPhone: shopPhone,
             bangla: bangla);

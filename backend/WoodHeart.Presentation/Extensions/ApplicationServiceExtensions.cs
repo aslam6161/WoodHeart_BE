@@ -265,6 +265,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
         services.AddScoped<IUnpaidOrderExpiry, UnpaidOrderExpiry>();
         services.AddScoped<ILowStockDigest, LowStockDigest>();
+        services.AddScoped<IBookingReminders, BookingReminderJob>();
 
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBrandService, BrandService>();

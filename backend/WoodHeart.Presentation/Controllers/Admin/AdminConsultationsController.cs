@@ -77,6 +77,20 @@ public class AdminConsultationsController(
 
     // --- A booking that exists -------------------------------------------------
 
+    /// <summary>
+    /// The shop's diary.
+    /// </summary>
+    /// <remarks>
+    /// Asked for nothing in particular, it answers with today onwards, because
+    /// that is the page staff open it for. Reading is all staff: whoever
+    /// answers the telephone is the person who needs to say when the next site
+    /// visit is.
+    /// </remarks>
+    [HttpGet("bookings")]
+    public async Task<IActionResult> Bookings(
+        [FromQuery] BookingQueryDto query, CancellationToken cancellationToken) =>
+        HandleResult(await bookings.SearchAsync(query, cancellationToken));
+
     [HttpGet("bookings/{bookingNumber}")]
     public async Task<IActionResult> Booking(
         string bookingNumber, CancellationToken cancellationToken) =>
@@ -84,7 +98,7 @@ public class AdminConsultationsController(
         // shop, and they are the ones being telephoned about it.
         HandleResult(await bookings.GetForStaffAsync(bookingNumber, cancellationToken));
 
-    /// <summary>Confirm it, move it, complete it, or record that nobody came.</summary>
+    /// <summary>Confirm it, complete it, call it off, or record that nobody came.</summary>
     [HttpPut("bookings/{bookingNumber}/status")]
     public async Task<IActionResult> SetStatus(
         string bookingNumber,
@@ -92,4 +106,22 @@ public class AdminConsultationsController(
         CancellationToken cancellationToken) =>
         HandleResult(
             await bookings.SetStatusAsync(bookingNumber, dto.Status, dto.Note, cancellationToken));
+
+    /// <summary>
+    /// Moves a booking to another time, and possibly to somebody else.
+    /// </summary>
+    /// <remarks>
+    /// Its own endpoint rather than a status change carrying a date, because
+    /// moving an appointment is a different decision from marking one done:
+    /// it is checked against the schedule, it can be refused for a reason that
+    /// has nothing to do with the status, and it is the one that has to lose
+    /// gracefully to a customer booking the same slot a moment earlier.
+    /// </remarks>
+    [HttpPut("bookings/{bookingNumber}/reschedule")]
+    public async Task<IActionResult> Reschedule(
+        string bookingNumber,
+        RescheduleBookingDto dto,
+        CancellationToken cancellationToken) =>
+        HandleResult(await bookings.RescheduleAsync(
+            bookingNumber, dto.StartUtc, dto.ConsultantId, dto.Note, cancellationToken));
 }

@@ -80,6 +80,21 @@ public class Booking : BaseEntity
     /// <summary>Where it was before it was moved, so "rescheduled from" reads correctly.</summary>
     public DateTimeOffset? PreviousScheduledAtUtc { get; set; }
 
+    /// <summary>
+    /// When the day-before reminder went, or null if it has not.
+    /// </summary>
+    /// <remarks>
+    /// On the booking rather than inferred from the outbox, because "have we
+    /// already told them" has to be answered in the same write that sends,
+    /// or a job that runs twice bills the shop twice at the SMS gateway.
+    /// Moving a booking clears both, because the reminder a customer was sent
+    /// is now for a time the appointment is no longer at.
+    /// </remarks>
+    public DateTimeOffset? FirstReminderSentAt { get; set; }
+
+    /// <summary>When the last reminder went. See <see cref="FirstReminderSentAt"/>.</summary>
+    public DateTimeOffset? FinalReminderSentAt { get; set; }
+
     // --- What it is about ----------------------------------------------------
 
     /// <summary>Where the consultant is going. Required for a site visit, absent otherwise.</summary>
