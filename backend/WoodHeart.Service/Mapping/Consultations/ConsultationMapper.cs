@@ -137,7 +137,8 @@ public static class ConsultationMapper
                     OccurredAt = entry.OccurredAt
                 })
             ],
-            CanCancel = BookingStatusMachine.IsCustomerCancellable(booking.Status)
+            CanCancel = BookingStatusMachine.IsCustomerCancellable(booking.Status),
+            AllowedStatusTransitions = BookingStatusMachine.NextFrom(booking.Status)
         };
 
     /// <summary>
