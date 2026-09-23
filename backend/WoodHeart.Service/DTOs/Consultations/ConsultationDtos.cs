@@ -200,6 +200,18 @@ public class BookingDto
 
     /// <summary>Whether the customer may still call it off themselves.</summary>
     public bool CanCancel { get; init; }
+
+    /// <summary>
+    /// Every booking status legal from the current one, straight from
+    /// <c>BookingStatusMachine</c>.
+    /// </summary>
+    /// <remarks>
+    /// Sent rather than reimplemented in Angular, exactly as an order's are. A
+    /// second copy of the graph in TypeScript would drift, and the drift shows
+    /// up as a button that renders, is pressed, and returns a 409 — on a screen
+    /// whose whole job is moving a booking along.
+    /// </remarks>
+    public IReadOnlyList<BookingStatus> AllowedStatusTransitions { get; init; } = [];
 }
 
 public class BookingTimelineEntryDto

@@ -262,6 +262,33 @@ public class BookingServiceTests
     }
 
     [Fact]
+    public async Task The_board_is_told_which_moves_are_legal_from_here()
+    {
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
+            .Returns(Existing(BookingStatus.Requested));
+
+        var result = await _service.GetForStaffAsync(BookingNumber);
+
+        // Sent rather than reimplemented in Angular. A second copy of the graph
+        // on the client drifts, and the drift is a button that renders, is
+        // pressed, and comes back 409.
+        result.Data!.AllowedStatusTransitions.ShouldBe(
+            BookingStatusMachine.NextFrom(BookingStatus.Requested), ignoreOrder: true);
+
+        result.Data.AllowedStatusTransitions.ShouldNotContain(BookingStatus.Completed);
+    }
+
+    [Fact]
+    public async Task A_booking_that_is_over_offers_no_moves_at_all()
+    {
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
+            .Returns(Existing(BookingStatus.Cancelled));
+
+        (await _service.GetForStaffAsync(BookingNumber)).Data!
+            .AllowedStatusTransitions.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task A_move_the_machine_forbids_is_refused()
     {
         _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
