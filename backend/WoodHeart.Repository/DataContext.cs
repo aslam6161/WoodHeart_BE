@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using WoodHeart.Domain.Entity;
 using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Common;
+using WoodHeart.Domain.Entity.Consultations;
 using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Entity.Inventory;
 using WoodHeart.Domain.Entity.Ordering;
@@ -101,6 +102,22 @@ public class DataContext(
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     public DbSet<StockReservation> StockReservations => Set<StockReservation>();
+
+    // --- Consultations ------------------------------------------------------
+
+    public DbSet<ConsultationService> ConsultationServices => Set<ConsultationService>();
+
+    public DbSet<Consultant> Consultants => Set<Consultant>();
+
+    public DbSet<ConsultantService> ConsultantServices => Set<ConsultantService>();
+
+    public DbSet<AvailabilityRule> AvailabilityRules => Set<AvailabilityRule>();
+
+    public DbSet<AvailabilityException> AvailabilityExceptions => Set<AvailabilityException>();
+
+    public DbSet<Booking> Bookings => Set<Booking>();
+
+    public DbSet<BookingTimelineEntry> BookingTimelineEntries => Set<BookingTimelineEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

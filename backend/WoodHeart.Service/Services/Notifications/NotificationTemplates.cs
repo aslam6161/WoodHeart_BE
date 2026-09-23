@@ -60,7 +60,14 @@ public static class NotificationTemplates
     /// <summary>To the shop, not a customer: the lines at or below their reorder level.</summary>
     public const string StockLow = "stock.low";
 
-    public static readonly IReadOnlyList<string> KnownTypes = [OrderPlaced, OrderStatusChanged, StockLow];
+    /// <summary>A consultation asked for. The shop confirms it separately.</summary>
+    public const string BookingRequested = "booking.requested";
+
+    /// <summary>A consultation confirmed, moved or called off.</summary>
+    public const string BookingStatusChanged = "booking.status_changed";
+
+    public static readonly IReadOnlyList<string> KnownTypes =
+        [OrderPlaced, OrderStatusChanged, StockLow, BookingRequested, BookingStatusChanged];
 
     public static RenderedNotification? Render(string type, string payload, string shopPhone)
     {
@@ -72,6 +79,8 @@ public static class NotificationTemplates
             OrderPlaced => RenderOrderPlaced(root, shopPhone.Trim()),
             OrderStatusChanged => RenderStatusChanged(root, shopPhone.Trim()),
             StockLow => RenderStockLow(root, shopPhone.Trim()),
+            BookingRequested => RenderBookingRequested(root, shopPhone.Trim()),
+            BookingStatusChanged => RenderBookingStatusChanged(root, shopPhone.Trim()),
             _ => (RenderedNotification?)null
         };
 
@@ -263,6 +272,138 @@ public static class NotificationTemplates
             body,
             String_(root, "recipientPhone"),
             NullIfBlank(String_(root, "recipientEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // booking.requested
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// "We have your request" — not "you are booked".
+    /// </summary>
+    /// <remarks>
+    /// The wording matters: a booking is Requested until somebody at the shop
+    /// looks at it, and a message that said "confirmed" would have a customer
+    /// turning up to a studio nobody was expecting them at.
+    /// </remarks>
+    private static RenderedNotification RenderBookingRequested(JsonElement root, string shopPhone)
+    {
+        var number = String_(root, "bookingNumber");
+        var name = String_(root, "contactName");
+        var service = String_(root, "serviceName");
+        var when = String_(root, "scheduledAt");
+        var bangla = IsBangla(root);
+
+        var sms = bangla
+            ? $"WoodHeart: {when} সময়ের জন্য বুকিং {number} পেয়েছি। শীঘ্রই নিশ্চিত করব। {shopPhone}"
+            : $"WoodHeart: booking {number} received for {when}. We will confirm shortly. {shopPhone}";
+
+        var subject = bangla ? $"বুকিং {number} পেয়েছি" : $"We have your booking {number}";
+
+        var body = Email(
+            heading: bangla ? "ধন্যবাদ!" : "Thank you!",
+            greeting: bangla ? $"প্রিয় {Escape(name)}," : $"Dear {Escape(name)},",
+            lines:
+            [
+                bangla
+                    ? $"আমরা আপনার <strong>{Escape(service)}</strong> বুকিং অনুরোধ পেয়েছি।"
+                    : $"We have received your request for a <strong>{Escape(service)}</strong>.",
+                bangla
+                    ? $"সময়: <strong>{Escape(when)}</strong>"
+                    : $"When: <strong>{Escape(when)}</strong>",
+                bangla
+                    ? $"বুকিং নম্বর: <strong>{Escape(number)}</strong>"
+                    : $"Booking number: <strong>{Escape(number)}</strong>",
+                bangla
+                    ? "আমরা নিশ্চিত করার পর আপনাকে জানাব।"
+                    : "We will write again once it is confirmed."
+            ],
+            shopPhone: shopPhone,
+            bangla: bangla);
+
+        return new RenderedNotification(
+            sms, subject, body, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // booking.status_changed
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// The moves a customer should hear about, and only those.
+    /// </summary>
+    /// <remarks>
+    /// Completed and NoShow are the shop's own bookkeeping. An SMS saying "your
+    /// consultation is marked complete" is a message nobody needs and a part
+    /// the shop pays for; one saying "you did not attend" is worse than
+    /// useless. Returning null suppresses the message, which is what the
+    /// dispatcher does with anything it cannot render.
+    /// </remarks>
+    private static RenderedNotification? RenderBookingStatusChanged(JsonElement root, string shopPhone)
+    {
+        var number = String_(root, "bookingNumber");
+        var name = String_(root, "contactName");
+        var when = String_(root, "scheduledAt");
+        var status = String_(root, "status");
+        var bangla = IsBangla(root);
+
+        var (sms, subject, line) = status switch
+        {
+            "Confirmed" => (
+                bangla
+                    ? $"WoodHeart: বুকিং {number} নিশ্চিত, {when}। {shopPhone}"
+                    : $"WoodHeart: booking {number} is confirmed for {when}. {shopPhone}",
+                bangla ? $"বুকিং {number} নিশ্চিত" : $"Booking {number} confirmed",
+                bangla
+                    ? "আপনার পরামর্শ সেশনটি নিশ্চিত করা হয়েছে।"
+                    : "Your consultation is confirmed."),
+
+            "Rescheduled" => (
+                bangla
+                    ? $"WoodHeart: বুকিং {number} সরানো হয়েছে, নতুন সময় {when}। {shopPhone}"
+                    : $"WoodHeart: booking {number} has moved to {when}. {shopPhone}",
+                bangla ? $"বুকিং {number} সরানো হয়েছে" : $"Booking {number} has moved",
+                bangla
+                    ? "আপনার পরামর্শ সেশনের সময় পরিবর্তন করা হয়েছে।"
+                    : "Your consultation has been moved to a new time."),
+
+            "Cancelled" => (
+                bangla
+                    ? $"WoodHeart: বুকিং {number} বাতিল করা হয়েছে। {shopPhone}"
+                    : $"WoodHeart: booking {number} has been cancelled. {shopPhone}",
+                bangla ? $"বুকিং {number} বাতিল" : $"Booking {number} cancelled",
+                bangla
+                    ? "আপনার পরামর্শ সেশনটি বাতিল করা হয়েছে।"
+                    : "Your consultation has been cancelled."),
+
+            _ => (string.Empty, string.Empty, string.Empty)
+        };
+
+        if (sms.Length == 0)
+        {
+            return null;
+        }
+
+        var body = Email(
+            heading: bangla ? "বুকিং হালনাগাদ" : "Booking update",
+            greeting: bangla ? $"প্রিয় {Escape(name)}," : $"Dear {Escape(name)},",
+            lines:
+            [
+                line,
+                bangla
+                    ? $"বুকিং নম্বর: <strong>{Escape(number)}</strong>"
+                    : $"Booking number: <strong>{Escape(number)}</strong>",
+                status == "Cancelled"
+                    ? string.Empty
+                    : bangla
+                        ? $"সময়: <strong>{Escape(when)}</strong>"
+                        : $"When: <strong>{Escape(when)}</strong>"
+            ],
+            shopPhone: shopPhone,
+            bangla: bangla);
+
+        return new RenderedNotification(
+            sms, subject, body, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
     }
 
     // -------------------------------------------------------------------------
