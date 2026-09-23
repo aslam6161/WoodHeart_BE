@@ -230,7 +230,13 @@ public class PaymentMethodAdminService(
             IsImplemented = implemented,
             SupportsRedirect = capabilities.SupportsRedirect,
             SupportsRefund = capabilities.SupportsRefund,
-            NeedsCredentials = capabilities.NeedsCredentials
+            // A method with no provider yet is one being prepared, and what
+            // there is to prepare is very largely the credential. Saying "it
+            // needs none" because nothing has spoken up for it would hide the
+            // one field that has to be filled in before the day it is built —
+            // which is the whole reason the row exists ahead of the class.
+            // A provider that has shipped answers for itself; cash says no.
+            NeedsCredentials = !implemented || capabilities.NeedsCredentials
         };
     }
 

@@ -83,6 +83,35 @@ public class PaymentMethodAdminServiceTests
     }
 
     [Fact]
+    public async Task A_method_with_no_provider_yet_can_still_be_given_credentials()
+    {
+        // Found in a browser: bKash is the one method that needs a merchant
+        // key and the only one with nothing to ask about its capabilities, so
+        // reading them from a provider that does not exist hid the field that
+        // has to be filled in before the day it is built. The row exists ahead
+        // of the class precisely so the credential can be waiting.
+        var service = Service(Config(code: PaymentMethodCodes.Bkash, enabled: false));
+
+        var dto = (await service.GetAsync(PaymentMethodCodes.Bkash)).Data!;
+
+        dto.IsImplemented.ShouldBeFalse();
+        dto.NeedsCredentials.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Cash_is_the_one_method_that_needs_no_credentials()
+    {
+        // It has a provider, and the provider says so. Nobody to authenticate
+        // against: cash settles at the door.
+        var service = Service(Config());
+
+        var dto = (await service.GetAsync(PaymentMethodCodes.CashOnDelivery)).Data!;
+
+        dto.IsImplemented.ShouldBeTrue();
+        dto.NeedsCredentials.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task A_stored_credential_is_reported_but_never_returned()
     {
         var service = Service(Config(credentials: "enc:app-key=live-1234"));
