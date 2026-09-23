@@ -59,6 +59,18 @@ public class AdminQuotationsController(IQuotationService quotations) : BaseApiCo
             await quotations.SetStatusAsync(
                 quotationNumber, dto.Status, dto.Reason, cancellationToken));
 
+    /// <summary>The ways this quotation may be paid for, with any charge.</summary>
+    /// <remarks>
+    /// Read-only, so every staff role may see it; converting below is
+    /// narrower. The methods are worked out against the quotation's own total
+    /// rather than a basket, because whoever is converting one does not have
+    /// a basket.
+    /// </remarks>
+    [HttpGet("{quotationNumber}/payment-methods")]
+    public async Task<IActionResult> PaymentMethods(
+        string quotationNumber, CancellationToken cancellationToken) =>
+        HandleResult(await quotations.GetPaymentMethodsAsync(quotationNumber, cancellationToken));
+
     /// <summary>
     /// Turns an accepted quotation into an order.
     /// </summary>

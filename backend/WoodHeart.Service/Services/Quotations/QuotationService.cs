@@ -403,6 +403,37 @@ public class QuotationService(
     // Becoming an order
     // -------------------------------------------------------------------------
 
+    public async Task<GeneralResponse<IReadOnlyList<PaymentMethodDto>>> GetPaymentMethodsAsync(
+        string quotationNumber, CancellationToken cancellationToken = default)
+    {
+        var quotation = await quotations.GetByNumberAsync(quotationNumber, cancellationToken);
+
+        if (quotation is null)
+        {
+            return GeneralResponse<IReadOnlyList<PaymentMethodDto>>.Fail(
+                QuotationErrors.NotFound, "We could not find that quotation.");
+        }
+
+        // Against the quotation's own total and zone, which is the whole
+        // reason this is not the checkout's call: the cash-on-delivery
+        // ceiling is about the amount being ordered, and that amount is here.
+        var eligible = await payments.GetEligibleAsync(
+            quotation.GrandTotal, quotation.DeliveryZone, cancellationToken);
+
+        return GeneralResponse<IReadOnlyList<PaymentMethodDto>>.Success(
+        [
+            .. eligible.Select(method => new PaymentMethodDto
+            {
+                Code = method.Config.Code,
+                DisplayName = method.Config.DisplayName.For(currentUser.Language),
+                Description = method.Config.Description?.For(currentUser.Language),
+                IconUrl = method.Config.IconUrl,
+                Surcharge = method.Surcharge.Amount,
+                RedirectsToGateway = method.Provider.Capabilities.SupportsRedirect
+            })
+        ]);
+    }
+
     public async Task<GeneralResponse<PlacedOrderDto>> ConvertAsync(
         string quotationNumber,
         ConvertQuotationDto dto,

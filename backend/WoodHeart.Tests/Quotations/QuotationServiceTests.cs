@@ -383,6 +383,39 @@ public class QuotationServiceTests
     // -------------------------------------------------------------------------
 
     [Fact]
+    public async Task The_ways_to_pay_are_priced_against_the_quotation_not_a_basket()
+    {
+        // The checkout's own list prices the methods against the caller's
+        // cart, and whoever is converting a quotation has no cart. What
+        // decides here is the quotation's total — a three-lakh one may be over
+        // the cash-on-delivery ceiling — and where it is going.
+        var quotation = Existing(QuotationStatus.Accepted);
+
+        _quotations.GetByNumberAsync(Number, Arg.Any<CancellationToken>()).Returns(quotation);
+
+        _payments.GetEligibleAsync(
+                Arg.Any<Money>(), Arg.Any<DeliveryZone>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new EligiblePaymentMethod(
+                    new PaymentMethodConfig
+                    {
+                        Code = PaymentMethodCodes.CashOnDelivery,
+                        DisplayName = LocalizedText.Create("Cash on delivery")
+                    },
+                    Substitute.For<IPaymentProvider>(),
+                    Money.Taka(50m))
+            ]);
+
+        var result = await _service.GetPaymentMethodsAsync(Number);
+
+        result.IsSuccess.ShouldBeTrue(result.Message);
+        result.Data.ShouldHaveSingleItem().Surcharge.ShouldBe(50m);
+
+        await _payments.Received(1).GetEligibleAsync(
+            quotation.GrandTotal, quotation.DeliveryZone, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Converting_honours_the_figure_the_customer_agreed_to()
     {
         var quotation = Existing(QuotationStatus.Accepted);

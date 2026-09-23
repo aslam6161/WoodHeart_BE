@@ -45,6 +45,20 @@ public interface IQuotationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The ways this quotation may be paid for.
+    /// </summary>
+    /// <remarks>
+    /// Its own call rather than the checkout's, which prices the methods
+    /// against the caller's own basket — and a member of staff converting a
+    /// quotation has no basket. The rules that matter here are about the
+    /// amount and where it is going: a three-lakh quotation may be over the
+    /// cash-on-delivery ceiling, and that is the quotation's total, not
+    /// anybody's cart.
+    /// </remarks>
+    Task<GeneralResponse<IReadOnlyList<PaymentMethodDto>>> GetPaymentMethodsAsync(
+        string quotationNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Turns an accepted quotation into an order.
     /// </summary>
     /// <remarks>

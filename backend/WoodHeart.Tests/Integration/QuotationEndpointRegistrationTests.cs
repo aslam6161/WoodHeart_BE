@@ -49,6 +49,7 @@ public class QuotationEndpointRegistrationTests(WoodHeartApiFactory factory)
     [Theory]
     [InlineData("GET", "api/admin/quotations")]
     [InlineData("GET", "api/admin/quotations/{quotationNumber}")]
+    [InlineData("GET", "api/admin/quotations/{quotationNumber}/payment-methods")]
     [InlineData("POST", "api/admin/quotations")]
     [InlineData("PUT", "api/admin/quotations/{id:long}")]
     [InlineData("PUT", "api/admin/quotations/{quotationNumber}/status")]
