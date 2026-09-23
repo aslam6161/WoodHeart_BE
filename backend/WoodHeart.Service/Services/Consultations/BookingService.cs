@@ -304,7 +304,12 @@ public class BookingService(
         }
 
         return await MoveAsync(
-            booking, status, note, currentUser.PhoneNumber ?? "Staff", cancellationToken);
+            booking,
+            status,
+            note,
+            currentUser.PhoneNumber ?? "Staff",
+            cancellationToken,
+            maskPhone: false);
     }
 
     /// <inheritdoc />
@@ -392,7 +397,8 @@ public class BookingService(
                 startUtc,
                 assigned.ConsultantName);
 
-            return Ok(booking);
+            // The board asked for this move, so the board gets the staff view.
+            return Ok(booking, maskPhone: false);
         }, cancellationToken);
     }
 
@@ -400,12 +406,20 @@ public class BookingService(
     // Moving a booking
     // -------------------------------------------------------------------------
 
+    /// <param name="maskPhone">
+    /// False when the shop moved it. Staff see the number they have to
+    /// telephone; a customer cancelling their own sees theirs masked, as on
+    /// every other page they might screenshot. Without this the admin board
+    /// would confirm a booking and be handed back a masked number for its
+    /// trouble.
+    /// </param>
     private async Task<GeneralResponse<BookingDto>> MoveAsync(
         Booking booking,
         BookingStatus to,
         string? note,
         string actor,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool maskPhone = true)
     {
         if (!BookingStatusMachine.CanTransition(booking.Status, to))
         {
@@ -435,7 +449,7 @@ public class BookingService(
 
             ConsultationLog.BookingMoved(logger, booking.BookingNumber, from, to, actor);
 
-            return Ok(booking);
+            return Ok(booking, maskPhone);
         }, cancellationToken);
     }
 
@@ -563,9 +577,9 @@ public class BookingService(
                && string.Equals(parsed.Value, booking.ContactPhone, StringComparison.Ordinal);
     }
 
-    private GeneralResponse<BookingDto> Ok(Booking booking) =>
+    private GeneralResponse<BookingDto> Ok(Booking booking, bool maskPhone = true) =>
         GeneralResponse<BookingDto>.Success(
-            ConsultationMapper.ToDto(booking, currentUser.Language), id: booking.Id);
+            ConsultationMapper.ToDto(booking, currentUser.Language, maskPhone), id: booking.Id);
 
     private static DeliveryAddress ToAddress(DeliveryAddressDto dto) =>
         DeliveryAddress.Create(
