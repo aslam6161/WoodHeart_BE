@@ -84,7 +84,8 @@ public class AvailabilityService(
                 $"Please ask for at most {SlotGenerator.MaxDays} days at a time.");
         }
 
-        var perConsultant = await ResolveAsync(service, query.ConsultantId, from, to, cancellationToken);
+        var perConsultant = await ResolveAsync(
+            service, query.ConsultantId, from, to, excludeBookingId: null, cancellationToken);
 
         return GeneralResponse<AvailabilityDto>.Success(new AvailabilityDto
         {
@@ -116,6 +117,7 @@ public class AvailabilityService(
         long? consultantId,
         DateOnly from,
         DateOnly to,
+        long? excludeBookingId = null,
         CancellationToken cancellationToken = default)
     {
         var offering = await consultants.GetForServiceAsync(service.Id, cancellationToken);
@@ -135,8 +137,14 @@ public class AvailabilityService(
         var windowStart = SlotGenerator.ToUtc(from, TimeOnly.MinValue);
         var windowEnd = SlotGenerator.ToUtc(to.AddDays(1), TimeOnly.MinValue);
 
+        // Without the exclusion a booking could not be moved by half an hour:
+        // it would collide with the afternoon it is itself occupying.
         var held = await bookings.GetHeldBetweenAsync(
-            [.. offering.Select(candidate => candidate.Id)], windowStart, windowEnd, cancellationToken);
+            [.. offering.Select(candidate => candidate.Id)],
+            windowStart,
+            windowEnd,
+            excludeBookingId,
+            cancellationToken);
 
         var request = new SlotRequest(
             from,

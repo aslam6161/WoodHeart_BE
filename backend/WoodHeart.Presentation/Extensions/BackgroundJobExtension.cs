@@ -57,6 +57,18 @@ public static class BackgroundJobExtension
     /// </summary>
     private const string LowStockDigestSchedule = "0 3 * * *";
 
+    /// <summary>
+    /// How often consultation reminders are looked for.
+    /// </summary>
+    /// <remarks>
+    /// Every fifteen minutes. The reminders are bands rather than moments —
+    /// see <c>BookingReminders</c> — so the cadence only decides how late a
+    /// message can be, and a quarter of an hour either side of "two hours
+    /// before" is not something a customer notices. The query behind it is one
+    /// indexed range that nearly always returns nothing.
+    /// </remarks>
+    private const string BookingReminderSchedule = "*/15 * * * *";
+
     private static BackgroundJobSettings Read(IConfiguration configuration) =>
         configuration.GetSection(BackgroundJobSettings.SectionName).Get<BackgroundJobSettings>()
         ?? new BackgroundJobSettings();
@@ -151,6 +163,12 @@ public static class BackgroundJobExtension
             recurringJobId: "unpaid-order-expiry",
             methodCall: job => job.RunAsync(CancellationToken.None),
             cronExpression: UnpaidExpirySchedule,
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+        RecurringJob.AddOrUpdate<IBookingReminders>(
+            recurringJobId: "booking-reminders",
+            methodCall: job => job.RunAsync(CancellationToken.None),
+            cronExpression: BookingReminderSchedule,
             new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
 
         RecurringJob.AddOrUpdate<ILowStockDigest>(

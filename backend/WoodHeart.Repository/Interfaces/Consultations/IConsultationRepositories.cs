@@ -1,4 +1,5 @@
 using WoodHeart.Domain.Entity.Consultations;
+using WoodHeart.Domain.Enums.Consultations;
 
 namespace WoodHeart.Repository.Interfaces.Consultations;
 
@@ -83,10 +84,16 @@ public interface IBookingRepository : IRepository<Booking>
     /// The caller decides what that means for each consultant.
     /// </para>
     /// </remarks>
+    /// <param name="excludeBookingId">
+    /// Read the diary as though this booking were not in it. Used when moving
+    /// one: an appointment must not be blocked by the afternoon it is itself
+    /// occupying.
+    /// </param>
     Task<IReadOnlyList<Booking>> GetHeldBetweenAsync(
         IReadOnlyCollection<long> consultantIds,
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
+        long? excludeBookingId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>A customer's bookings, soonest first.</summary>
@@ -94,4 +101,44 @@ public interface IBookingRepository : IRepository<Booking>
         long customerId, int skip, int take, CancellationToken cancellationToken = default);
 
     Task<int> CountForCustomerAsync(long customerId, CancellationToken cancellationToken = default);
+
+    /// <summary>The shop's diary, filtered as the board asked.</summary>
+    Task<PagedList<Booking>> SearchAsync(
+        BookingSearch criteria, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The appointments close enough to be worth a message and not yet sent
+    /// both of theirs.
+    /// </summary>
+    /// <remarks>
+    /// The window and the two stamps narrow it to a handful of rows; which of
+    /// the two reminders each one is owed is <c>BookingReminders</c>'s
+    /// decision, not a query's.
+    /// </remarks>
+    Task<IReadOnlyList<Booking>> GetDueForReminderAsync(
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        int take,
+        CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// What the board asked the diary for.
+/// </summary>
+/// <remarks>
+/// A record rather than eight parameters, and declared here rather than taken
+/// as a DTO, because Repository cannot see Service and a positional argument
+/// list this long is how a consultant id ends up passed as a page number.
+/// </remarks>
+/// <param name="Term">Booking number, customer name or phone. Null matches all.</param>
+/// <param name="FromUtc">Inclusive. Null looks back to the first booking ever taken.</param>
+/// <param name="ToUtc">Exclusive.</param>
+public readonly record struct BookingSearch(
+    string? Term,
+    BookingStatus? Status,
+    long? ConsultantId,
+    ConsultationMode? Mode,
+    DateTimeOffset? FromUtc,
+    DateTimeOffset? ToUtc,
+    int Page,
+    int PageSize);

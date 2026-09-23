@@ -114,7 +114,8 @@ public class BookingService(
             var date = DateOnly.FromDateTime(
                 dto.StartUtc.ToOffset(SlotGenerator.DhakaOffset).DateTime);
 
-            var free = await availability.ResolveAsync(service, dto.ConsultantId, date, date, ct);
+            var free = await availability.ResolveAsync(
+                service, dto.ConsultantId, date, date, excludeBookingId: null, ct);
 
             // Whoever is free at exactly this time. When the customer named a
             // consultant the list only ever held that one, so the same line
@@ -146,7 +147,7 @@ public class BookingService(
             Record(booking, from: null, to: BookingStatus.Requested, "Booking requested.");
 
             await bookings.InsertAsync(booking, ct);
-            await QueueAsync(booking, service, "booking.requested", ct);
+            await QueueAsync(booking, service, "booking.requested", at: null, ct);
 
             await unitOfWork.SaveChangesAsync(ct);
 
@@ -210,6 +211,52 @@ public class BookingService(
         });
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// <b>An unfiltered board opens on today.</b> Staff open it to see what is
+    /// coming, and a first page showing the oldest booking the shop ever took
+    /// is no use to anybody. A term is the exception: somebody hunting one
+    /// booking is not browsing the diary, and the booking they want may well
+    /// be last month's.
+    /// </remarks>
+    public async Task<GeneralResponse<PagedResult<BookingListItemDto>>> SearchAsync(
+        BookingQueryDto query, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var browsing = string.IsNullOrWhiteSpace(query.Term) && query.To is null;
+        var from = query.From ?? (browsing ? clock.DhakaToday : (DateOnly?)null);
+
+        var criteria = new BookingSearch(
+            query.Term,
+            query.Status,
+            query.ConsultantId,
+            query.Mode,
+
+            // Dhaka dates in, UTC instants out. "Bookings on the 27th" means
+            // the 27th as the shop lives it, and the stored column is UTC.
+            from is { } start ? SlotGenerator.ToUtc(start, TimeOnly.MinValue) : null,
+            query.To is { } end ? SlotGenerator.ToUtc(end.AddDays(1), TimeOnly.MinValue) : null,
+
+            Math.Max(query.Page, 1),
+            Math.Clamp(query.PageSize, 1, BookingRules.MaxPageSize));
+
+        var page = await bookings.SearchAsync(criteria, cancellationToken);
+
+        return GeneralResponse<PagedResult<BookingListItemDto>>.Success(
+            new PagedResult<BookingListItemDto>
+            {
+                Items =
+                [
+                    .. page.Select(booking =>
+                        ConsultationMapper.ToListItem(booking, currentUser.Language))
+                ],
+                Total = page.TotalCount,
+                Page = page.CurrentPage,
+                PageSize = page.PageSize
+            });
+    }
+
     public async Task<GeneralResponse<BookingDto>> CancelAsync(
         string bookingNumber,
         string? contactPhone,
@@ -260,6 +307,95 @@ public class BookingService(
             booking, status, note, currentUser.PhoneNumber ?? "Staff", cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<GeneralResponse<BookingDto>> RescheduleAsync(
+        string bookingNumber,
+        DateTimeOffset startUtc,
+        long? consultantId,
+        string? note,
+        CancellationToken cancellationToken = default)
+    {
+        var booking = await bookings.GetByNumberAsync(bookingNumber, cancellationToken);
+
+        if (booking is null)
+        {
+            return Fail(ConsultationErrors.BookingNotFound, "We could not find that booking.");
+        }
+
+        if (!BookingStatusMachine.CanTransition(booking.Status, BookingStatus.Rescheduled))
+        {
+            return Fail(
+                ConsultationErrors.TransitionInvalid,
+                $"A {booking.Status} booking cannot be moved.");
+        }
+
+        var target = consultantId ?? booking.ConsultantId;
+
+        // Refused rather than ignored: a no-op move still writes a timeline
+        // entry and sends "we have moved you" about a move that did not
+        // happen, which is how somebody is told twice and turns up once.
+        if (booking.ScheduledAtUtc == startUtc && target == booking.ConsultantId)
+        {
+            return Fail(
+                ConsultationErrors.SlotUnchanged, "That booking is already at that time.");
+        }
+
+        var service = booking.ConsultationService;
+
+        return await unitOfWork.ExecuteInTransactionAsync(async ct =>
+        {
+            var date = DateOnly.FromDateTime(startUtc.ToOffset(SlotGenerator.DhakaOffset).DateTime);
+
+            // The same function that drew the calendar, with this booking taken
+            // out of the diary — so the board cannot put a customer somewhere
+            // the booking page would have refused to, and a move of half an
+            // hour is not blocked by the appointment being moved.
+            var free = await availability.ResolveAsync(service, target, date, date, booking.Id, ct);
+
+            var chosen = free
+                .Where(entry => entry.Slots.Contains(startUtc))
+                .Cast<ConsultantSlots?>()
+                .FirstOrDefault();
+
+            if (chosen is not { } assigned)
+            {
+                return Fail(
+                    ConsultationErrors.SlotNotAvailable,
+                    "Nobody is free at that time. Please choose another.");
+            }
+
+            var from = booking.Status;
+            var at = clock.UtcNow;
+
+            booking.PreviousScheduledAtUtc = booking.ScheduledAtUtc;
+            booking.ScheduledAtUtc = startUtc;
+            booking.ConsultantId = assigned.ConsultantId;
+            booking.Status = BookingStatus.Rescheduled;
+
+            // A reminder already sent was about a time this appointment is no
+            // longer at. Clearing the stamps is what makes the customer hear
+            // about the new one.
+            booking.FirstReminderSentAt = null;
+            booking.FinalReminderSentAt = null;
+
+            Record(booking, from, BookingStatus.Rescheduled, note, currentUser.PhoneNumber ?? "Staff", at);
+
+            bookings.Update(booking);
+
+            await QueueAsync(booking, service, "booking.status_changed", at, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+
+            ConsultationLog.BookingRescheduled(
+                logger,
+                booking.BookingNumber,
+                booking.PreviousScheduledAtUtc!.Value,
+                startUtc,
+                assigned.ConsultantName);
+
+            return Ok(booking);
+        }, cancellationToken);
+    }
+
     // -------------------------------------------------------------------------
     // Moving a booking
     // -------------------------------------------------------------------------
@@ -281,15 +417,19 @@ public class BookingService(
         return await unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
             var from = booking.Status;
+            var at = clock.UtcNow;
 
-            Record(booking, from, to, note, actor);
+            Record(booking, from, to, note, actor, at);
             booking.Status = to;
 
             bookings.Update(booking);
 
-            // Told once per move, keyed on the booking and the status, so a
-            // retry cannot bill the shop twice at the SMS gateway.
-            await QueueAsync(booking, booking.ConsultationService, "booking.status_changed", ct);
+            // Told once per move, keyed on the moment of the move. Keyed on the
+            // status alone, a booking confirmed, moved and confirmed again
+            // would have its second confirmation silently swallowed as a
+            // duplicate — and the customer would be told a time that had
+            // changed since.
+            await QueueAsync(booking, booking.ConsultationService, "booking.status_changed", at, ct);
 
             await unitOfWork.SaveChangesAsync(ct);
 
@@ -343,7 +483,12 @@ public class BookingService(
         };
 
     private void Record(
-        Booking booking, BookingStatus? from, BookingStatus to, string? note, string? actor = null) =>
+        Booking booking,
+        BookingStatus? from,
+        BookingStatus to,
+        string? note,
+        string? actor = null,
+        DateTimeOffset? at = null) =>
         booking.Timeline.Add(new BookingTimelineEntry
         {
             FromStatus = from,
@@ -351,7 +496,7 @@ public class BookingService(
             ActorUserId = currentUser.UserId,
             ActorName = actor ?? (currentUser.UserId is null ? "Customer" : currentUser.PhoneNumber ?? "Customer"),
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
-            OccurredAt = clock.UtcNow
+            OccurredAt = at ?? clock.UtcNow
         });
 
     /// <summary>
@@ -363,14 +508,18 @@ public class BookingService(
     /// lose the message to a crash in between.
     /// </remarks>
     private async Task QueueAsync(
-        Booking booking, ConsultationService? service, string type, CancellationToken ct) =>
+        Booking booking,
+        ConsultationService? service,
+        string type,
+        DateTimeOffset? at,
+        CancellationToken ct) =>
         await notifications.EnqueueAsync(
             new NotificationRequest
             {
                 Type = type,
                 IdempotencyKey = type == "booking.requested"
                     ? $"booking.requested:{booking.BookingNumber}"
-                    : $"booking.status:{booking.BookingNumber}:{booking.Status}",
+                    : $"booking.status:{booking.BookingNumber}:{booking.Status}:{at:O}",
                 Payload = JsonSerializer.Serialize(new
                 {
                     bookingNumber = booking.BookingNumber,
@@ -451,6 +600,17 @@ internal static partial class ConsultationLog
         Message = "Booking {BookingNumber} moved from {From} to {To} by {Actor}.")]
     public static partial void BookingMoved(
         ILogger logger, string bookingNumber, BookingStatus from, BookingStatus to, string actor);
+
+    [LoggerMessage(
+        EventId = 2203,
+        Level = LogLevel.Information,
+        Message = "Booking {BookingNumber} moved from {From} to {To}, with {Consultant}.")]
+    public static partial void BookingRescheduled(
+        ILogger logger,
+        string bookingNumber,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        string consultant);
 
     [LoggerMessage(
         EventId = 2202,

@@ -39,11 +39,17 @@ public interface IAvailabilityService
     /// have to be the same computation over the same inputs, and two of them
     /// is how somebody is offered a time that is then refused.
     /// </remarks>
+    /// <param name="excludeBookingId">
+    /// A booking to read the diary without — the one being moved. Without it a
+    /// booking cannot be shifted by half an hour, because it collides with the
+    /// afternoon it is itself occupying.
+    /// </param>
     Task<IReadOnlyList<ConsultantSlots>> ResolveAsync(
         ConsultationService service,
         long? consultantId,
         DateOnly from,
         DateOnly to,
+        long? excludeBookingId = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -82,6 +88,10 @@ public interface IBookingService
     Task<GeneralResponse<PagedResult<BookingDto>>> GetMineAsync(
         int page, int pageSize, CancellationToken cancellationToken = default);
 
+    /// <summary>The shop's diary: whatever the board asked for, a page at a time.</summary>
+    Task<GeneralResponse<PagedResult<BookingListItemDto>>> SearchAsync(
+        BookingQueryDto query, CancellationToken cancellationToken = default);
+
     /// <summary>The customer calling it off themselves, while they still may.</summary>
     Task<GeneralResponse<BookingDto>> CancelAsync(
         string bookingNumber,
@@ -89,10 +99,26 @@ public interface IBookingService
         string? reason,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Staff moving it along: confirm, reschedule's sibling, complete, no-show.</summary>
+    /// <summary>Staff moving it along: confirm, complete, no-show, cancel.</summary>
     Task<GeneralResponse<BookingDto>> SetStatusAsync(
         string bookingNumber,
         BookingStatus status,
+        string? note,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moving a booking to another time, and possibly to somebody else.
+    /// </summary>
+    /// <remarks>
+    /// The new time is checked against the same schedule the calendar is drawn
+    /// from, so the board cannot put a customer somewhere the booking page
+    /// would have refused to. The database's unique index still settles the
+    /// race against a customer booking that slot at the same moment.
+    /// </remarks>
+    Task<GeneralResponse<BookingDto>> RescheduleAsync(
+        string bookingNumber,
+        DateTimeOffset startUtc,
+        long? consultantId,
         string? note,
         CancellationToken cancellationToken = default);
 }
