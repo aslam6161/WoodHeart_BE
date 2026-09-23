@@ -46,4 +46,30 @@ public static class PaymentErrors
 
     /// <summary>The gateway could not be reached, or answered with something unusable.</summary>
     public const string GatewayUnavailable = "external.payment_gateway_unavailable";
+
+    // --- Configuring one, from the admin screen -------------------------------
+
+    public const string MethodNotFound = Prefix + "method.not_found";
+
+    /// <summary>
+    /// Enabling a method no code implements.
+    /// </summary>
+    /// <remarks>
+    /// The resolver skips such a row in silence, so the shop would see the
+    /// method switched on and customers would never be offered it. Said out
+    /// loud at the moment of the toggle instead.
+    /// </remarks>
+    public const string NotImplemented = Prefix + "not_implemented.conflict";
+
+    /// <summary>Enabling a gateway that needs a merchant credential and has none.</summary>
+    public const string CredentialsRequired = Prefix + "credentials_required.conflict";
+
+    /// <summary>Enabled, but offered in neither zone — which is off, spelled oddly.</summary>
+    public const string NoZone = Prefix + "no_zone";
+
+    /// <summary>A floor above the ceiling. No order can ever be between them.</summary>
+    public const string AmountBandInvalid = Prefix + "amount_band_invalid";
+
+    /// <summary>A charge that is not a charge: a percentage over 100, or a figure with no type.</summary>
+    public const string ChargeInvalid = Prefix + "charge_invalid";
 }

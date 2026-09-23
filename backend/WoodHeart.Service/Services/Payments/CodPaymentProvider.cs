@@ -34,7 +34,10 @@ public class CodPaymentProvider : IPaymentProvider
         // button on an admin screen that cannot do anything.
         SupportsRefund: false,
         SupportsWebhook: false,
-        SettlesImmediately: true);
+        SettlesImmediately: true,
+        // Nothing to authenticate against. Cash is the one method with no
+        // counterparty to hold a key for.
+        NeedsCredentials: false);
 
     public Task<GeneralResponse<InitiateResult>> InitiateAsync(
         PaymentContext context, CancellationToken cancellationToken = default) =>

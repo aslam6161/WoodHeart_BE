@@ -295,6 +295,10 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IPaymentProvider, CodPaymentProvider>();
         services.AddScoped<IPaymentProviderResolver, PaymentProviderResolver>();
 
+        // Takes the same IEnumerable<IPaymentProvider>, so the admin screen
+        // knows which configured methods anything actually implements.
+        services.AddScoped<IPaymentMethodAdminService, PaymentMethodAdminService>();
+
         // Singleton: it holds one configured Cloudinary client, which is
         // thread-safe and wraps a pooled HttpClient. A scoped registration
         // would build a new one per request and defeat that pooling.
