@@ -65,6 +65,17 @@ public static class ConsultationErrors
     /// <summary>Past the point where a customer can call it off themselves.</summary>
     public const string NotCancellable = Prefix + "booking.not_cancellable.conflict";
 
+    /// <summary>
+    /// A reschedule that names the time the booking is already at.
+    /// </summary>
+    /// <remarks>
+    /// Refused rather than treated as a no-op: it writes a timeline entry and
+    /// sends the customer a "we have moved you" message about a move that did
+    /// not happen, which is how somebody turns up on the wrong day having been
+    /// told twice.
+    /// </remarks>
+    public const string SlotUnchanged = Prefix + "slot_unchanged";
+
     // --- Managing the schedule -------------------------------------------------
 
     public const string NameRequired = Prefix + "name_required";

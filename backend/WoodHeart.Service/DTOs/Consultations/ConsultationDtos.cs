@@ -215,6 +215,97 @@ public class BookingTimelineEntryDto
     public DateTimeOffset OccurredAt { get; init; }
 }
 
+/// <summary>One row of the shop's diary.</summary>
+/// <remarks>
+/// Narrower than <see cref="BookingDto"/> on purpose: the board draws a
+/// hundred of these and needs none of the brief, the timeline or the site
+/// address in full. The phone number is unmasked, because the board is behind
+/// a staff policy and telephoning the customer is the commonest thing done
+/// from it.
+/// </remarks>
+public class BookingListItemDto
+{
+    public long Id { get; init; }
+
+    public string BookingNumber { get; init; } = string.Empty;
+
+    public string ServiceName { get; init; } = string.Empty;
+
+    public ConsultationMode Mode { get; init; }
+
+    public string? ConsultantName { get; init; }
+
+    public DateTimeOffset ScheduledAtUtc { get; init; }
+
+    public int DurationMinutes { get; init; }
+
+    public BookingStatus Status { get; init; }
+
+    public string ContactName { get; init; } = string.Empty;
+
+    public string ContactPhone { get; init; } = string.Empty;
+
+    /// <summary>"Dhanmondi, Dhaka" — enough to plan a site visit around. Null otherwise.</summary>
+    public string? SiteLocation { get; init; }
+
+    public decimal Fee { get; init; }
+
+    public decimal? AdvanceDue { get; init; }
+
+    /// <summary>When it was asked for, so a request nobody has answered stands out.</summary>
+    public DateTimeOffset RequestedAt { get; init; }
+}
+
+/// <summary>What the board is asking for.</summary>
+/// <remarks>
+/// <b>An empty query means "today onwards".</b> A diary opened at the oldest
+/// booking the shop ever took is no use to anybody, and the page staff want is
+/// nearly always this week. Searching is the exception: a term is a hunt for
+/// one booking, so it looks across the whole history rather than from today.
+/// </remarks>
+public class BookingQueryDto
+{
+    /// <summary>Matches the booking number, the customer's name or their phone.</summary>
+    [StringLength(60)]
+    public string? Term { get; init; }
+
+    public BookingStatus? Status { get; init; }
+
+    public long? ConsultantId { get; init; }
+
+    public ConsultationMode? Mode { get; init; }
+
+    /// <summary>The first Dhaka date to show. Defaults to today unless a term is given.</summary>
+    public DateOnly? From { get; init; }
+
+    /// <summary>The last Dhaka date, inclusive.</summary>
+    public DateOnly? To { get; init; }
+
+    [Range(1, int.MaxValue)]
+    public int Page { get; init; } = 1;
+
+    [Range(1, BookingRules.MaxPageSize)]
+    public int PageSize { get; init; } = BookingRules.DefaultPageSize;
+}
+
+/// <summary>Moving a booking to another time.</summary>
+/// <remarks>
+/// The shop's move, not the customer's. A customer who wants another time
+/// cancels and books again, which is one decision they can make alone; moving
+/// somebody else's appointment into a consultant's afternoon is the shop's.
+/// </remarks>
+public class RescheduleBookingDto
+{
+    /// <summary>The new slot, exactly as the availability endpoint gave it.</summary>
+    public DateTimeOffset StartUtc { get; init; }
+
+    /// <summary>Null keeps whoever has it. A different id moves it to them.</summary>
+    public long? ConsultantId { get; init; }
+
+    [StringLength(500)]
+    public string? Note { get; init; }
+}
+
 /// <summary>Moving a booking along, from the admin board or by the customer.</summary>
 public class ChangeBookingStatusDto
 {

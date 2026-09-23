@@ -140,6 +140,49 @@ public static class ConsultationMapper
             CanCancel = BookingStatusMachine.IsCustomerCancellable(booking.Status)
         };
 
+    /// <summary>
+    /// A booking as one row of the shop's diary.
+    /// </summary>
+    /// <remarks>
+    /// The phone number is not masked. The board is behind a staff policy and
+    /// the commonest thing done from it is telephoning the customer; a masked
+    /// number would mean opening every row to ring anybody.
+    /// </remarks>
+    public static BookingListItemDto ToListItem(Booking booking, string? language) =>
+        new()
+        {
+            Id = booking.Id,
+            BookingNumber = booking.BookingNumber,
+            ServiceName = booking.ConsultationService?.Name.For(language) ?? string.Empty,
+            Mode = booking.ConsultationService?.Mode ?? default,
+            ConsultantName = booking.Consultant?.Name,
+            ScheduledAtUtc = booking.ScheduledAtUtc,
+            DurationMinutes = booking.DurationMinutes,
+            Status = booking.Status,
+            ContactName = booking.ContactName,
+            ContactPhone = booking.ContactPhone,
+            SiteLocation = Where(booking.SiteAddress),
+            Fee = booking.Fee.Amount,
+            AdvanceDue = booking.AdvanceDue?.Amount,
+            RequestedAt = booking.CreatedAt
+        };
+
+    /// <summary>
+    /// "Dhanmondi, Dhaka" — the two lines of an address that decide whether a
+    /// site visit fits in the same afternoon as the one before it.
+    /// </summary>
+    private static string? Where(DeliveryAddress? address)
+    {
+        if (address is null)
+        {
+            return null;
+        }
+
+        var area = string.IsNullOrWhiteSpace(address.Area) ? address.Upazila : address.Area;
+
+        return string.IsNullOrWhiteSpace(area) ? address.District : $"{area}, {address.District}";
+    }
+
     private static string Mask(string phone) =>
         PhoneNumber.TryParse(phone, out var parsed) && parsed is not null ? parsed.Masked : phone;
 }

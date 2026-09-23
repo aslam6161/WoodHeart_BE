@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using WoodHeart.Domain.Consultations;
 using WoodHeart.Domain.Entity.Consultations;
 using WoodHeart.Domain.Enums.Consultations;
 using WoodHeart.Repository.Interfaces.Consultations;
@@ -140,6 +141,7 @@ public class BookingRepository(DataContext context)
         IReadOnlyCollection<long> consultantIds,
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
+        long? excludeBookingId = null,
         CancellationToken cancellationToken = default)
     {
         var ids = consultantIds.Distinct().ToArray();
@@ -148,9 +150,95 @@ public class BookingRepository(DataContext context)
             .Where(x => Held.Contains(x.Status)
                         && x.ScheduledAtUtc < toUtc
                         && x.ScheduledAtUtc >= fromUtc
+                        && (excludeBookingId == null || x.Id != excludeBookingId)
                         && (x.ConsultantId == null || ids.Contains(x.ConsultantId.Value)))
             .ToListAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// The diary, as the board asked for it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Soonest first.</b> A diary reads forwards: the page staff want when
+    /// they open the board is the next few days, not the oldest booking the
+    /// shop ever took. The service is what decides that an unfiltered query
+    /// starts at today — the repository answers exactly what it was asked.
+    /// </remarks>
+    public async Task<PagedList<Booking>> SearchAsync(
+        BookingSearch criteria, CancellationToken cancellationToken = default)
+    {
+        var query = Set.AsNoTracking()
+            .Include(x => x.ConsultationService)
+            .Include(x => x.Consultant)
+            .AsQueryable();
+
+        if (criteria.Status is { } status)
+        {
+            query = query.Where(x => x.Status == status);
+        }
+
+        if (criteria.ConsultantId is { } consultantId)
+        {
+            query = query.Where(x => x.ConsultantId == consultantId);
+        }
+
+        if (criteria.Mode is { } mode)
+        {
+            query = query.Where(x => x.ConsultationService.Mode == mode);
+        }
+
+        if (criteria.FromUtc is { } from)
+        {
+            query = query.Where(x => x.ScheduledAtUtc >= from);
+        }
+
+        if (criteria.ToUtc is { } to)
+        {
+            query = query.Where(x => x.ScheduledAtUtc < to);
+        }
+
+        if (!string.IsNullOrWhiteSpace(criteria.Term))
+        {
+            var pattern = $"%{criteria.Term.Trim()}%";
+
+            // The three things somebody has in front of them when they ring:
+            // the number on the confirmation, their name, or the phone the
+            // booking was made from.
+            query = query.Where(x =>
+                EF.Functions.ILike(x.BookingNumber, pattern)
+                || EF.Functions.ILike(x.ContactName, pattern)
+                || EF.Functions.ILike(x.ContactPhone, pattern));
+        }
+
+        return await PagedList<Booking>.CreateAsync(
+            query.OrderBy(x => x.ScheduledAtUtc).ThenBy(x => x.Id),
+            criteria.Page,
+            criteria.PageSize,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The appointments inside the reminder horizon that still owe a message.
+    /// </summary>
+    /// <remarks>
+    /// Tracked, not <c>AsNoTracking</c>: the caller stamps the booking in the
+    /// same unit of work that queues the message, so "sent" and "told" are one
+    /// fact. The service is included because the message names it.
+    /// </remarks>
+    public async Task<IReadOnlyList<Booking>> GetDueForReminderAsync(
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        int take,
+        CancellationToken cancellationToken = default) =>
+        await Set
+            .Include(x => x.ConsultationService)
+            .Where(x => BookingReminders.Remindable.Contains(x.Status)
+                        && x.ScheduledAtUtc > fromUtc
+                        && x.ScheduledAtUtc <= toUtc
+                        && (x.FirstReminderSentAt == null || x.FinalReminderSentAt == null))
+            .OrderBy(x => x.ScheduledAtUtc)
+            .Take(take)
+            .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Booking>> GetForCustomerAsync(
         long customerId, int skip, int take, CancellationToken cancellationToken = default) =>
