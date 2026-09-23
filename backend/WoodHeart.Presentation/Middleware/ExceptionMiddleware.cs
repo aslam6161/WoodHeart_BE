@@ -35,7 +35,11 @@ public class ExceptionMiddleware(
     {
         var correlationId = context.Items[GlobalConstants.CorrelationIdHeader] as string;
 
-        var (status, message) = exception switch
+        var conflict = UniqueViolation.Describe(exception);
+
+        var (status, message) = conflict is not null
+            ? (StatusCodes.Status409Conflict, conflict.Value.Message)
+            : exception switch
         {
             // Two admins edited the same row, or two checkouts raced for the
             // last unit. Recoverable: the client should reload and retry.
@@ -91,7 +95,8 @@ public class ExceptionMiddleware(
             status,
             message,
             correlationId,
-            environment.IsDevelopment() ? exception.ToString() : null);
+            environment.IsDevelopment() ? exception.ToString() : null,
+            conflict?.Code);
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(body, SerializerOptions));
     }

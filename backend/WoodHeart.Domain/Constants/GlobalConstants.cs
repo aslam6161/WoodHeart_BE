@@ -34,6 +34,16 @@ public static class GlobalConstants
     /// </remarks>
     public const string DefaultOrderNumberPrefix = "WH";
 
+    /// <summary>
+    /// What a booking number starts with: <c>WHC-2609-00003</c>.
+    /// </summary>
+    /// <remarks>
+    /// Different from an order's on purpose. Both get read down a telephone,
+    /// and a shop that hears "double-you aitch dash two six" has to ask which
+    /// kind before it can look anything up.
+    /// </remarks>
+    public const string DefaultBookingNumberPrefix = "WHC";
+
     /// <summary>The idempotency header checkout reads to make a retry safe.</summary>
     public const string IdempotencyKeyHeader = "Idempotency-Key";
 }

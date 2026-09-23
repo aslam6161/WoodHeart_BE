@@ -30,6 +30,16 @@ public class NumberSequenceService(
     public const string Orders = "order";
 
     /// <summary>
+    /// Sequence name for consultation bookings.
+    /// </summary>
+    /// <remarks>
+    /// Its own counter, not the orders', so that <c>WHC-2609-00003</c> means
+    /// the third consultation of the month rather than a number whose gaps a
+    /// shop owner would spend an afternoon trying to explain.
+    /// </remarks>
+    public const string Bookings = "booking";
+
+    /// <summary>
     /// Five digits: 99,999 orders in one month before it widens.
     /// </summary>
     /// <remarks>
