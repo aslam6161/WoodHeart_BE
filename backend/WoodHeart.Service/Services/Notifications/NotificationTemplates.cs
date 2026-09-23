@@ -69,6 +69,12 @@ public static class NotificationTemplates
     /// <summary>"Your consultation is at four" — sent twice before it happens.</summary>
     public const string BookingReminder = "booking.reminder";
 
+    /// <summary>A quotation put in front of the customer.</summary>
+    public const string QuotationSent = "quotation.sent";
+
+    /// <summary>It became an order, and here is the number to quote.</summary>
+    public const string QuotationConverted = "quotation.converted";
+
     public static readonly IReadOnlyList<string> KnownTypes =
     [
         OrderPlaced,
@@ -76,7 +82,9 @@ public static class NotificationTemplates
         StockLow,
         BookingRequested,
         BookingStatusChanged,
-        BookingReminder
+        BookingReminder,
+        QuotationSent,
+        QuotationConverted
     ];
 
     public static RenderedNotification? Render(string type, string payload, string shopPhone)
@@ -92,6 +100,8 @@ public static class NotificationTemplates
             BookingRequested => RenderBookingRequested(root, shopPhone.Trim()),
             BookingStatusChanged => RenderBookingStatusChanged(root, shopPhone.Trim()),
             BookingReminder => RenderBookingReminder(root, shopPhone.Trim()),
+            QuotationSent => RenderQuotationSent(root, shopPhone.Trim()),
+            QuotationConverted => RenderQuotationConverted(root, shopPhone.Trim()),
             _ => (RenderedNotification?)null
         };
 
@@ -464,6 +474,106 @@ public static class NotificationTemplates
                 bangla
                     ? "আসতে না পারলে দয়া করে আগেই জানান।"
                     : "If you cannot make it, please tell us beforehand."
+            ],
+            shopPhone: shopPhone,
+            bangla: bangla);
+
+        return new RenderedNotification(
+            sms, subject, body, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // quotation.sent
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// "Here is what it would cost, and until when."
+    /// </summary>
+    /// <remarks>
+    /// <b>The date is in the SMS, not only the email.</b> A quotation that has
+    /// run out is re-quoted rather than honoured, and somebody who finds that
+    /// out when they try to accept has been treated badly. Many customers here
+    /// read no email at all, so the one line they will certainly see has to
+    /// carry it.
+    /// </remarks>
+    private static RenderedNotification RenderQuotationSent(JsonElement root, string shopPhone)
+    {
+        var number = String_(root, "quotationNumber");
+        var name = String_(root, "contactName");
+        var total = Taka(Decimal_(root, "grandTotal"));
+        var until = String_(root, "validUntil");
+        var bangla = IsBangla(root);
+
+        var sms = bangla
+            ? $"WoodHeart: কোটেশন {number}, {total}। {until} পর্যন্ত বৈধ। {shopPhone}"
+            : $"WoodHeart: quotation {number} is {total}, good until {until}. {shopPhone}";
+
+        var subject = bangla ? $"কোটেশন {number}" : $"Your quotation {number}";
+
+        var body = Email(
+            heading: bangla ? "আপনার কোটেশন" : "Your quotation",
+            greeting: bangla ? $"প্রিয় {Escape(name)}," : $"Dear {Escape(name)},",
+            lines:
+            [
+                bangla
+                    ? $"মোট: <strong>{Escape(total)}</strong>"
+                    : $"Total: <strong>{Escape(total)}</strong>",
+                bangla
+                    ? $"বৈধতা: <strong>{Escape(until)}</strong> পর্যন্ত"
+                    : $"Good until: <strong>{Escape(until)}</strong>",
+                bangla
+                    ? $"কোটেশন নম্বর: <strong>{Escape(number)}</strong>"
+                    : $"Quotation number: <strong>{Escape(number)}</strong>",
+                bangla
+                    ? "রাজি থাকলে আমাদের জানান, আমরা অর্ডার তৈরি করে দেব।"
+                    : "Tell us if you are happy with it and we will turn it into an order."
+            ],
+            shopPhone: shopPhone,
+            bangla: bangla);
+
+        return new RenderedNotification(
+            sms, subject, body, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // quotation.converted
+    // -------------------------------------------------------------------------
+
+    /// <summary>"It is an order now, and this is its number."</summary>
+    /// <remarks>
+    /// Sent instead of the ordinary order confirmation, not as well as it: the
+    /// customer has already seen these figures on the quotation, and two
+    /// messages about one purchase is one message too many — and one billed
+    /// part the shop need not pay for.
+    /// </remarks>
+    private static RenderedNotification RenderQuotationConverted(JsonElement root, string shopPhone)
+    {
+        var number = String_(root, "quotationNumber");
+        var orderNumber = String_(root, "orderNumber");
+        var name = String_(root, "contactName");
+        var total = Taka(Decimal_(root, "grandTotal"));
+        var bangla = IsBangla(root);
+
+        var sms = bangla
+            ? $"WoodHeart: কোটেশন {number} এখন অর্ডার {orderNumber}। আমরা শীঘ্রই যোগাযোগ করব। {shopPhone}"
+            : $"WoodHeart: quotation {number} is now order {orderNumber}. We will be in touch. {shopPhone}";
+
+        var subject = bangla ? $"অর্ডার {orderNumber}" : $"Your order {orderNumber}";
+
+        var body = Email(
+            heading: bangla ? "ধন্যবাদ!" : "Thank you!",
+            greeting: bangla ? $"প্রিয় {Escape(name)}," : $"Dear {Escape(name)},",
+            lines:
+            [
+                bangla
+                    ? $"কোটেশন <strong>{Escape(number)}</strong> থেকে অর্ডার তৈরি হয়েছে।"
+                    : $"We have made an order from quotation <strong>{Escape(number)}</strong>.",
+                bangla
+                    ? $"অর্ডার নম্বর: <strong>{Escape(orderNumber)}</strong>"
+                    : $"Order number: <strong>{Escape(orderNumber)}</strong>",
+                bangla
+                    ? $"মোট: <strong>{Escape(total)}</strong>"
+                    : $"Total: <strong>{Escape(total)}</strong>"
             ],
             shopPhone: shopPhone,
             bangla: bangla);

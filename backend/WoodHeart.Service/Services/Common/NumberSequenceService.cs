@@ -40,6 +40,16 @@ public class NumberSequenceService(
     public const string Bookings = "booking";
 
     /// <summary>
+    /// Sequence name for quotations.
+    /// </summary>
+    /// <remarks>
+    /// Its own counter again. A quotation that becomes an order gets an order
+    /// number of its own, and sharing a sequence would leave gaps in both that
+    /// somebody would eventually try to explain.
+    /// </remarks>
+    public const string Quotations = "quotation";
+
+    /// <summary>
     /// Five digits: 99,999 orders in one month before it widens.
     /// </summary>
     /// <remarks>
