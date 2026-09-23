@@ -262,6 +262,59 @@ public class BookingServiceTests
     }
 
     [Fact]
+    public async Task The_board_is_told_which_moves_are_legal_from_here()
+    {
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
+            .Returns(Existing(BookingStatus.Requested));
+
+        var result = await _service.GetForStaffAsync(BookingNumber);
+
+        // Sent rather than reimplemented in Angular. A second copy of the graph
+        // on the client drifts, and the drift is a button that renders, is
+        // pressed, and comes back 409.
+        result.Data!.AllowedStatusTransitions.ShouldBe(
+            BookingStatusMachine.NextFrom(BookingStatus.Requested), ignoreOrder: true);
+
+        result.Data.AllowedStatusTransitions.ShouldNotContain(BookingStatus.Completed);
+    }
+
+    [Fact]
+    public async Task A_booking_that_is_over_offers_no_moves_at_all()
+    {
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
+            .Returns(Existing(BookingStatus.Cancelled));
+
+        (await _service.GetForStaffAsync(BookingNumber)).Data!
+            .AllowedStatusTransitions.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Staff_moving_a_booking_are_answered_with_the_number_they_must_ring()
+    {
+        var booking = Existing(BookingStatus.Requested);
+
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>()).Returns(booking);
+
+        var staff = await _service.SetStatusAsync(BookingNumber, BookingStatus.Confirmed, null);
+
+        // The board confirms a booking and then draws the row it was handed.
+        // Answering that write with the customer's masked number would put a
+        // number nobody can ring on the one screen that exists to ring it.
+        staff.Data!.ContactPhone.ShouldBe("+8801712349999");
+    }
+
+    [Fact]
+    public async Task A_customer_cancelling_their_own_still_sees_it_masked()
+    {
+        _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
+            .Returns(Existing(BookingStatus.Confirmed));
+
+        var mine = await _service.CancelAsync(BookingNumber, "01712349999", null);
+
+        mine.Data!.ContactPhone.ShouldContain("*");
+    }
+
+    [Fact]
     public async Task A_move_the_machine_forbids_is_refused()
     {
         _bookings.GetByNumberAsync(BookingNumber, Arg.Any<CancellationToken>())
