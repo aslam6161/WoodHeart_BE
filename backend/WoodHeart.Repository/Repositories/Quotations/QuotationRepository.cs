@@ -30,7 +30,15 @@ public class QuotationRepository(DataContext context)
     public async Task<PagedList<Quotation>> SearchAsync(
         QuotationSearch criteria, CancellationToken cancellationToken = default)
     {
-        var query = Set.AsNoTracking().Include(x => x.Lines).AsSplitQuery().AsQueryable();
+        // The booking and the order are included because the board draws a
+        // column for each. Without them the row renders blank where the order
+        // number belongs, which reads as a quotation that became nothing.
+        var query = Set.AsNoTracking()
+            .Include(x => x.Lines)
+            .Include(x => x.Booking)
+            .Include(x => x.ConvertedOrder)
+            .AsSplitQuery()
+            .AsQueryable();
 
         if (criteria.Status is { } status)
         {
@@ -60,6 +68,10 @@ public class QuotationRepository(DataContext context)
         long customerId, int skip, int take, CancellationToken cancellationToken = default) =>
         await Set.AsNoTracking()
             .Include(x => x.Lines)
+            .Include(x => x.Booking)
+            // So a customer's own list can say which order a quotation became,
+            // rather than leaving them to guess that it became one at all.
+            .Include(x => x.ConvertedOrder)
             .AsSplitQuery()
             .Where(x => x.CustomerId == customerId && x.Status != QuotationStatus.Draft)
             .OrderByDescending(x => x.Id)
