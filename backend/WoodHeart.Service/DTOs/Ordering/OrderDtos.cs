@@ -83,9 +83,10 @@ public class OrderLineDto
 {
     public long Id { get; init; }
 
-    public long VariantId { get; init; }
+    /// <summary>Null for a line made to measure rather than picked off a shelf.</summary>
+    public long? VariantId { get; init; }
 
-    public long ProductId { get; init; }
+    public long? ProductId { get; init; }
 
     public string ProductName { get; init; } = string.Empty;
 

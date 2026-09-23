@@ -293,13 +293,22 @@ public class OrderLine : BaseEntity
 
     public Order Order { get; set; } = null!;
 
-    /// <summary>For reporting and reordering. Not what the line displays.</summary>
-    public long ProductVariantId { get; set; }
+    /// <summary>
+    /// For reporting and reordering. Not what the line displays.
+    /// </summary>
+    /// <remarks>
+    /// <b>Null for something made rather than picked off a shelf.</b> A
+    /// wardrobe built to the shape of an alcove has no variant and never
+    /// will, and it is the most valuable thing a designer sells. Such a line
+    /// holds no stock — see <see cref="HoldsStock"/> — and carries its own
+    /// name and price, which it was going to do anyway.
+    /// </remarks>
+    public long? ProductVariantId { get; set; }
 
     public ProductVariant? ProductVariant { get; set; }
 
     /// <summary>Kept alongside the variant so category reports need no join through it.</summary>
-    public long ProductId { get; set; }
+    public long? ProductId { get; set; }
 
     public string ProductNameEn { get; set; } = null!;
 
@@ -341,6 +350,9 @@ public class OrderLine : BaseEntity
 
     /// <summary>Working days quoted for a made-to-order item, at placement.</summary>
     public int? LeadTimeDays { get; set; }
+
+    /// <summary>Whether this line came off a shelf, and so holds stock.</summary>
+    public bool HoldsStock => ProductVariantId is not null;
 }
 
 /// <summary>

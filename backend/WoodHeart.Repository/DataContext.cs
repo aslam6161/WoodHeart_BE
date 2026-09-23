@@ -16,6 +16,7 @@ using WoodHeart.Domain.Entity.Inventory;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Entity.Payments;
 using WoodHeart.Domain.Entity.Promotions;
+using WoodHeart.Domain.Entity.Quotations;
 using WoodHeart.Domain.Helpers;
 
 namespace WoodHeart.Repository;
@@ -118,6 +119,12 @@ public class DataContext(
     public DbSet<Booking> Bookings => Set<Booking>();
 
     public DbSet<BookingTimelineEntry> BookingTimelineEntries => Set<BookingTimelineEntry>();
+
+    // --- Quotations ---------------------------------------------------------
+
+    public DbSet<Quotation> Quotations => Set<Quotation>();
+
+    public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

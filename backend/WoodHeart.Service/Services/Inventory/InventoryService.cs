@@ -63,7 +63,13 @@ public class InventoryService(
     {
         ArgumentNullException.ThrowIfNull(order);
 
-        var variantIds = order.Lines.Select(l => l.ProductVariantId).Distinct().ToList();
+        // Only the lines that came off a shelf. A made-to-measure line has no
+        // variant to look up and nothing to hold.
+        var variantIds = order.Lines
+            .Where(l => l.ProductVariantId is not null)
+            .Select(l => l.ProductVariantId!.Value)
+            .Distinct()
+            .ToList();
         var stocked = await stock.GetStockedVariantIdsAsync(variantIds, cancellationToken);
 
         if (stocked.Count == 0)
@@ -74,11 +80,14 @@ public class InventoryService(
         var items = (await stock.GetByVariantsAsync(stocked.ToList(), cancellationToken))
             .ToDictionary(x => x.ProductVariantId);
 
-        foreach (var line in order.Lines.Where(l => stocked.Contains(l.ProductVariantId)))
+        // A line with no variant is made to measure: there is no shelf for it
+        // to come off, and nothing to hold.
+        foreach (var line in order.Lines.Where(l =>
+                     l.ProductVariantId is { } id && stocked.Contains(id)))
         {
             // Never stocked means none, not unlimited. A variant that has
             // never been received cannot have one on the shelf.
-            if (!items.TryGetValue(line.ProductVariantId, out var item))
+            if (!items.TryGetValue(line.ProductVariantId!.Value, out var item))
             {
                 return InsufficientStock(line, available: 0);
             }
@@ -100,7 +109,7 @@ public class InventoryService(
             {
                 StockItem = item,
                 StockItemId = item.Id,
-                ProductVariantId = line.ProductVariantId,
+                ProductVariantId = line.ProductVariantId!.Value,
                 OrderId = order.Id,
                 Quantity = line.Quantity
             }, cancellationToken);
@@ -210,7 +219,7 @@ public class InventoryService(
                 : $"Only {available} of {line.ProductNameEn} ({line.VariantName}) left; you asked for {line.Quantity}.",
             new Dictionary<string, string[]>
             {
-                [line.ProductVariantId.ToString(CultureInfo.InvariantCulture)] =
+                [(line.ProductVariantId ?? 0).ToString(CultureInfo.InvariantCulture)] =
                     [available <= 0 ? "Sold out." : $"Only {available} left."]
             });
 
