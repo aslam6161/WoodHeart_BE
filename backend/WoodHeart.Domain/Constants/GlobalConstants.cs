@@ -44,6 +44,9 @@ public static class GlobalConstants
     /// </remarks>
     public const string DefaultBookingNumberPrefix = "WHC";
 
+    /// <summary>Quotations: <c>WHQ-2609-00042</c>.</summary>
+    public const string DefaultQuotationNumberPrefix = "WHQ";
+
     /// <summary>The idempotency header checkout reads to make a retry safe.</summary>
     public const string IdempotencyKeyHeader = "Idempotency-Key";
 }

@@ -46,6 +46,10 @@ using WoodHeart.Service.Interfaces.Consultations;
 using WoodHeart.Service.Services.Consultations;
 using WoodHeart.Service.Interfaces.Promotions;
 using WoodHeart.Service.Services.Promotions;
+using WoodHeart.Repository.Interfaces.Quotations;
+using WoodHeart.Repository.Repositories.Quotations;
+using WoodHeart.Service.Interfaces.Quotations;
+using WoodHeart.Service.Services.Quotations;
 namespace WoodHeart.Presentation.Extensions;
 
 /// <summary>
@@ -266,6 +270,8 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IUnpaidOrderExpiry, UnpaidOrderExpiry>();
         services.AddScoped<ILowStockDigest, LowStockDigest>();
         services.AddScoped<IBookingReminders, BookingReminderJob>();
+        services.AddScoped<IQuotationRepository, QuotationRepository>();
+        services.AddScoped<IQuotationService, QuotationService>();
 
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBrandService, BrandService>();

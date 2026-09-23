@@ -184,7 +184,11 @@ public class OrderLineConfiguration : IEntityTypeConfiguration<OrderLine>
 
         // Sales reporting by product, and "you ordered this before" on a
         // product page.
-        builder.HasIndex(x => x.ProductVariantId).HasDatabaseName("ix_order_lines_variant");
+        // Filtered: a made-to-measure line has no variant, and indexing the
+        // nulls would be indexing the rows this is never used to find.
+        builder.HasIndex(x => x.ProductVariantId)
+            .HasFilter("product_variant_id IS NOT NULL")
+            .HasDatabaseName("ix_order_lines_variant");
         builder.HasIndex(x => x.ProductId).HasDatabaseName("ix_order_lines_product");
     }
 }
