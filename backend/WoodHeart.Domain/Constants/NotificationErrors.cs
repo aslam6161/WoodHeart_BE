@@ -1,4 +1,4 @@
-namespace WoodHeart.Domain.Constants;
+﻿namespace WoodHeart.Domain.Constants;
 
 /// <summary>
 /// Stable error codes for notification delivery.
@@ -34,4 +34,25 @@ public static class NotificationErrors
 
     /// <summary>Nothing to send to — no usable phone number and no email address.</summary>
     public const string NoRecipient = "notifications.no_recipient";
+
+    /// <summary>A template code nothing in the shop knows how to render.</summary>
+    /// <remarks>
+    /// The admin screen lists what exists; it cannot conjure a ninth kind of
+    /// message, because the words would have to be written in the code that
+    /// renders them.
+    /// </remarks>
+    public const string TemplateNotFound = "notifications.template.not_found";
+
+    public const string MessageNotFound = "notifications.message.not_found";
+
+    /// <summary>
+    /// A message that cannot be sent again from the panel.
+    /// </summary>
+    /// <remarks>
+    /// Two cases, and both would mislead rather than help. One still queued is
+    /// already coming, so the button would do nothing but look as though it
+    /// had. One a worker is holding is moments from the gateway, and resetting
+    /// it races that worker into sending the same SMS twice.
+    /// </remarks>
+    public const string NotResendable = "notifications.not_resendable.conflict";
 }

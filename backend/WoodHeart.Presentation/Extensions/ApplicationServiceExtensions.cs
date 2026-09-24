@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Helpers;
 using WoodHeart.Domain.Settings;
@@ -46,7 +46,9 @@ using WoodHeart.Service.Interfaces.Consultations;
 using WoodHeart.Service.Services.Consultations;
 using WoodHeart.Service.Interfaces.Promotions;
 using WoodHeart.Service.Services.Promotions;
+using WoodHeart.Repository.Interfaces.Notifications;
 using WoodHeart.Repository.Interfaces.Quotations;
+using WoodHeart.Repository.Repositories.Notifications;
 using WoodHeart.Repository.Repositories.Quotations;
 using WoodHeart.Service.Interfaces.Quotations;
 using WoodHeart.Service.Services.Quotations;
@@ -108,6 +110,7 @@ public static class ApplicationServiceExtensions
 
         // Common
         services.AddScoped<IOutboxRepository, OutboxRepository>();
+        services.AddScoped<INotificationTemplateRepository, NotificationTemplateRepository>();
         services.AddScoped<IStoreSettingRepository, StoreSettingRepository>();
         services.AddScoped<IStockRepository, StockRepository>();
         services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
@@ -267,6 +270,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IPromotionService, PromotionService>();
         services.AddScoped<IDiscountAdminService, DiscountAdminService>();
         services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
+        services.AddScoped<INotificationAdminService, NotificationAdminService>();
         services.AddScoped<IUnpaidOrderExpiry, UnpaidOrderExpiry>();
         services.AddScoped<ILowStockDigest, LowStockDigest>();
         services.AddScoped<IBookingReminders, BookingReminderJob>();
@@ -294,6 +298,10 @@ public static class ApplicationServiceExtensions
         // else — no branch in checkout, no name of a gateway above this layer.
         services.AddScoped<IPaymentProvider, CodPaymentProvider>();
         services.AddScoped<IPaymentProviderResolver, PaymentProviderResolver>();
+
+        // Takes the same IEnumerable<IPaymentProvider>, so the admin screen
+        // knows which configured methods anything actually implements.
+        services.AddScoped<IPaymentMethodAdminService, PaymentMethodAdminService>();
 
         // Singleton: it holds one configured Cloudinary client, which is
         // thread-safe and wraps a pooled HttpClient. A scoped registration

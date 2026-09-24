@@ -412,12 +412,30 @@ A completed consultation can be converted into a **Quotation**, and a quotation 
 ### 6.7 Notifications
 
 ```
-NotificationTemplate  Code ("order.placed"), Channel (Email | Sms | InApp | Push),
-                      Subject{en,bn}, Body{en,bn} (Scriban / Liquid), IsEnabled
-NotificationMessage   TemplateCode, Channel, Recipient, RenderedSubject, RenderedBody,
-                      Payload, Status (Queued | Sent | Failed | Suppressed),
-                      Attempts, LastError, SentAt
+NotificationTemplate  Code ("order.placed"), SmsEnabled, EmailEnabled
+OutboxMessage         Type, Payload, IdempotencyKey, NotBefore,
+                      Status (Pending | Processing | Processed | Failed | Suppressed),
+                      AttemptCount, NextAttemptAt, LastError, ProcessedAt, CorrelationId
 ```
+
+**The wording stayed in code, and the switch became the row.** The original
+design here put `Subject{en,bn}` and `Body{en,bn}` on the template as editable
+Scriban. Built, that turned out to be the wrong half to make editable. An SMS
+in this market is billed per part — 160 characters in English, **70** once a
+single Bangla character appears — so every message in `NotificationTemplates`
+is written to fit the fewest parts that still say the thing, in two languages,
+with the shop's telephone number on the end. A text box on an admin screen
+would let a good afternoon's editing triple the gateway invoice with nothing
+anywhere to say it had, and would put bilingual rendering and HTML escaping in
+front of somebody who came to turn a message off.
+
+What an admin genuinely needs is the decision the wording cannot make for them:
+_do we send this at all, and by which channel_. Those two are the row. The
+admin screen shows the exact message each template produces, in both languages,
+with its billed part count beside it — so the cost is visible at the moment of
+the decision rather than on next month's invoice. Editable wording remains
+possible later; it would want a preview, a part budget and a rollback, and none
+of those are free.
 
 **Flow:** domain event → handler builds a `NotificationRequest` → a row is written to the **outbox inside the same database transaction as the business change** → a Hangfire worker renders the template and calls `IEmailSender` / `ISmsSender` → exponential-backoff retry → final status recorded.
 

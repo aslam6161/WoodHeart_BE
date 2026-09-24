@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Common;
 using WoodHeart.Domain.Entity.Identity;
+using WoodHeart.Domain.Entity.Notifications;
 using WoodHeart.Domain.Entity.Payments;
 using WoodHeart.Domain.Enums.Common;
 using WoodHeart.Domain.Enums.Payments;
@@ -29,6 +30,7 @@ public static class Seed
         await SeedSettingsAsync(context, cancellationToken);
         await SeedFeatureFlagsAsync(context, cancellationToken);
         await SeedPaymentMethodsAsync(context, cancellationToken);
+        await SeedNotificationTemplatesAsync(context, cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);
     }
@@ -228,6 +230,51 @@ public static class Seed
         foreach (var method in defaults.Where(m => !existing.Contains(m.Code)))
         {
             context.PaymentMethodConfigs.Add(method);
+        }
+    }
+
+    /// <summary>
+    /// One switch per kind of message, all on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>On is the only safe default.</b> A row seeded off would silence a
+    /// message with nothing anywhere to say it had been silenced — a customer
+    /// who is simply never told their order exists, and a shop with no reason
+    /// to look at a screen it has never opened.
+    /// </para>
+    /// <para>
+    /// The codes mirror <c>NotificationTemplates.KnownTypes</c>, which lives in
+    /// Service and so cannot be referenced from here. Drift is not silent: a
+    /// code with nothing to render it is ignored by the admin screen, which
+    /// lists the catalogue rather than the table, and a template missing a row
+    /// reads as on — so the worst a stale list can do is leave a switch
+    /// unwritten until somebody presses it.
+    /// </para>
+    /// </remarks>
+    private static async Task SeedNotificationTemplatesAsync(
+        DataContext context, CancellationToken cancellationToken)
+    {
+        string[] codes =
+        [
+            "order.placed",
+            "order.status_changed",
+            "stock.low",
+            "booking.requested",
+            "booking.status_changed",
+            "booking.reminder",
+            "quotation.sent",
+            "quotation.converted"
+        ];
+
+        var existing = await context.NotificationTemplates
+            .Select(x => x.Code)
+            .ToListAsync(cancellationToken);
+
+        foreach (var code in codes.Where(c => !existing.Contains(c)))
+        {
+            context.NotificationTemplates.Add(
+                new NotificationTemplate { Code = code, SmsEnabled = true, EmailEnabled = true });
         }
     }
 }

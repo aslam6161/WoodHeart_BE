@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Common;
@@ -8,6 +8,7 @@ using WoodHeart.Domain.Settings;
 using WoodHeart.Domain.ValueObjects;
 using WoodHeart.Repository;
 using WoodHeart.Repository.Interfaces.Common;
+using WoodHeart.Repository.Interfaces.Notifications;
 using WoodHeart.Service.Infrastructure.Notifications;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
@@ -47,9 +48,17 @@ namespace WoodHeart.Service.Services.Notifications;
 /// more times, so an email failure is logged and the message is still marked
 /// delivered. Most customers here have no email address at all.
 /// </para>
+/// <para>
+/// <b>A template switched off here is suppressed, not dropped.</b> The row
+/// keeps its reason — "SMS is turned off for this template" — so a message that
+/// was never sent is distinguishable from one that failed, and so an admin who
+/// turns the template back on can find the messages that went missing while it
+/// was off and send them again.
+/// </para>
 /// </remarks>
 public class OutboxDispatcher(
     IOutboxRepository outbox,
+    INotificationTemplateRepository templates,
     ISmsSender sms,
     IEmailSender email,
     IStoreSettingService settings,
@@ -104,11 +113,16 @@ public class OutboxDispatcher(
         var shopPhone = await settings.GetStringAsync(SettingKeys.StorePhone, cancellationToken)
                         ?? string.Empty;
 
+        // Once per pass rather than once per message: eight rows, and the batch
+        // is twenty-five.
+        var switches = (await templates.GetAllAsync(cancellationToken))
+            .ToDictionary(x => x.Code, x => (x.SmsEnabled, x.EmailEnabled), StringComparer.OrdinalIgnoreCase);
+
         int delivered = 0, retried = 0, failed = 0, suppressed = 0;
 
         foreach (var message in batch)
         {
-            var outcome = await DeliverAsync(message, shopPhone, cancellationToken);
+            var outcome = await DeliverAsync(message, shopPhone, switches, cancellationToken);
 
             switch (outcome)
             {
@@ -127,8 +141,26 @@ public class OutboxDispatcher(
     private enum Outcome { Delivered, Retry, GivenUp, Suppressed }
 
     private async Task<Outcome> DeliverAsync(
-        OutboxMessage message, string shopPhone, CancellationToken cancellationToken)
+        OutboxMessage message,
+        string shopPhone,
+        Dictionary<string, (bool SmsEnabled, bool EmailEnabled)> switches,
+        CancellationToken cancellationToken)
     {
+        // A type with no row is on. A deployment that adds a template reaches
+        // here before the process that seeds its row has restarted, and a
+        // message silenced by that gap would be one nobody ever chose to
+        // silence.
+        var (smsEnabled, emailEnabled) = switches.TryGetValue(message.Type, out var configured)
+            ? configured
+            : (true, true);
+
+        if (!smsEnabled && !emailEnabled)
+        {
+            // Cheaper than rendering first, and the reason is clearer for it:
+            // this message did not fail, it was not wanted.
+            return Suppress(message, "Both channels are turned off for this template.");
+        }
+
         RenderedNotification? rendered;
 
         try
@@ -155,15 +187,27 @@ public class OutboxDispatcher(
             return Suppress(message, "Nothing to say for this event.");
         }
 
-        var smsResult = await TrySmsAsync(notification, cancellationToken);
+        var smsResult = smsEnabled
+            ? await TrySmsAsync(notification, cancellationToken)
+            : SmsOutcome.Disabled;
 
         // Best-effort, and deliberately not part of the outcome. A mail server
         // that is down must not cause the confirmation SMS to be sent again.
-        await TryEmailAsync(notification, cancellationToken);
+        if (emailEnabled)
+        {
+            await TryEmailAsync(notification, cancellationToken);
+        }
 
         return smsResult switch
         {
             SmsOutcome.Sent => Complete(message),
+
+            // The shop chose not to pay for this one by SMS. Email is on —
+            // both being off was handled above — so an address makes this a
+            // delivery and no address makes it the silence that was asked for.
+            SmsOutcome.Disabled => notification.RecipientEmail is not null
+                ? Complete(message)
+                : Suppress(message, "SMS is turned off for this template."),
 
             // Nothing to send to at all. Retrying will not conjure a phone
             // number, and the email — if there was one — has already gone.
@@ -175,7 +219,7 @@ public class OutboxDispatcher(
         };
     }
 
-    private enum SmsOutcome { Sent, NoRecipient, Failed }
+    private enum SmsOutcome { Sent, NoRecipient, Failed, Disabled }
 
     private async Task<SmsOutcome> TrySmsAsync(
         RenderedNotification notification, CancellationToken cancellationToken)

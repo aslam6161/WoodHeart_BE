@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Entity.Common;
 using WoodHeart.Domain.Enums.Common;
 using WoodHeart.Repository.Interfaces.Common;
@@ -68,6 +68,40 @@ public class OutboxRepository(DataContext context)
                     .SetProperty(x => x.Status, OutboxStatus.Pending)
                     .SetProperty(x => x.NextAttemptAt, olderThan),
                 cancellationToken);
+
+    public async Task<PagedList<OutboxMessage>> SearchAsync(
+        OutboxSearch criteria, CancellationToken cancellationToken = default)
+    {
+        var query = Set.AsNoTracking().AsQueryable();
+
+        if (criteria.Status is { } status)
+        {
+            query = query.Where(x => x.Status == status);
+        }
+
+        if (!string.IsNullOrWhiteSpace(criteria.Type))
+        {
+            query = query.Where(x => x.Type == criteria.Type);
+        }
+
+        if (!string.IsNullOrWhiteSpace(criteria.Term))
+        {
+            var pattern = $"%{criteria.Term.Trim()}%";
+
+            query = query.Where(x =>
+                (x.IdempotencyKey != null && EF.Functions.ILike(x.IdempotencyKey, pattern))
+                || (x.CorrelationId != null && EF.Functions.ILike(x.CorrelationId, pattern)));
+        }
+
+        // Newest first: the question this screen answers is almost always
+        // "what has just gone wrong", not "what happened in March".
+        return await PagedList<OutboxMessage>.CreateAsync(
+            query.OrderByDescending(x => x.Id), criteria.Page, criteria.PageSize, cancellationToken);
+    }
+
+    public async Task<OutboxMessage?> GetForResendAsync(
+        long id, CancellationToken cancellationToken = default) =>
+        await Set.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 }
 
 public class StoreSettingRepository(DataContext context)

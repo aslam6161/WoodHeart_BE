@@ -24,11 +24,18 @@ namespace WoodHeart.Service.Interfaces.Payments;
 /// The order can be confirmed the moment it is placed. True for cash on
 /// delivery, which settles at the door rather than at the gateway.
 /// </param>
+/// <param name="NeedsCredentials">
+/// The provider cannot work without a merchant credential. Read by the admin
+/// screen, which refuses to enable such a method while nothing is stored — a
+/// gateway switched on with no key looks live and fails at the one moment it
+/// matters, with a customer's money half-way out of their account.
+/// </param>
 public readonly record struct PaymentCapabilities(
     bool SupportsRedirect,
     bool SupportsRefund,
     bool SupportsWebhook,
-    bool SettlesImmediately);
+    bool SettlesImmediately,
+    bool NeedsCredentials = false);
 
 /// <summary>Everything a provider needs to start taking money for one order.</summary>
 /// <param name="Order">The placed order, already written and numbered.</param>
