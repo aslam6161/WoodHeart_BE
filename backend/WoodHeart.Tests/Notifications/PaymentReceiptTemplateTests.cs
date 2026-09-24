@@ -169,6 +169,66 @@ public class PaymentReceiptTemplateTests
         SmsParts.Count(text).ShouldBeLessThanOrEqualTo(2, text);
     }
 
+    // -------------------------------------------------------------------------
+    // The delivery that is also the receipt
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("bn")]
+    public void Delivering_a_cash_order_names_the_money_in_the_same_message(string language)
+    {
+        // This is how nearly every order here is paid: the rider hands it over
+        // and takes the cash. Marking it delivered records the payment, and
+        // the message that was going out anyway becomes the receipt — one
+        // billed part rather than two, and the figure rather than a second
+        // text about it a moment later.
+        var rendered = Delivered("Paid", "cod", language);
+
+        var text = rendered.SmsText!;
+
+        text.ShouldContain("BDT 24,500");
+        SmsParts.Count(text).ShouldBe(1, text);
+    }
+
+    [Fact]
+    public void Delivering_an_order_paid_days_ago_does_not()
+    {
+        // The money arrived at checkout. "Your payment of BDT 24,500 received"
+        // on the doorstep reads as a second charge.
+        var text = Delivered("Paid", "bkash").SmsText!;
+
+        text.ShouldNotContain("BDT 24,500");
+        text.ShouldContain("delivered");
+    }
+
+    [Fact]
+    public void Nor_does_one_delivered_with_the_money_still_owing()
+    {
+        var text = Delivered("Unpaid", "cod").SmsText!;
+
+        text.ShouldNotContain("received");
+    }
+
+    private static RenderedNotification Delivered(
+        string paymentStatus, string paymentMethod, string language = "en") =>
+        NotificationTemplates.Render(
+            "order.status_changed",
+            JsonSerializer.Serialize(new
+            {
+                orderNumber = "WH-2609-00042",
+                status = "Delivered",
+                contactName = "Rakib Hasan",
+                contactPhone = "+8801712349999",
+                contactEmail = (string?)null,
+                language,
+                grandTotal = 24500m,
+                currency = "BDT",
+                paymentStatus,
+                paymentMethod
+            }),
+            ShopPhone)!.Value;
+
     [Fact]
     public void The_email_carries_the_order_total_either_way()
     {

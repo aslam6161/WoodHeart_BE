@@ -314,6 +314,48 @@ public class AdminOrderServiceTests
     }
 
     [Fact]
+    public async Task Delivering_a_cash_order_sends_one_message_rather_than_two()
+    {
+        // Marking it delivered records the cash as well, and the delivered
+        // message names the amount. A separate receipt beside it would be a
+        // second billed part saying the same thing.
+        var order = GivenAnOrder(OrderStatus.Shipped);
+
+        await CreateService().ChangeStatusAsync(
+            OrderNumber, new ChangeOrderStatusDto { Status = OrderStatus.Delivered });
+
+        order.PaymentStatus.ShouldBe(PaymentStatus.Paid);
+
+        await _notifications.Received(1).EnqueueAsync(
+            Arg.Is<NotificationRequest>(r => r.Type == "order.status_changed"),
+            Arg.Any<CancellationToken>());
+
+        await _notifications.DidNotReceive().EnqueueAsync(
+            Arg.Is<NotificationRequest>(r => r.Type == "payment.status_changed"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task But_a_refund_from_the_work_axis_is_receipted()
+    {
+        // Refunded has no message of its own on the order, so this receipt is
+        // the only thing that tells the customer their money is coming back.
+        var order = GivenAnOrder(OrderStatus.Returned);
+        order.PaymentStatus = PaymentStatus.Paid;
+
+        await CreateService().ChangeStatusAsync(
+            OrderNumber, new ChangeOrderStatusDto { Status = OrderStatus.Refunded });
+
+        order.PaymentStatus.ShouldBe(PaymentStatus.Refunded);
+
+        await _notifications.Received(1).EnqueueAsync(
+            Arg.Is<NotificationRequest>(r =>
+                r.Type == "payment.status_changed"
+                && r.IdempotencyKey == $"payment.status:{OrderNumber}:Refunded"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task A_refund_cannot_be_undone()
     {
         var order = GivenAnOrder(OrderStatus.Returned);

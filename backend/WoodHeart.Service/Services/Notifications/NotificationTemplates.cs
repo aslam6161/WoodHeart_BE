@@ -213,6 +213,17 @@ public static class NotificationTemplates
         // message that produces a phone call.
         var owing = string.Equals(String_(root, "paymentStatus"), "Unpaid", StringComparison.Ordinal);
 
+        // Marking a cash order delivered records the money at the same moment,
+        // and this message is already going out. Naming the amount here makes
+        // it the receipt — one billed part instead of two, and the customer
+        // gets the figure rather than a separate text about it a second later.
+        var cashJustCollected =
+            string.Equals(String_(root, "paymentStatus"), "Paid", StringComparison.Ordinal)
+            && string.Equals(
+                String_(root, "paymentMethod"),
+                PaymentMethodCodes.CashOnDelivery,
+                StringComparison.OrdinalIgnoreCase);
+
         var (sms, subject, line) = status switch
         {
             "Confirmed" => (
@@ -235,10 +246,23 @@ public static class NotificationTemplates
 
             "Delivered" => (
                 bangla
-                    ? $"WoodHeart: অর্ডার {number} ডেলিভারি সম্পন্ন। ধন্যবাদ!"
-                    : $"WoodHeart: Order {number} has been delivered. Thank you!",
+                    ? cashJustCollected
+                        // No "thank you" on this one: the Bangla part is 70
+                        // characters and the figure is worth more than the
+                        // courtesy. The email carries both.
+                        ? $"WoodHeart: অর্ডার {number} ডেলিভারি সম্পন্ন, {total} পেয়েছি।"
+                        : $"WoodHeart: অর্ডার {number} ডেলিভারি সম্পন্ন। ধন্যবাদ!"
+                    : cashJustCollected
+                        ? $"WoodHeart: Order {number} has been delivered and {total} received. Thank you!"
+                        : $"WoodHeart: Order {number} has been delivered. Thank you!",
                 bangla ? $"অর্ডার {number} ডেলিভারি সম্পন্ন" : $"Order {number} delivered",
-                bangla ? "আপনার অর্ডারটি পৌঁছে দেওয়া হয়েছে।" : "Your order has been delivered."),
+                bangla
+                    ? cashJustCollected
+                        ? "আপনার অর্ডারটি পৌঁছে দেওয়া হয়েছে এবং পেমেন্ট পাওয়া গেছে।"
+                        : "আপনার অর্ডারটি পৌঁছে দেওয়া হয়েছে।"
+                    : cashJustCollected
+                        ? "Your order has been delivered and your payment received."
+                        : "Your order has been delivered."),
 
             "Cancelled" => (
                 bangla
