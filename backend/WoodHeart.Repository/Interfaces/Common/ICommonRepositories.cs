@@ -1,4 +1,5 @@
-using WoodHeart.Domain.Entity.Common;
+﻿using WoodHeart.Domain.Entity.Common;
+using WoodHeart.Domain.Enums.Common;
 
 namespace WoodHeart.Repository.Interfaces.Common;
 
@@ -32,7 +33,38 @@ public interface IOutboxRepository : IRepository<OutboxMessage>
     /// </remarks>
     Task<int> ReclaimStaleAsync(
         DateTimeOffset olderThan, CancellationToken cancellationToken = default);
+
+    /// <summary>What the shop has sent, and what it could not — for the admin screen.</summary>
+    Task<PagedList<OutboxMessage>> SearchAsync(
+        OutboxSearch criteria, CancellationToken cancellationToken = default);
+
+    /// <remarks>Tracked: the only caller is about to put the row back in the queue.</remarks>
+    Task<OutboxMessage?> GetForResendAsync(long id, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// What the notifications screen asked the outbox for.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Declared here rather than taken as a DTO, because Repository cannot see
+/// Service — the same reason <c>QuotationSearch</c> lives beside its
+/// repository.
+/// </para>
+/// </remarks>
+/// <param name="Term">
+/// The order, booking or quotation number. Matched against the idempotency key
+/// and the correlation id rather than the payload: every service builds its key
+/// out of the number the message concerns, so the number is already in an
+/// indexed column and searching it does not mean scanning jsonb.
+/// </param>
+/// <param name="Type">One template code, e.g. <c>order.placed</c>. Null matches all.</param>
+public readonly record struct OutboxSearch(
+    string? Term,
+    OutboxStatus? Status,
+    string? Type,
+    int Page,
+    int PageSize);
 
 public interface IStoreSettingRepository : IRepository<StoreSetting>
 {

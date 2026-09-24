@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -8,7 +8,9 @@ using WoodHeart.Domain.Enums.Common;
 using WoodHeart.Domain.Settings;
 using WoodHeart.Domain.ValueObjects;
 using WoodHeart.Repository;
+using WoodHeart.Domain.Entity.Notifications;
 using WoodHeart.Repository.Interfaces.Common;
+using WoodHeart.Repository.Interfaces.Notifications;
 using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Services.Notifications;
@@ -36,6 +38,9 @@ namespace WoodHeart.Tests.Notifications;
 public class OutboxDispatcherTests
 {
     private readonly IOutboxRepository _outbox = Substitute.For<IOutboxRepository>();
+
+    private readonly INotificationTemplateRepository _templates =
+        Substitute.For<INotificationTemplateRepository>();
     private readonly ISmsSender _sms = Substitute.For<ISmsSender>();
     private readonly IEmailSender _email = Substitute.For<IEmailSender>();
     private readonly IStoreSettingService _settings = Substitute.For<IStoreSettingService>();
@@ -54,6 +59,9 @@ public class OutboxDispatcherTests
     {
         _settings.GetStringAsync(SettingKeys.StorePhone, Arg.Any<CancellationToken>())
             .Returns("01712345678");
+
+        // Everything on, which is what the seed writes.
+        GivenTheTemplate(NotificationTemplates.OrderPlaced, sms: true, email: true);
 
         _sms.SendAsync(Arg.Any<PhoneNumber>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(GeneralResponse<SmsDeliveryReceipt>.Success(new SmsDeliveryReceipt("gw-1", 1, null)));
@@ -75,6 +83,7 @@ public class OutboxDispatcherTests
 
     private OutboxDispatcher CreateDispatcher() =>
         new(_outbox,
+            _templates,
             _sms,
             _email,
             _settings,
@@ -279,6 +288,84 @@ public class OutboxDispatcherTests
     }
 
     // -------------------------------------------------------------------------
+    // The switches
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_template_with_SMS_turned_off_costs_the_shop_nothing()
+    {
+        // The whole point of the switch: an SMS here is billed per part, and a
+        // shop that has decided a message is not worth paying for should stop
+        // paying for it the moment it says so.
+        GivenTheTemplate(NotificationTemplates.OrderPlaced, sms: false, email: true);
+
+        var message = GivenAMessage();
+
+        await CreateDispatcher().RunAsync();
+
+        await _sms.DidNotReceive().SendAsync(
+            Arg.Any<PhoneNumber>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        // Suppressed, not failed. A message nobody wanted sent is not an
+        // incident, and the reason is on the row so the screen can say which it
+        // was.
+        message.Status.ShouldBe(OutboxStatus.Suppressed);
+        message.LastError.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task With_SMS_off_a_customer_who_has_an_email_address_still_hears()
+    {
+        GivenTheTemplate(NotificationTemplates.OrderPlaced, sms: false, email: true);
+
+        var message = GivenAMessage(email: "rakib@example.com");
+
+        await CreateDispatcher().RunAsync();
+
+        await _email.Received(1).SendAsync(
+            Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
+
+        message.Status.ShouldBe(OutboxStatus.Processed);
+    }
+
+    [Fact]
+    public async Task A_template_turned_off_altogether_is_not_even_rendered()
+    {
+        GivenTheTemplate(NotificationTemplates.OrderPlaced, sms: false, email: false);
+
+        var message = GivenAMessage(email: "rakib@example.com");
+
+        await CreateDispatcher().RunAsync();
+
+        await _sms.DidNotReceive().SendAsync(
+            Arg.Any<PhoneNumber>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        await _email.DidNotReceive().SendAsync(
+            Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
+
+        message.Status.ShouldBe(OutboxStatus.Suppressed);
+    }
+
+    [Fact]
+    public async Task A_template_with_no_row_yet_is_on()
+    {
+        // A deployment adds a kind of message before the process that seeds its
+        // row has restarted. Treating the gap as "off" would silence a message
+        // nobody chose to silence, and nothing anywhere would say so.
+        _templates.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<NotificationTemplate>());
+
+        var message = GivenAMessage();
+
+        await CreateDispatcher().RunAsync();
+
+        await _sms.Received(1).SendAsync(
+            Arg.Any<PhoneNumber>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        message.Status.ShouldBe(OutboxStatus.Processed);
+    }
+
+    // -------------------------------------------------------------------------
     // The reaper
     // -------------------------------------------------------------------------
 
@@ -302,6 +389,11 @@ public class OutboxDispatcherTests
     // -------------------------------------------------------------------------
     // Fixtures
     // -------------------------------------------------------------------------
+
+    private void GivenTheTemplate(string code, bool sms, bool email) =>
+        _templates.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<NotificationTemplate>>(
+                [new NotificationTemplate { Code = code, SmsEnabled = sms, EmailEnabled = email }]);
 
     private void GivenTheGatewayIsDown() =>
         _sms.SendAsync(Arg.Any<PhoneNumber>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
