@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Consultations;
@@ -37,6 +37,12 @@ public class BookingServiceTests
     private readonly IAvailabilityService _availability = Substitute.For<IAvailabilityService>();
     private readonly INumberSequenceService _numbers = Substitute.For<INumberSequenceService>();
     private readonly INotificationQueue _notifications = Substitute.For<INotificationQueue>();
+
+    /// <remarks>
+    /// Left answering null, so the shop alert is skipped: a shop with neither a
+    /// telephone number nor an email address has nobody to tell.
+    /// </remarks>
+    private readonly IStoreSettingService _settings = Substitute.For<IStoreSettingService>();
     private readonly ICurrentUserService _currentUser = Substitute.For<ICurrentUserService>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeClock _clock = new(new DateTimeOffset(2026, 9, 20, 6, 0, 0, TimeSpan.Zero));
@@ -74,7 +80,7 @@ public class BookingServiceTests
                 call.Arg<Func<CancellationToken, Task<GeneralResponse<BookingDto>>>>()(CancellationToken.None));
 
         _service = new BookingService(
-            _bookings, _services, _availability, _numbers, _notifications,
+            _bookings, _services, _availability, _numbers, _notifications, _settings,
             _currentUser, _clock, _unitOfWork, NullLogger<BookingService>.Instance);
     }
 
@@ -222,6 +228,42 @@ public class BookingServiceTests
         // Keyed on the booking, so a retry of the worker cannot bill the shop
         // twice at the SMS gateway.
         sent.IdempotencyKey.ShouldBe($"booking.requested:{BookingNumber}");
+    }
+
+    [Fact]
+    public async Task And_the_shop_is_told_there_is_something_to_confirm()
+    {
+        // The customer has just been told the shop will confirm shortly. This
+        // is what makes that sentence true.
+        _settings.GetStringAsync(SettingKeys.StorePhone, Arg.Any<CancellationToken>())
+            .Returns("01799990000");
+
+        var sent = new List<NotificationRequest>();
+
+        await _notifications.EnqueueAsync(
+            Arg.Do<NotificationRequest>(sent.Add), Arg.Any<CancellationToken>());
+
+        await _service.CreateAsync(Request(), idempotencyKey: null);
+
+        sent.Select(r => r.Type)
+            .ShouldBe(["booking.requested", "booking.received"]);
+
+        sent[1].IdempotencyKey.ShouldBe($"booking.received:{BookingNumber}");
+    }
+
+    [Fact]
+    public async Task A_shop_that_has_given_no_way_to_reach_it_is_not_sent_one()
+    {
+        var sent = new List<NotificationRequest>();
+
+        await _notifications.EnqueueAsync(
+            Arg.Do<NotificationRequest>(sent.Add), Arg.Any<CancellationToken>());
+
+        await _service.CreateAsync(Request(), idempotencyKey: null);
+
+        // Only the customer. A suppressed row per booking is a queue nobody can
+        // read rather than a message anybody wanted.
+        sent.Select(r => r.Type).ShouldBe(["booking.requested"]);
     }
 
     // -------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Enums.Notifications;
 using WoodHeart.Domain.ValueObjects;
@@ -61,6 +61,18 @@ public static class NotificationCatalog
             + "statuses are the shop's own bookkeeping and send nothing.",
             NotificationAudience.Customer,
             SupportsBangla: true),
+
+        new(NotificationTemplates.OrderReceived,
+            "New order, to the shop",
+            "As soon as a customer places an order, to whoever runs the shop.",
+            NotificationAudience.Shop,
+            SupportsBangla: false),
+
+        new(NotificationTemplates.BookingReceived,
+            "New consultation, to the shop",
+            "When a customer asks for a consultation, so somebody knows to confirm it.",
+            NotificationAudience.Shop,
+            SupportsBangla: false),
 
         new(NotificationTemplates.BookingRequested,
             "Consultation received",
@@ -165,6 +177,34 @@ public static class NotificationCatalog
                 grandTotal = 24500m,
                 currency = GlobalConstants.Currency,
                 paymentStatus = "Unpaid"
+            }),
+
+            NotificationTemplates.OrderReceived => Json(new
+            {
+                orderNumber = "WH-2609-00042",
+                contactName = "Rafiqul Islam",
+
+                // Named apart from the recipient on purpose: this message goes
+                // to the shop, and the number in the body is the customer's.
+                customerPhone = SamplePhone,
+                grandTotal = 24500m,
+                currency = GlobalConstants.Currency,
+                paymentMethod = PaymentMethodCodes.CashOnDelivery,
+                itemCount = 2,
+                address = "House 12, Road 5, Dhanmondi, Dhaka",
+                recipientPhone = SampleShopPhone,
+                recipientEmail = SampleEmail
+            }),
+
+            NotificationTemplates.BookingReceived => Json(new
+            {
+                bookingNumber = "WHC-2609-00017",
+                contactName = "Rafiqul Islam",
+                customerPhone = SamplePhone,
+                serviceName = "Home consultation",
+                scheduledAt = SampleSlot,
+                recipientPhone = SampleShopPhone,
+                recipientEmail = SampleEmail
             }),
 
             NotificationTemplates.BookingRequested or NotificationTemplates.BookingReminder => Json(new
@@ -284,6 +324,9 @@ public static class NotificationCatalog
     private const string SamplePhone = "01712345678";
 
     private const string SampleEmail = "customer@example.com";
+
+    /// <summary>The shop's own number, for the two messages addressed to it.</summary>
+    private const string SampleShopPhone = "01799990000";
 
     private const string SampleSlot = "Tuesday 30 September, 4:00 PM";
 

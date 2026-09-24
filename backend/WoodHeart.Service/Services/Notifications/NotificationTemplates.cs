@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using WoodHeart.Domain.Constants;
 
@@ -53,15 +53,28 @@ public static class NotificationTemplates
     public const string OrderPlaced = "order.placed";
     public const string OrderStatusChanged = "order.status_changed";
 
-    /// <summary>
-    /// Every type this renders. A message of any other type is suppressed
-    /// rather than retried — see <c>OutboxDispatcher</c>.
-    /// </summary>
     /// <summary>To the shop, not a customer: the lines at or below their reorder level.</summary>
     public const string StockLow = "stock.low";
 
+    /// <summary>To the shop: somebody has just bought something.</summary>
+    /// <remarks>
+    /// The shop is small and whoever runs it is on their telephone rather than
+    /// in front of the panel. An order placed at nine in the evening and seen
+    /// the following afternoon is a customer who waited a day for no reason,
+    /// and nothing in the application used to say a word about it.
+    /// </remarks>
+    public const string OrderReceived = "order.received";
+
     /// <summary>A consultation asked for. The shop confirms it separately.</summary>
     public const string BookingRequested = "booking.requested";
+
+    /// <summary>To the shop: somebody is asking for a consultation.</summary>
+    /// <remarks>
+    /// A booking stays Requested until a person at the shop looks at it, and
+    /// the customer has already been told "we will confirm shortly". Nobody
+    /// having been told to look is how that sentence becomes untrue.
+    /// </remarks>
+    public const string BookingReceived = "booking.received";
 
     /// <summary>A consultation confirmed, moved or called off.</summary>
     public const string BookingStatusChanged = "booking.status_changed";
@@ -75,12 +88,18 @@ public static class NotificationTemplates
     /// <summary>It became an order, and here is the number to quote.</summary>
     public const string QuotationConverted = "quotation.converted";
 
+    /// <summary>
+    /// Every type this renders. A message of any other type is suppressed
+    /// rather than retried — see <c>OutboxDispatcher</c>.
+    /// </summary>
     public static readonly IReadOnlyList<string> KnownTypes =
     [
         OrderPlaced,
         OrderStatusChanged,
+        OrderReceived,
         StockLow,
         BookingRequested,
+        BookingReceived,
         BookingStatusChanged,
         BookingReminder,
         QuotationSent,
@@ -96,6 +115,8 @@ public static class NotificationTemplates
         {
             OrderPlaced => RenderOrderPlaced(root, shopPhone.Trim()),
             OrderStatusChanged => RenderStatusChanged(root, shopPhone.Trim()),
+            OrderReceived => RenderOrderReceived(root),
+            BookingReceived => RenderBookingReceived(root),
             StockLow => RenderStockLow(root, shopPhone.Trim()),
             BookingRequested => RenderBookingRequested(root, shopPhone.Trim()),
             BookingStatusChanged => RenderBookingStatusChanged(root, shopPhone.Trim()),
@@ -237,6 +258,117 @@ public static class NotificationTemplates
 
         return new RenderedNotification(
             sms, subject, body, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // order.received — to the shop
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// "Somebody has just bought something."
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>English only, and inside one billed part.</b> It goes to whoever runs
+    /// the shop, and a Bangla form would cost three parts on every order rather
+    /// than one — which, on a message sent this often, is the difference
+    /// between a sensible expense and a reason to switch it off.
+    /// </para>
+    /// <para>
+    /// <b>The customer's number is in it.</b> The first thing anybody does with
+    /// a new order is ring the customer to confirm the address, and a message
+    /// that made them open the panel to find the number would have failed at
+    /// being the thing you read on a telephone.
+    /// </para>
+    /// <para>
+    /// No shop number on the end: this one <em>is</em> the shop. The email
+    /// footer carries the customer's instead.
+    /// </para>
+    /// </remarks>
+    private static RenderedNotification RenderOrderReceived(JsonElement root)
+    {
+        var number = String_(root, "orderNumber");
+        var name = String_(root, "contactName");
+        var phone = String_(root, "customerPhone");
+        var total = Taka(Decimal_(root, "grandTotal"));
+        var items = Int_(root, "itemCount");
+        var cash = string.Equals(
+            String_(root, "paymentMethod"),
+            PaymentMethodCodes.CashOnDelivery,
+            StringComparison.OrdinalIgnoreCase);
+
+        // A plain hyphen rather than a dash. One character outside plain ASCII
+        // switches the whole message to UCS-2 and drops the billed part from
+        // 160 characters to 70.
+        var sms = $"WoodHeart: new order {number} - {total}, {items} item(s)"
+                  + (cash ? ", cash on delivery" : ", paid online")
+                  + $". {name} {phone}";
+
+        var body = Email(
+            heading: "A new order",
+            greeting: $"Order <strong>{Escape(number)}</strong> has just been placed.",
+            lines:
+            [
+                $"{items} item(s) - total <strong>{total}</strong>.",
+                cash ? "To be paid in cash on delivery." : "Paid at checkout.",
+                $"{Escape(name)} - {Escape(phone)}",
+                Escape(String_(root, "address"))
+            ],
+            shopPhone: string.Empty,
+            bangla: false,
+            footer: $"Call the customer on {Escape(phone)}.");
+
+        return new RenderedNotification(
+            sms,
+            $"New order {number} - {total}",
+            body,
+            String_(root, "recipientPhone"),
+            NullIfBlank(String_(root, "recipientEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // booking.received — to the shop
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// "Somebody is asking for a consultation."
+    /// </summary>
+    /// <remarks>
+    /// The customer has already been told the shop will confirm shortly. This
+    /// is what makes that true — and it carries the time, because the first
+    /// question is always whether anybody is free then.
+    /// </remarks>
+    private static RenderedNotification RenderBookingReceived(JsonElement root)
+    {
+        var number = String_(root, "bookingNumber");
+        var name = String_(root, "contactName");
+        var phone = String_(root, "customerPhone");
+        var service = String_(root, "serviceName");
+        var when = String_(root, "scheduledAt");
+
+        var sms = $"WoodHeart: new booking {number} for {when}. {name} {phone}. "
+                  + "Confirm it in the admin.";
+
+        var body = Email(
+            heading: "A new consultation request",
+            greeting: $"Booking <strong>{Escape(number)}</strong> is waiting to be confirmed.",
+            lines:
+            [
+                $"<strong>{Escape(service)}</strong>",
+                $"When: <strong>{Escape(when)}</strong>",
+                $"{Escape(name)} - {Escape(phone)}",
+                "The customer has been told the shop will confirm shortly."
+            ],
+            shopPhone: string.Empty,
+            bangla: false,
+            footer: $"Call the customer on {Escape(phone)}.");
+
+        return new RenderedNotification(
+            sms,
+            $"New booking {number} - {when}",
+            body,
+            String_(root, "recipientPhone"),
+            NullIfBlank(String_(root, "recipientEmail")));
     }
 
     // -------------------------------------------------------------------------
@@ -595,14 +727,23 @@ public static class NotificationTemplates
     /// a transactional email that renders as a broken-image icon on a phone
     /// with images off has failed at the one thing it exists to do.
     /// </remarks>
+    /// <param name="footer">
+    /// Replaces "Any questions, please call …". A message addressed to the shop
+    /// should not close by telling it to ring itself.
+    /// </param>
     private static string Email(
-        string heading, string greeting, string[] lines, string shopPhone, bool bangla)
+        string heading,
+        string greeting,
+        string[] lines,
+        string shopPhone,
+        bool bangla,
+        string? footer = null)
     {
         var paragraphs = string.Concat(
             lines.Where(l => !string.IsNullOrWhiteSpace(l))
                 .Select(l => $"<p style=\"margin:0 0 12px;font-size:15px;line-height:1.5\">{l}</p>"));
 
-        var footer = bangla
+        footer ??= bangla
             ? $"যেকোনো প্রশ্নে কল করুন {Escape(shopPhone)}।"
             : $"Any questions, please call {Escape(shopPhone)}.";
 
