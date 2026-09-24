@@ -114,6 +114,20 @@ public static class NotificationCatalog
             NotificationAudience.Customer,
             SupportsBangla: true),
 
+        new(NotificationTemplates.QuotationAnswered,
+            "Quotation answered",
+            "When a customer accepts or declines a quotation. Goes to the shop, "
+            + "and carries the reason they gave for saying no.",
+            NotificationAudience.Shop,
+            SupportsBangla: false),
+
+        new(NotificationTemplates.CartAbandoned,
+            "Basket left behind",
+            "Once, to a signed-in customer whose basket has gone quiet. A guest "
+            + "leaves no way to reach them, so they are never written to.",
+            NotificationAudience.Customer,
+            SupportsBangla: true),
+
         new(NotificationTemplates.StockLow,
             "Low stock digest",
             "Each morning, to the shop, when anything is at or below its reorder "
@@ -285,6 +299,41 @@ public static class NotificationCatalog
                 validUntil = "8 October",
                 lineCount = 4,
                 orderNumber = "WH-2609-00043"
+            }),
+
+            // Declined rather than accepted: it is the longer of the two,
+            // being the one that carries a reason, so it is the one whose part
+            // count on the screen is worth looking at.
+            NotificationTemplates.QuotationAnswered => Json(new
+            {
+                quotationNumber = "WHQ-2609-00008",
+                answer = "Declined",
+                contactName = name,
+                customerPhone = SamplePhone,
+                grandTotal = 245000m,
+                currency = GlobalConstants.Currency,
+                reason = "Found the same thing cheaper at another shop in Gulshan.",
+                recipientPhone = SamplePhone,
+                recipientEmail = SampleEmail
+            }),
+
+            NotificationTemplates.CartAbandoned => Json(new
+            {
+                contactName = name,
+                contactPhone = SamplePhone,
+                contactEmail = SampleEmail,
+                language,
+
+                // A long-ish name on purpose: it is the field that has to give
+                // way, so the preview should show it doing so.
+                firstItem = "Segun king bed with storage",
+                otherItems = 2,
+                items = new[]
+                {
+                    new { name = "Segun king bed with storage", quantity = 1 },
+                    new { name = "Bedside table, pair", quantity = 1 },
+                    new { name = "Segun wardrobe, 3 door", quantity = 1 }
+                }
             }),
 
             NotificationTemplates.StockLow => Json(new

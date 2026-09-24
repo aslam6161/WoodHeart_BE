@@ -92,6 +92,9 @@ public static class Seed
             (SettingKeys.UnpaidOrderExpiryMinutes, "60", SettingValueType.Integer, "Orders",
                 "Minutes an order may wait unpaid at a payment gateway before it is cancelled and its stock "
                 + "released. Cash on delivery is never affected. 0 switches this off."),
+            (SettingKeys.CartRecoveryAfterHours, "6", SettingValueType.Integer, "Orders",
+                "Hours a basket may sit untouched before its owner is reminded it is still there. "
+                + "Sent once per basket, and only to signed-in customers. 0 switches it off."),
             (SettingKeys.LowStockThreshold, "5", SettingValueType.Integer, "Inventory",
                 "Units at or below which a product is flagged low on the admin dashboard."),
             (SettingKeys.LowStockDigest, "true", SettingValueType.Boolean, "Inventory",
@@ -267,7 +270,9 @@ public static class Seed
             "booking.status_changed",
             "booking.reminder",
             "quotation.sent",
-            "quotation.converted"
+            "quotation.converted",
+            "quotation.answered",
+            "cart.abandoned"
         ];
 
         var existing = await context.NotificationTemplates

@@ -83,6 +83,8 @@ public class NotificationCatalogTests
     [InlineData("payment.status_changed", "WH-2609-00042")]
     [InlineData("order.received", "WH-2609-00042")]
     [InlineData("booking.received", "WHC-2609-00017")]
+    [InlineData("quotation.answered", "WHQ-2609-00008")]
+    [InlineData("cart.abandoned", "Segun king bed")]
     public void The_number_the_message_exists_to_carry_reaches_it(string code, string number)
     {
         // The drift check. A renamed payload field does not throw — it renders
