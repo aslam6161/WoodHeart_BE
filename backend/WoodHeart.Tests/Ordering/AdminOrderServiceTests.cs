@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using WoodHeart.Domain.Constants;
@@ -275,6 +275,42 @@ public class AdminOrderServiceTests
         entry.Note.ShouldNotBeNull();
         entry.Note.ShouldContain("bKash TrxID 8HG23K");
         entry.Note.ShouldContain("Unpaid");
+    }
+
+    [Fact]
+    public async Task And_the_customer_is_sent_a_receipt_for_it()
+    {
+        // Most orders here are cash handed to a rider at the door. The customer
+        // has no receipt and no statement to check against, so this message is
+        // the only record either side holds that the money changed hands.
+        GivenAnOrder(OrderStatus.Confirmed);
+
+        await CreateService().RecordPaymentAsync(
+            OrderNumber, new RecordPaymentDto { Status = PaymentStatus.Paid });
+
+        await _notifications.Received(1).EnqueueAsync(
+            Arg.Is<NotificationRequest>(r =>
+                r.Type == "payment.status_changed"
+                && r.IdempotencyKey == $"payment.status:{OrderNumber}:Paid"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Recording_the_status_it_already_has_sends_nothing()
+    {
+        // Pressing the button twice must not text somebody twice about one
+        // payment, and each text is a line on the gateway invoice.
+        var order = GivenAnOrder(OrderStatus.Confirmed);
+        order.PaymentStatus = PaymentStatus.Paid;
+
+        var result = await CreateService().RecordPaymentAsync(
+            OrderNumber, new RecordPaymentDto { Status = PaymentStatus.Paid });
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await _notifications.DidNotReceive().EnqueueAsync(
+            Arg.Is<NotificationRequest>(r => r.Type == "payment.status_changed"),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
