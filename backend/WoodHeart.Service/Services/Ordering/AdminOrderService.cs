@@ -159,6 +159,7 @@ public class AdminOrderService(
 
         var actor = await ActorNameAsync();
         var from = order.Status;
+        var paymentBefore = order.PaymentStatus;
 
         order.Status = dto.Status;
 
@@ -178,6 +179,18 @@ public class AdminOrderService(
         if (Array.IndexOf(WorthTellingTheCustomer, dto.Status) >= 0)
         {
             await QueueStatusNotificationAsync(order, dto.Status, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        // A status change can move the money too: delivering a cash order
+        // collects it, returning one sends it back. Delivery is excluded
+        // because the message just queued already names the amount — two texts
+        // for one event is two billed parts and one of them redundant. A
+        // return has no message of its own, so the receipt is the only thing
+        // that tells the customer their money is on its way.
+        if (order.PaymentStatus != paymentBefore && dto.Status != OrderStatus.Delivered)
+        {
+            await QueuePaymentReceiptAsync(order, order.PaymentStatus, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -541,7 +554,12 @@ public class AdminOrderService(
                     language = order.CustomerLanguage,
                     grandTotal = order.GrandTotal.Amount,
                     currency = order.Currency,
-                    paymentStatus = order.PaymentStatus.ToString()
+                    paymentStatus = order.PaymentStatus.ToString(),
+
+                    // So the delivered message can be the receipt for a cash
+                    // order without becoming one for a prepaid one, where the
+                    // money arrived days earlier.
+                    paymentMethod = order.PaymentMethodCode
                 })
             },
             cancellationToken);
