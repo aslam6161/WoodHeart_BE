@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Catalog;
@@ -20,6 +20,7 @@ using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Interfaces.Ordering;
 using WoodHeart.Service.Interfaces.Payments;
+using WoodHeart.Service.Services.Notifications;
 using WoodHeart.Service.Services.Quotations;
 using WoodHeart.Tests.Helper;
 
@@ -358,6 +359,96 @@ public class QuotationServiceTests
         quotation.Status.ShouldBe(QuotationStatus.Declined);
         quotation.DeclineReason.ShouldBe("Found it cheaper elsewhere.");
     }
+
+    // -------------------------------------------------------------------------
+    // The shop hearing the answer
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Accepting_tells_the_shop()
+    {
+        // The customer answers in the evening, from their own telephone. Until
+        // this message existed the answer went no further than a column, and
+        // the timber for a two-hundred-thousand-taka bedroom could have been
+        // ordered a day earlier.
+        ShopCanBeReached();
+
+        var quotation = Existing(QuotationStatus.Sent);
+
+        _quotations.GetByNumberAsync(Number, Arg.Any<CancellationToken>()).Returns(quotation);
+
+        await _service.AcceptAsync(Number, "01712349999");
+
+        var request = Queued(NotificationTemplates.QuotationAnswered);
+
+        request.ShouldNotBeNull();
+        request.Payload.ShouldContain("Accepted");
+        request.Payload.ShouldContain(Number);
+    }
+
+    [Fact]
+    public async Task Declining_tells_the_shop_why()
+    {
+        ShopCanBeReached();
+
+        var quotation = Existing(QuotationStatus.Sent);
+
+        _quotations.GetByNumberAsync(Number, Arg.Any<CancellationToken>()).Returns(quotation);
+
+        await _service.DeclineAsync(Number, "01712349999", "Found it cheaper in Gulshan.");
+
+        var request = Queued(NotificationTemplates.QuotationAnswered);
+
+        request.ShouldNotBeNull();
+        request.Payload.ShouldContain("Declined");
+        request.Payload.ShouldContain("Gulshan");
+    }
+
+    [Fact]
+    public async Task A_shop_with_no_telephone_and_no_email_is_not_written_to()
+    {
+        // Nowhere to send it. Staging the row anyway fills the message log with
+        // something nobody can act on.
+        _settings.GetStringAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((string?)null);
+
+        _quotations.GetByNumberAsync(Number, Arg.Any<CancellationToken>())
+            .Returns(Existing(QuotationStatus.Sent));
+
+        await _service.AcceptAsync(Number, "01712349999");
+
+        Queued(NotificationTemplates.QuotationAnswered).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Sending_one_writes_to_the_customer_and_not_to_the_shop()
+    {
+        ShopCanBeReached();
+
+        var quotation = Existing(QuotationStatus.Draft);
+
+        _quotations.GetByNumberAsync(Number, Arg.Any<CancellationToken>()).Returns(quotation);
+
+        await _service.SetStatusAsync(Number, QuotationStatus.Sent, null);
+
+        Queued(NotificationTemplates.QuotationSent).ShouldNotBeNull();
+        Queued(NotificationTemplates.QuotationAnswered).ShouldBeNull();
+    }
+
+    private void ShopCanBeReached()
+    {
+        _settings.GetStringAsync(SettingKeys.StorePhone, Arg.Any<CancellationToken>())
+            .Returns("01712345678");
+
+        _settings.GetStringAsync(SettingKeys.StoreEmail, Arg.Any<CancellationToken>())
+            .Returns("shop@example.com");
+    }
+
+    private NotificationRequest? Queued(string type) =>
+        _notifications.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(INotificationQueue.EnqueueAsync))
+            .Select(c => (NotificationRequest)c.GetArguments()[0]!)
+            .FirstOrDefault(r => r.Type == type);
 
     [Fact]
     public async Task The_customers_copy_withholds_the_designers_own_notes()

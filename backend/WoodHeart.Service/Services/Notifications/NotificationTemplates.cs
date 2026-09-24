@@ -97,6 +97,16 @@ public static class NotificationTemplates
     /// <summary>It became an order, and here is the number to quote.</summary>
     public const string QuotationConverted = "quotation.converted";
 
+    /// <summary>To the shop: the customer has said yes, or said no.</summary>
+    /// <remarks>
+    /// A quotation is the largest single thing this shop sells — a fitted
+    /// wardrobe, a room of furniture — and answering it is the customer's move,
+    /// made on their own time. Accepted at eleven at night is timber that could
+    /// have been ordered first thing; declined is the one moment the customer
+    /// will ever say why, and it was being written to a column nobody reads.
+    /// </remarks>
+    public const string QuotationAnswered = "quotation.answered";
+
     /// <summary>
     /// Every type this renders. A message of any other type is suppressed
     /// rather than retried — see <c>OutboxDispatcher</c>.
@@ -113,7 +123,8 @@ public static class NotificationTemplates
         BookingStatusChanged,
         BookingReminder,
         QuotationSent,
-        QuotationConverted
+        QuotationConverted,
+        QuotationAnswered
     ];
 
     public static RenderedNotification? Render(string type, string payload, string shopPhone)
@@ -134,6 +145,7 @@ public static class NotificationTemplates
             BookingReminder => RenderBookingReminder(root, shopPhone.Trim()),
             QuotationSent => RenderQuotationSent(root, shopPhone.Trim()),
             QuotationConverted => RenderQuotationConverted(root, shopPhone.Trim()),
+            QuotationAnswered => RenderQuotationAnswered(root),
             _ => (RenderedNotification?)null
         };
 
@@ -500,6 +512,118 @@ public static class NotificationTemplates
             body,
             String_(root, "recipientPhone"),
             NullIfBlank(String_(root, "recipientEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // quotation.answered — to the shop
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// "They have said yes", or "they have said no, and here is why."
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>English only and inside one part</b>, like the other two messages
+    /// that go to the shop rather than to a customer.
+    /// </para>
+    /// <para>
+    /// <b>ACCEPTED is shouted and declined is not.</b> This is read on a
+    /// telephone screen among everything else that arrives there, and the two
+    /// answers want different things done: one is "start buying timber", the
+    /// other is "ring them and find out what the trouble was". Making them
+    /// look alike would be making the reader do work the message could do.
+    /// </para>
+    /// <para>
+    /// <b>The reason is what gives way.</b> It is typed by the customer and so
+    /// has no length anybody controls, and one part is 160 characters. It is
+    /// clipped to whatever room is left after the things that must be there —
+    /// the number, the money, and somebody to ring — and the email carries it
+    /// whole.
+    /// </para>
+    /// </remarks>
+    private static RenderedNotification RenderQuotationAnswered(JsonElement root)
+    {
+        var number = String_(root, "quotationNumber");
+        var name = String_(root, "contactName");
+        var phone = String_(root, "customerPhone");
+        var total = Taka(Decimal_(root, "grandTotal"));
+        var reason = String_(root, "reason").Trim();
+
+        var accepted = string.Equals(
+            String_(root, "answer"), "Accepted", StringComparison.OrdinalIgnoreCase);
+
+        // A plain hyphen rather than a dash, for the same reason as everywhere
+        // else here: one character outside plain ASCII drops the billed part
+        // from 160 characters to 70.
+        var sms = $"WoodHeart: quotation {number} {(accepted ? "ACCEPTED" : "declined")}"
+                  + $" - {total}. {name} {phone}";
+
+        if (!accepted && reason.Length > 0)
+        {
+            const string label = " Reason: ";
+
+            // Below about a dozen characters a clipped reason says nothing the
+            // reader could act on, so the whole thing is left for the email
+            // rather than spending a second part on half a sentence.
+            var room = GsmPartLength - sms.Length - label.Length;
+
+            if (room >= 12)
+            {
+                sms += label + Clip(reason, room);
+            }
+        }
+
+        var body = Email(
+            heading: accepted ? "A quotation was accepted" : "A quotation was declined",
+            greeting: accepted
+                ? $"Quotation <strong>{Escape(number)}</strong> has been accepted."
+                : $"Quotation <strong>{Escape(number)}</strong> has been declined.",
+            lines:
+            [
+                $"Total: <strong>{Escape(total)}</strong>",
+                $"{Escape(name)} - {Escape(phone)}",
+                reason.Length > 0 ? $"In their words: <em>{Escape(reason)}</em>" : string.Empty,
+                accepted
+                    ? "Turn it into an order from the quotation screen when you are ready."
+                    : string.Empty
+            ],
+            shopPhone: string.Empty,
+            bangla: false,
+            footer: $"Call the customer on {Escape(phone)}.");
+
+        return new RenderedNotification(
+            sms,
+            accepted ? $"Quotation {number} accepted - {total}" : $"Quotation {number} declined",
+            body,
+            String_(root, "recipientPhone"),
+            NullIfBlank(String_(root, "recipientEmail")));
+    }
+
+    /// <summary>One billed part of plain ASCII.</summary>
+    private const int GsmPartLength = 160;
+
+    /// <summary>
+    /// Cuts to a length without cutting a word in half where it can be helped.
+    /// </summary>
+    /// <remarks>
+    /// No ellipsis. Three dots cost three characters of the very part being
+    /// economised, and a sentence that stops is already visibly a sentence that
+    /// stopped.
+    /// </remarks>
+    private static string Clip(string value, int room)
+    {
+        if (value.Length <= room)
+        {
+            return value;
+        }
+
+        var cut = value[..room];
+        var space = cut.LastIndexOf(' ');
+
+        // Only back up to a word boundary when doing so keeps most of the room.
+        // A reason whose first word is longer than the space available is cut
+        // mid-word rather than thrown away entirely.
+        return (space >= room / 2 ? cut[..space] : cut).TrimEnd();
     }
 
     // -------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Ordering;
@@ -816,9 +816,25 @@ public class QuotationService(
 
             quotations.Update(quotation);
 
-            if (to is QuotationStatus.Sent or QuotationStatus.Expired)
+            if (to is QuotationStatus.Sent)
             {
-                await QueueAsync(quotation, $"quotation.{to.ToString().ToLowerInvariant()}", null, ct);
+                await QueueAsync(quotation, NotificationTemplates.QuotationSent, null, ct);
+            }
+
+            // Expired used to be queued here beside Sent, which staged a
+            // "quotation.expired" nothing can render — the worker would have
+            // taken it, found no template and suppressed it. Nothing moves a
+            // quotation to Expired in any case: it is worked out from
+            // ValidUntil when somebody tries to answer one. If a job is ever
+            // written to close them off, it wants a template of its own and an
+            // entry in the catalogue, not a type assembled out of the enum name.
+
+            // The shop's half of the conversation. The customer answers on
+            // their own time, and until now the answer went no further than a
+            // column.
+            if (to is QuotationStatus.Accepted or QuotationStatus.Declined)
+            {
+                await QueueShopAlertAsync(quotation, to, ct);
             }
 
             await unitOfWork.SaveChangesAsync(ct);
@@ -859,6 +875,60 @@ public class QuotationService(
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Tells the shop a quotation was answered.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Silent when the shop has given neither a telephone number nor an email,
+    /// the same as the other two alerts addressed to it — there is nowhere to
+    /// send it, and staging a row that can only fail fills the message log with
+    /// something nobody can act on.
+    /// </para>
+    /// <para>
+    /// Keyed on the moment rather than on the answer. A quotation that is
+    /// re-sent after being declined can be answered a second time, and the
+    /// second answer is news in its own right rather than a duplicate of the
+    /// first.
+    /// </para>
+    /// </remarks>
+    private async Task QueueShopAlertAsync(
+        Quotation quotation, QuotationStatus answer, CancellationToken ct)
+    {
+        var phone = (await settings.GetStringAsync(SettingKeys.StorePhone, ct))?.Trim();
+        var email = (await settings.GetStringAsync(SettingKeys.StoreEmail, ct))?.Trim();
+
+        if (string.IsNullOrEmpty(phone) && string.IsNullOrEmpty(email))
+        {
+            return;
+        }
+
+        await notifications.EnqueueAsync(
+            new NotificationRequest
+            {
+                Type = NotificationTemplates.QuotationAnswered,
+                IdempotencyKey =
+                    $"quotation.answered:{quotation.QuotationNumber}:{clock.UtcNow:O}",
+                Payload = JsonSerializer.Serialize(new
+                {
+                    quotationNumber = quotation.QuotationNumber,
+                    answer = answer.ToString(),
+                    contactName = quotation.ContactName,
+
+                    // The customer's number, named apart from the recipient:
+                    // the one in the body is who to ring, the one it is sent to
+                    // is the shop.
+                    customerPhone = quotation.ContactPhone,
+                    grandTotal = quotation.GrandTotal.Amount,
+                    currency = quotation.Currency,
+                    reason = quotation.DeclineReason,
+                    recipientPhone = phone,
+                    recipientEmail = email
+                })
+            },
+            ct);
     }
 
     private async Task QueueAsync(
