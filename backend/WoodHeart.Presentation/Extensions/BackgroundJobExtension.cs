@@ -1,4 +1,4 @@
-using Hangfire;
+﻿using Hangfire;
 using Hangfire.PostgreSql;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Settings;
@@ -68,6 +68,13 @@ public static class BackgroundJobExtension
     /// indexed range that nearly always returns nothing.
     /// </remarks>
     private const string BookingReminderSchedule = "*/15 * * * *";
+
+    /// <summary>
+    /// Hourly. The reminder's own delay is a setting measured in hours, so
+    /// checking more often than that would only make the message arrive at a
+    /// less round time.
+    /// </summary>
+    private const string AbandonedCartSchedule = "0 * * * *";
 
     private static BackgroundJobSettings Read(IConfiguration configuration) =>
         configuration.GetSection(BackgroundJobSettings.SectionName).Get<BackgroundJobSettings>()
@@ -175,6 +182,12 @@ public static class BackgroundJobExtension
             recurringJobId: "low-stock-digest",
             methodCall: job => job.RunAsync(CancellationToken.None),
             cronExpression: LowStockDigestSchedule,
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
+        RecurringJob.AddOrUpdate<IAbandonedCarts>(
+            recurringJobId: "abandoned-carts",
+            methodCall: job => job.RunAsync(CancellationToken.None),
+            cronExpression: AbandonedCartSchedule,
             new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
 
         return app;

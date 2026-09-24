@@ -62,6 +62,14 @@ public static class NotificationTemplates
     /// </remarks>
     public const string PaymentStatusChanged = "payment.status_changed";
 
+    /// <summary>A basket somebody filled and walked away from.</summary>
+    /// <remarks>
+    /// Furniture is a considered purchase and a basket left overnight is
+    /// ordinary rather than a lost sale — but a basket nobody ever mentions
+    /// again usually is one. Sent once per basket, never twice.
+    /// </remarks>
+    public const string CartAbandoned = "cart.abandoned";
+
     /// <summary>To the shop, not a customer: the lines at or below their reorder level.</summary>
     public const string StockLow = "stock.low";
 
@@ -124,7 +132,8 @@ public static class NotificationTemplates
         BookingReminder,
         QuotationSent,
         QuotationConverted,
-        QuotationAnswered
+        QuotationAnswered,
+        CartAbandoned
     ];
 
     public static RenderedNotification? Render(string type, string payload, string shopPhone)
@@ -146,6 +155,7 @@ public static class NotificationTemplates
             QuotationSent => RenderQuotationSent(root, shopPhone.Trim()),
             QuotationConverted => RenderQuotationConverted(root, shopPhone.Trim()),
             QuotationAnswered => RenderQuotationAnswered(root),
+            CartAbandoned => RenderCartAbandoned(root, shopPhone.Trim()),
             _ => (RenderedNotification?)null
         };
 
@@ -599,8 +609,102 @@ public static class NotificationTemplates
             NullIfBlank(String_(root, "recipientEmail")));
     }
 
+    // -------------------------------------------------------------------------
+    // cart.abandoned
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// "It is still here."
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>No figure.</b> The prices on a basket are a snapshot taken when each
+    /// line went in, and the basket re-prices itself when the customer opens
+    /// it. Quoting the snapshot in a message sent hours later risks naming a
+    /// number the shop will not honour, and being corrected on the doorstep is
+    /// worse than never having said it. The email lists what is in the basket
+    /// and says plainly that prices are settled at checkout.
+    /// </para>
+    /// <para>
+    /// <b>It names the thing, not the count.</b> "2 items" is a receipt;
+    /// "the Segun king bed" is the object somebody stood in a showroom
+    /// thinking about. The name is clipped if it has to be — a product name
+    /// has no length anybody controls — and the count carries the rest.
+    /// </para>
+    /// <para>
+    /// <b>It asks for a telephone call rather than a click.</b> Half of what
+    /// this shop sells is finished on the telephone, and a customer who has
+    /// been sitting on a decision for a day is likelier to ring than to find
+    /// the basket again.
+    /// </para>
+    /// </remarks>
+    private static RenderedNotification RenderCartAbandoned(JsonElement root, string shopPhone)
+    {
+        var name = String_(root, "contactName");
+        var item = String_(root, "firstItem");
+        var others = Int_(root, "otherItems");
+        var bangla = IsBangla(root);
+
+        // What the rest of the message costs, so the product name gets whatever
+        // is left rather than pushing the whole thing into a second part.
+        var tail = bangla
+            ? $"। অর্ডার করতে কল করুন {shopPhone}"
+            : $" is still in your basket. Call {shopPhone} and we will finish the order for you.";
+
+        var more = others > 0
+            ? bangla ? $" ও আরও {others}টি" : $" and {others} more"
+            : string.Empty;
+
+        var room = (bangla ? UcsPartLength : GsmPartLength)
+            - "WoodHeart: ".Length - tail.Length - more.Length;
+
+        var sms = $"WoodHeart: {Clip(item, Math.Max(room, 8))}{more}{tail}";
+
+        var lines = root.TryGetProperty("items", out var array) && array.ValueKind == JsonValueKind.Array
+            ? array.EnumerateArray().Select(l => (
+                Name: String_(l, "name"),
+                Quantity: Int_(l, "quantity"))).ToArray()
+            : [];
+
+        var body = Email(
+            heading: bangla ? "আপনার বাস্কেট এখনও আছে" : "Your basket is still here",
+            greeting: bangla ? $"প্রিয় {Escape(name)}," : $"Dear {Escape(name)},",
+            lines:
+            [
+                bangla
+                    ? "আপনি যা রেখে গিয়েছিলেন তা এখনও আপনার বাস্কেটে রয়েছে:"
+                    : "What you left is still in your basket:",
+                string.Concat(lines.Select(l =>
+                    $"&bull; {Escape(l.Name)} &times; {l.Quantity}<br>")),
+                bangla
+                    ? "চেকআউটের সময় চূড়ান্ত দাম ও ডেলিভারি চার্জ দেখানো হবে।"
+                    : "Prices and delivery are settled at checkout.",
+                bangla
+                    ? $"অর্ডার শেষ করতে কল করুন <strong>{Escape(shopPhone)}</strong>।"
+                    : $"Call <strong>{Escape(shopPhone)}</strong> and we will finish the order for you."
+            ],
+            shopPhone: shopPhone,
+            bangla: bangla);
+
+        return new RenderedNotification(
+            sms,
+            bangla ? "আপনার বাস্কেট এখনও আছে" : "Your basket is still here",
+            body,
+            String_(root, "contactPhone"),
+            NullIfBlank(String_(root, "contactEmail")));
+    }
+
     /// <summary>One billed part of plain ASCII.</summary>
     private const int GsmPartLength = 160;
+
+    /// <summary>
+    /// One billed part once a single non-ASCII character appears.
+    /// </summary>
+    /// <remarks>
+    /// A Bangla message is UCS-2 from its first character, and the part drops
+    /// from 160 to 70. It is the single most expensive fact in this file.
+    /// </remarks>
+    private const int UcsPartLength = 70;
 
     /// <summary>
     /// Cuts to a length without cutting a word in half where it can be helped.

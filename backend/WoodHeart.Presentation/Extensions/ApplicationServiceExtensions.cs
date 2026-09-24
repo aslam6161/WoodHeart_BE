@@ -273,6 +273,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<INotificationAdminService, NotificationAdminService>();
         services.AddScoped<IUnpaidOrderExpiry, UnpaidOrderExpiry>();
         services.AddScoped<ILowStockDigest, LowStockDigest>();
+        services.AddScoped<IAbandonedCarts, AbandonedCarts>();
         services.AddScoped<IBookingReminders, BookingReminderJob>();
         services.AddScoped<IQuotationRepository, QuotationRepository>();
         services.AddScoped<IQuotationService, QuotationService>();

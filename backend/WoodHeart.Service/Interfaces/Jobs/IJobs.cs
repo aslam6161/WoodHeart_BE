@@ -1,4 +1,4 @@
-using Hangfire;
+﻿using Hangfire;
 
 namespace WoodHeart.Service.Interfaces.Jobs;
 
@@ -35,6 +35,29 @@ public interface IUnpaidOrderExpiry
 /// morning, after a restart, sends nothing. Nothing is sent when nothing is
 /// low, so the message means something when it arrives.
 /// </remarks>
+/// <summary>
+/// Reminds a customer their basket is still here, and closes off the ones
+/// nobody came back to.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Only signed-in customers are reminded. A guest leaves an anonymous token
+/// and nothing else, so there is nowhere to send anything — which is a limit
+/// of the data rather than a decision, and worth knowing before anybody
+/// judges the feature by its numbers.
+/// </para>
+/// <para>
+/// Once per basket, ever. A second reminder is nagging and a second message
+/// the shop pays for.
+/// </para>
+/// </remarks>
+public interface IAbandonedCarts
+{
+    [DisableConcurrentExecution(timeoutInSeconds: 300)]
+    [AutomaticRetry(Attempts = 0)]
+    Task<int> RunAsync(CancellationToken cancellationToken = default);
+}
+
 public interface ILowStockDigest
 {
     [DisableConcurrentExecution(timeoutInSeconds: 300)]
