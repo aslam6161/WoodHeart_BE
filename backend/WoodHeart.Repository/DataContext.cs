@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +13,7 @@ using WoodHeart.Domain.Entity.Common;
 using WoodHeart.Domain.Entity.Consultations;
 using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Entity.Inventory;
+using WoodHeart.Domain.Entity.Notifications;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Entity.Payments;
 using WoodHeart.Domain.Entity.Promotions;
@@ -55,6 +56,8 @@ public class DataContext(
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
 
     public DbSet<NumberSequence> NumberSequences => Set<NumberSequence>();
+
+    public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
 
     public DbSet<PaymentMethodConfig> PaymentMethodConfigs => Set<PaymentMethodConfig>();
 
