@@ -73,7 +73,8 @@ public class NotificationAdminService(
                         ToDto(entry, byCode.GetValueOrDefault(entry.Code), shopPhone))
                 ],
                 SmsGatewayConfigured = _sms.IsConfigured,
-                EmailConfigured = _email.IsConfigured
+                EmailConfigured = _email.IsConfigured,
+                ShopPhoneConfigured = !string.IsNullOrWhiteSpace(shopPhone)
             });
     }
 
@@ -273,7 +274,8 @@ public class NotificationAdminService(
             BanglaSmsParts = summary.BanglaSmsParts,
             Previews = [.. new[] { english, bangla }.Where(p => p is not null).Select(p => p!)],
             SmsGatewayConfigured = _sms.IsConfigured,
-            EmailConfigured = _email.IsConfigured
+            EmailConfigured = _email.IsConfigured,
+            ShopPhoneConfigured = !string.IsNullOrWhiteSpace(shopPhone)
         };
     }
 
