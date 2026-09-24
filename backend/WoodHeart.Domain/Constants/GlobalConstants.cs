@@ -1,4 +1,4 @@
-namespace WoodHeart.Domain.Constants;
+﻿namespace WoodHeart.Domain.Constants;
 
 /// <summary>Values that appear in more than one layer and must not drift.</summary>
 public static class GlobalConstants
@@ -105,6 +105,17 @@ public static class SettingKeys
     /// customer was sent to pay and did not come back.
     /// </remarks>
     public const string UnpaidOrderExpiryMinutes = "orders.unpaid_expiry_minutes";
+
+    /// <summary>
+    /// Hours a basket may sit untouched before its owner is reminded it is
+    /// still there. Zero switches the reminder off.
+    /// </summary>
+    /// <remarks>
+    /// Not the same clock as the basket's own lifetime, which is thirty days.
+    /// A basket is worth a reminder within the evening and worth keeping for a
+    /// month, and one number cannot be both.
+    /// </remarks>
+    public const string CartRecoveryAfterHours = "carts.recovery_after_hours";
 
     public const string LowStockThreshold = "inventory.low_stock_threshold";
 

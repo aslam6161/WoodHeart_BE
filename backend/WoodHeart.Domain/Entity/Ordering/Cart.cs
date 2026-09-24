@@ -1,4 +1,4 @@
-using WoodHeart.Domain.Entity.Catalog;
+﻿using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Domain.ValueObjects;
@@ -71,6 +71,24 @@ public class Cart : BaseEntity
     /// the single best recovery email a shop can send.
     /// </remarks>
     public DateTimeOffset ExpiresAt { get; set; }
+
+    /// <summary>
+    /// When the customer was reminded this basket is still here, if they were.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Once, ever.</b> A second reminder about one basket is nagging, and it
+    /// is a second message the shop pays for. The column is what makes "once"
+    /// true across runs — the sweep looks at it rather than at the outbox,
+    /// because a message the shop later turned off still counts as having been
+    /// sent as far as the customer's patience is concerned.
+    /// </para>
+    /// <para>
+    /// Null on a basket nobody could be written to: a guest leaves only a
+    /// token, and there is nowhere to send anything.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset? RecoveryNudgedAt { get; set; }
 
     /// <summary>
     /// A delivery charge set by staff, replacing the calculated one.

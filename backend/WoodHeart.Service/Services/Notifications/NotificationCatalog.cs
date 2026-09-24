@@ -121,6 +121,13 @@ public static class NotificationCatalog
             NotificationAudience.Shop,
             SupportsBangla: false),
 
+        new(NotificationTemplates.CartAbandoned,
+            "Basket left behind",
+            "Once, to a signed-in customer whose basket has gone quiet. A guest "
+            + "leaves no way to reach them, so they are never written to.",
+            NotificationAudience.Customer,
+            SupportsBangla: true),
+
         new(NotificationTemplates.StockLow,
             "Low stock digest",
             "Each morning, to the shop, when anything is at or below its reorder "
@@ -308,6 +315,25 @@ public static class NotificationCatalog
                 reason = "Found the same thing cheaper at another shop in Gulshan.",
                 recipientPhone = SamplePhone,
                 recipientEmail = SampleEmail
+            }),
+
+            NotificationTemplates.CartAbandoned => Json(new
+            {
+                contactName = name,
+                contactPhone = SamplePhone,
+                contactEmail = SampleEmail,
+                language,
+
+                // A long-ish name on purpose: it is the field that has to give
+                // way, so the preview should show it doing so.
+                firstItem = "Segun king bed with storage",
+                otherItems = 2,
+                items = new[]
+                {
+                    new { name = "Segun king bed with storage", quantity = 1 },
+                    new { name = "Bedside table, pair", quantity = 1 },
+                    new { name = "Segun wardrobe, 3 door", quantity = 1 }
+                }
             }),
 
             NotificationTemplates.StockLow => Json(new

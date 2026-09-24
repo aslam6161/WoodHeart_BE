@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Repository.Interfaces.Ordering;
@@ -25,6 +25,30 @@ public class CartRepository(DataContext context)
     public async Task<Cart?> GetWithLinesAsync(
         long cartId, CancellationToken cancellationToken = default) =>
         await WithLines().FirstOrDefaultAsync(x => x.Id == cartId, cancellationToken);
+
+    public async Task<IReadOnlyList<Cart>> GetQuietForRecoveryAsync(
+        DateTimeOffset idleSince, int take, CancellationToken cancellationToken = default) =>
+        await WithLines()
+            .Include(x => x.Customer)
+            .Where(x => x.Status == CartStatus.Active
+                && x.CustomerId != null
+                && x.RecoveryNudgedAt == null
+                && (x.UpdatedAt ?? x.CreatedAt) < idleSince
+                && x.Lines.Count > 0)
+
+            // Oldest first: a basket that has been quiet longest is the one
+            // closest to being forgotten for good.
+            .OrderBy(x => x.UpdatedAt ?? x.CreatedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Cart>> GetExpiredBeforeAsync(
+        DateTimeOffset before, int take, CancellationToken cancellationToken = default) =>
+        await Set
+            .Where(x => x.Status == CartStatus.Active && x.ExpiresAt < before)
+            .OrderBy(x => x.ExpiresAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
 
     /// <summary>
     /// A cart with everything pricing needs, in one round trip.

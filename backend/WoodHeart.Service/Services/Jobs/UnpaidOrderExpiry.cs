@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Helpers;
@@ -10,6 +10,7 @@ using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Jobs;
 using WoodHeart.Service.Interfaces.Notifications;
+using WoodHeart.Service.Services.Notifications;
 
 namespace WoodHeart.Service.Services.Jobs;
 
@@ -106,7 +107,7 @@ public class UnpaidOrderExpiry(
         await notifications.EnqueueAsync(
             new NotificationRequest
             {
-                Type = "order.status_changed",
+                Type = NotificationTemplates.OrderStatusChanged,
                 IdempotencyKey = $"order.status:{order.OrderNumber}:{OrderStatus.Cancelled}",
                 Payload = JsonSerializer.Serialize(new
                 {
@@ -149,6 +150,24 @@ internal static partial class JobLog
         Level = LogLevel.Information,
         Message = "Low-stock digest for {Date}: {Count} line(s) queued to {Recipient}.")]
     public static partial void DigestQueued(ILogger logger, string date, int count, string recipient);
+
+    [LoggerMessage(
+        EventId = 2004,
+        Level = LogLevel.Information,
+        Message = "Reminded {Count} customer(s) about a basket left untouched for more than {Hours} hour(s).")]
+    public static partial void CartsReminded(ILogger logger, int count, int hours);
+
+    [LoggerMessage(
+        EventId = 2005,
+        Level = LogLevel.Error,
+        Message = "Could not remind anyone about basket {CartId}; it will be tried again next run.")]
+    public static partial void CartReminderFailed(ILogger logger, Exception exception, long cartId);
+
+    [LoggerMessage(
+        EventId = 2006,
+        Level = LogLevel.Information,
+        Message = "Closed off {Count} basket(s) past their thirty days. The rows are kept.")]
+    public static partial void CartsSweptUp(ILogger logger, int count);
 
     [LoggerMessage(
         EventId = 2003,
