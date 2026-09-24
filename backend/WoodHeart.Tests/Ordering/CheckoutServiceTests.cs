@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Catalog;
@@ -214,6 +214,45 @@ public class CheckoutServiceTests
         await _notifications.Received(1).EnqueueAsync(
             Arg.Is<NotificationRequest>(r =>
                 r.Type == "order.placed" && r.IdempotencyKey == $"order.placed:{OrderNumber}"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task So_is_the_one_that_tells_the_shop()
+    {
+        // Whoever runs this shop is on a telephone rather than in front of the
+        // panel. An order placed at nine in the evening and noticed the
+        // following afternoon is a customer who waited a day for no reason.
+        _settings.GetStringAsync(SettingKeys.StorePhone, Arg.Any<CancellationToken>())
+            .Returns("01799990000");
+
+        GivenABasket();
+
+        await CreateService().PlaceOrderAsync(Request(), idempotencyKey: null);
+
+        await _notifications.Received(1).EnqueueAsync(
+            Arg.Is<NotificationRequest>(r =>
+                r.Type == "order.received" && r.IdempotencyKey == $"order.received:{OrderNumber}"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_shop_that_has_given_no_way_to_reach_it_is_not_sent_one()
+    {
+        // The dispatcher would suppress it for want of a recipient, and a
+        // suppressed row per order is a queue nobody can read rather than a
+        // message anybody wanted.
+        GivenABasket();
+
+        await CreateService().PlaceOrderAsync(Request(), idempotencyKey: null);
+
+        await _notifications.DidNotReceive().EnqueueAsync(
+            Arg.Is<NotificationRequest>(r => r.Type == "order.received"),
+            Arg.Any<CancellationToken>());
+
+        // And the customer is told either way.
+        await _notifications.Received(1).EnqueueAsync(
+            Arg.Is<NotificationRequest>(r => r.Type == "order.placed"),
             Arg.Any<CancellationToken>());
     }
 

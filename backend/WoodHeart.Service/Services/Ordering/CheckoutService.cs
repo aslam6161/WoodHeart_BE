@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Ordering;
@@ -17,6 +17,7 @@ using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Ordering;
+using WoodHeart.Service.Services.Notifications;
 using WoodHeart.Service.Interfaces.Payments;
 using WoodHeart.Service.Interfaces.Promotions;
 using WoodHeart.Service.Services.Common;
@@ -272,6 +273,7 @@ public class CheckoutService(
             carts.Update(cart);
 
             await QueueConfirmationAsync(order, ct);
+            await QueueShopAlertAsync(order, ct);
 
             await unitOfWork.SaveChangesAsync(ct);
 
@@ -507,6 +509,61 @@ public class CheckoutService(
                 })
             },
             ct);
+
+    /// <summary>
+    /// Tells the shop an order has arrived.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A separate message, staged in the same unit of work.</b> Whoever runs
+    /// this shop is on a telephone rather than in front of the panel, and an
+    /// order placed at nine in the evening and noticed the following afternoon
+    /// is a customer who waited a day for no reason.
+    /// </para>
+    /// <para>
+    /// <b>It is skipped when there is nobody to send it to.</b> A shop that has
+    /// not set <c>store.phone</c> or <c>store.email</c> would otherwise get a
+    /// suppressed row per order, which is a queue nobody can read rather than a
+    /// message anybody wanted. The dispatcher would suppress it anyway; not
+    /// writing it is the cheaper way to say the same thing.
+    /// </para>
+    /// </remarks>
+    private async Task QueueShopAlertAsync(Order order, CancellationToken ct)
+    {
+        var phone = (await settings.GetStringAsync(SettingKeys.StorePhone, ct))?.Trim();
+        var email = (await settings.GetStringAsync(SettingKeys.StoreEmail, ct))?.Trim();
+
+        if (string.IsNullOrEmpty(phone) && string.IsNullOrEmpty(email))
+        {
+            return;
+        }
+
+        await notifications.EnqueueAsync(
+            new NotificationRequest
+            {
+                Type = NotificationTemplates.OrderReceived,
+                IdempotencyKey = $"order.received:{order.OrderNumber}",
+                Payload = JsonSerializer.Serialize(new
+                {
+                    orderNumber = order.OrderNumber,
+                    contactName = order.ContactName,
+
+                    // Named apart from the recipient deliberately: the number in
+                    // the body is the customer's, and the one this is sent to is
+                    // the shop's. Conflating them puts a customer's number in the
+                    // "sent to" column of the admin screen.
+                    customerPhone = order.ContactPhone,
+                    grandTotal = order.GrandTotal.Amount,
+                    currency = order.Currency,
+                    paymentMethod = order.PaymentMethodCode,
+                    itemCount = order.Lines.Sum(l => l.Quantity),
+                    address = order.ShippingAddress.ToSingleLine(),
+                    recipientPhone = phone,
+                    recipientEmail = email
+                })
+            },
+            ct);
+    }
 
     // -------------------------------------------------------------------------
     // Shared helpers
