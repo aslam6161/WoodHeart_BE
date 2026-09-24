@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Repository.Interfaces.Ordering;
@@ -158,6 +158,11 @@ public class OrderRepository(DataContext context)
     private IQueryable<Order> WithDetail() =>
         Set.Include(x => x.Lines.OrderBy(line => line.Id))
             .Include(x => x.Timeline.OrderBy(entry => entry.OccurredAt).ThenBy(entry => entry.Id))
+            // The ledger, in the order the money moved. Loaded here rather
+            // than fetched separately because AmountPaid is computed from it,
+            // and an order whose balance depends on a collection nobody loaded
+            // reads as fully paid.
+            .Include(x => x.Payments.OrderBy(payment => payment.OccurredAt).ThenBy(payment => payment.Id))
             // What came off, and why. The invoice prints these, and an order
             // whose total does not follow from its lines without them looks
             // like an arithmetic error.

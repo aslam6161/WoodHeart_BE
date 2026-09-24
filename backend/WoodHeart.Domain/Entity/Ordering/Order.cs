@@ -1,4 +1,4 @@
-using WoodHeart.Domain.Constants;
+﻿using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Entity.Identity;
 using WoodHeart.Domain.Enums.Ordering;
@@ -219,6 +219,40 @@ public class Order : BaseEntity
     public ICollection<OrderTimelineEntry> Timeline { get; set; } = [];
 
     /// <summary>
+    /// Every sum that changed hands over this order, in or out.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Append-only, like the timeline, and for the same reason.</b>
+    /// <see cref="PaymentStatus"/> says where the money stands now; this says
+    /// what happened to get there. The two answer different questions, and
+    /// only one of them survives somebody pressing a button twice.
+    /// </para>
+    /// <para>
+    /// <b>Most of what this shop takes is cash handed to a rider.</b> There is
+    /// no gateway statement to reconcile against and no card slip, so if the
+    /// application does not write down how much arrived and who took it, the
+    /// answer to "I paid you on the twelfth" is somebody's memory.
+    /// </para>
+    /// </remarks>
+    public ICollection<OrderPayment> Payments { get; set; } = [];
+
+    /// <summary>What the shop has taken, less anything given back.</summary>
+    /// <remarks>
+    /// Computed from the ledger rather than stored, so it cannot drift from
+    /// the rows it is a summary of. The collection is loaded with the order
+    /// wherever this is read.
+    /// </remarks>
+    public Money AmountPaid =>
+        Money.From(
+            Payments.Sum(p => p.Direction == PaymentDirection.Received ? p.Amount.Amount : -p.Amount.Amount),
+            Currency);
+
+    /// <summary>What is still owed. Never negative — an overpayment is not a debt.</summary>
+    public Money AmountOutstanding =>
+        Money.From(Math.Max(0m, GrandTotal.Amount - AmountPaid.Amount), Currency);
+
+    /// <summary>
     /// The discounts that applied, frozen — name, code and amount.
     /// </summary>
     /// <remarks>
@@ -370,6 +404,50 @@ public class OrderLine : BaseEntity
 /// their name from the record of what they did.
 /// </para>
 /// </remarks>
+/// <summary>
+/// One sum that changed hands.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>An amount, not a status.</b> An advance is the case that makes this
+/// necessary: <c>Order.RequiredAdvanceAmount</c> says what was asked for and
+/// <c>PaymentStatus.AdvancePaid</c> says something arrived, and between them
+/// they never said how much. The receipt the customer gets had to be written
+/// around that, and said so.
+/// </para>
+/// <para>
+/// <b>The reference is the shop's protection.</b> A bKash transaction id, a
+/// bank slip number, or the name of the rider who brought the cash back. When
+/// a customer says the money was taken and the shop says it was not, this is
+/// the field that settles it.
+/// </para>
+/// </remarks>
+public class OrderPayment : BaseEntity
+{
+    public long OrderId { get; set; }
+
+    public Order Order { get; set; } = null!;
+
+    public PaymentDirection Direction { get; set; }
+
+    /// <summary>Always positive. Which way it went is <see cref="Direction"/>.</summary>
+    public Money Amount { get; set; } = null!;
+
+    /// <summary>How it was taken — "cod", "bkash". The order's method at the time.</summary>
+    public string MethodCode { get; set; } = null!;
+
+    /// <summary>A transaction id, a slip number, or the rider's name.</summary>
+    public string? Reference { get; set; }
+
+    /// <summary>"Rakib (admin)", "System" — readable a year later.</summary>
+    public string ActorName { get; set; } = null!;
+
+    public string? Note { get; set; }
+
+    /// <summary>When the money moved, which is not always when it was typed in.</summary>
+    public DateTimeOffset OccurredAt { get; set; }
+}
+
 public class OrderTimelineEntry : BaseEntity
 {
     public long OrderId { get; set; }

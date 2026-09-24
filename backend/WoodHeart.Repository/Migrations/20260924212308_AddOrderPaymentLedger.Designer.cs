@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WoodHeart.Repository;
@@ -11,9 +12,11 @@ using WoodHeart.Repository;
 namespace WoodHeart.Repository.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20260924212308_AddOrderPaymentLedger")]
+    partial class AddOrderPaymentLedger
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3973,7 +3976,7 @@ namespace WoodHeart.Repository.Migrations
 
                             b1.HasKey("BookingId");
 
-                            b1.ToTable("bookings", (string)null);
+                            b1.ToTable("bookings");
 
                             b1.WithOwner()
                                 .HasForeignKey("BookingId")
@@ -4189,7 +4192,7 @@ namespace WoodHeart.Repository.Migrations
 
                             b1.HasKey("OrderId");
 
-                            b1.ToTable("orders", (string)null);
+                            b1.ToTable("orders");
 
                             b1.WithOwner()
                                 .HasForeignKey("OrderId")
@@ -4389,7 +4392,7 @@ namespace WoodHeart.Repository.Migrations
 
                             b1.HasKey("QuotationId");
 
-                            b1.ToTable("quotations", (string)null);
+                            b1.ToTable("quotations");
 
                             b1.WithOwner()
                                 .HasForeignKey("QuotationId")
