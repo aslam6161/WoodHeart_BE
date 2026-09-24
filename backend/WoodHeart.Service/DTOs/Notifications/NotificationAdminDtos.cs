@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using WoodHeart.Domain.Enums.Common;
 using WoodHeart.Domain.Enums.Notifications;
 
@@ -8,8 +8,8 @@ namespace WoodHeart.Service.DTOs.Notifications;
 /// Everything the notifications screen needs to open.
 /// </summary>
 /// <remarks>
-/// The two gateway flags are a property of the installation rather than of any
-/// one template, which is why they are here and not repeated on each row. They
+/// The three flags are properties of the installation rather than of any one
+/// template, which is why they are here and not repeated on each row. They
 /// matter because a shop with no SMS key configured has a queue that reports
 /// every message delivered while nothing has left the building — the sender
 /// writes to the log instead, which is right on a developer's machine and
@@ -22,6 +22,19 @@ public class NotificationTemplatesDto
     public bool SmsGatewayConfigured { get; init; }
 
     public bool EmailConfigured { get; init; }
+
+    /// <summary>
+    /// Whether <c>store.phone</c> has been set.
+    /// </summary>
+    /// <remarks>
+    /// <b>Every message ends with it.</b> Unset, the confirmation SMS stops
+    /// mid-sentence and the email says "Any questions, please call ." — to
+    /// every customer, on every order, with nothing anywhere complaining. It
+    /// is reported here rather than only on the settings screen because this
+    /// is the screen where the consequence is visible: the previews below show
+    /// the gap.
+    /// </remarks>
+    public bool ShopPhoneConfigured { get; init; }
 }
 
 /// <summary>One kind of message, and whether the shop is sending it.</summary>
@@ -64,6 +77,9 @@ public class NotificationTemplateDetailDto : NotificationTemplateDto
     public bool SmsGatewayConfigured { get; init; }
 
     public bool EmailConfigured { get; init; }
+
+    /// <inheritdoc cref="NotificationTemplatesDto.ShopPhoneConfigured" />
+    public bool ShopPhoneConfigured { get; init; }
 }
 
 /// <summary>What one template says, rendered from a sample.</summary>

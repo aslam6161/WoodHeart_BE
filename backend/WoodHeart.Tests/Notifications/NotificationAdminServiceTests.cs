@@ -160,6 +160,47 @@ public class NotificationAdminServiceTests
         response.Data.EmailConfigured.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task A_shop_with_no_telephone_number_set_is_told_here()
+    {
+        // Every message ends with it. Unset, the confirmation stops
+        // mid-sentence and the email says "Any questions, please call ." — to
+        // every customer, on every order, and nothing anywhere complains. This
+        // is the screen where that is visible, because the preview shows the
+        // gap.
+        _settings.GetStringAsync(SettingKeys.StorePhone, Arg.Any<CancellationToken>())
+            .Returns((string?)null);
+
+        var response = await Create().GetTemplatesAsync();
+
+        response.Data!.ShopPhoneConfigured.ShouldBeFalse();
+
+        var detail = await Create().GetTemplateAsync(NotificationTemplates.OrderPlaced);
+
+        detail.Data!.ShopPhoneConfigured.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task A_number_of_nothing_but_spaces_is_not_a_number()
+    {
+        // The renderer trims it, so a setting of "   " produces exactly the
+        // same dangling sentence as an empty one.
+        _settings.GetStringAsync(SettingKeys.StorePhone, Arg.Any<CancellationToken>())
+            .Returns("   ");
+
+        var response = await Create().GetTemplatesAsync();
+
+        response.Data!.ShopPhoneConfigured.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task And_one_that_is_set_is_reported_as_set()
+    {
+        var response = await Create().GetTemplatesAsync();
+
+        response.Data!.ShopPhoneConfigured.ShouldBeTrue();
+    }
+
     // -------------------------------------------------------------------------
     // The preview, which is the point of the screen
     // -------------------------------------------------------------------------
