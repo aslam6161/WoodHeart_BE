@@ -152,9 +152,9 @@ public static class Seed
         {
             // Off until the bKash merchant account is approved. Cash on delivery
             // is the only payment method until an admin flips this.
-            (FeatureFlags.BkashEnabled, false, "Offer bKash at checkout."),
-            (FeatureFlags.ConsultationsEnabled, true, "Show consultation booking on the storefront."),
-            (FeatureFlags.ReviewsEnabled, false, "Allow customers to review products.")
+            (FeatureFlags.ConsultationsEnabled, true,
+                "Take consultation bookings. Off hides the booking pages and refuses new "
+                + "bookings; existing ones are unaffected and staff can still manage them.")
         };
 
         var existing = await context.FeatureFlags

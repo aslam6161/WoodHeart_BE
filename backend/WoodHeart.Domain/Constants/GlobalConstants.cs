@@ -149,11 +149,43 @@ public static class SettingKeys
 }
 
 /// <summary>Feature flag names.</summary>
+/// <summary>
+/// Switches the shop can throw that change what the storefront offers.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>A flag belongs here only when something reads it.</b> This class began
+/// with three and two of them were read by nothing at all — a switch that does
+/// not switch anything is worse than no switch, because the next person to
+/// need one wires it up beside the real gate and the shop ends up with two
+/// answers to the same question.
+/// </para>
+/// <para>
+/// <c>bkash.enabled</c> was one of them. Whether bKash is offered is
+/// <see cref="WoodHeart.Domain.Entity.Payments.PaymentMethodConfig.IsEnabled"/>
+/// — a per-method switch on a screen the shop already uses, and one the
+/// resolver backs up by refusing any code with no provider registered in DI.
+/// A second switch for the same decision could only ever disagree with it.
+/// </para>
+/// <para>
+/// <c>reviews.enabled</c> was the other. Reviews are Phase 6 and do not exist,
+/// and a flag seeded years before its feature is a flag somebody forgets to
+/// wire. It comes back with them.
+/// </para>
+/// </remarks>
 public static class FeatureFlags
 {
-    /// <summary>The switch that takes bKash live. Off until the merchant account is approved.</summary>
-    public const string BkashEnabled = "bkash.enabled";
-
+    /// <summary>
+    /// Whether the shop is taking consultation bookings at all.
+    /// </summary>
+    /// <remarks>
+    /// The shop has one consultant. Travel, illness, or a diary already full
+    /// for a month are all reasons to stop taking bookings without deleting the
+    /// services and the rules behind them — and without a shop owner having to
+    /// explain to somebody who booked an afternoon that nobody is coming.
+    /// Existing bookings are untouched; staff can still manage every one of
+    /// them, because turning off new work must not lock the shop out of the
+    /// work it already has.
+    /// </remarks>
     public const string ConsultationsEnabled = "consultations.enabled";
-    public const string ReviewsEnabled = "reviews.enabled";
 }

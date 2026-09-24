@@ -460,9 +460,40 @@ Event → notification map for v1:
 | **Caching**              | `HybridCache` for the category tree, active discounts, payment config and CMS content. Keys are tagged by module and evicted on the relevant domain event.                                                                                                    |
 | **Rate limiting**        | ASP.NET Core built-in limiter: strict on auth, OTP, coupon validation and checkout; relaxed on catalog browsing.                                                                                                                                              |
 | **Correlation**          | A `X-Correlation-Id` flows Angular → API → logs → outbound gateway calls. Non-negotiable for debugging a payment that "just failed".                                                                                                                          |
-| **Feature flags**        | Simple DB-backed flags (`bkash.enabled`, `reviews.enabled`, `consultation.deposit.required`) read through `IFeatureManager`.                                                                                                                                  |
+| **Feature flags**        | DB-backed flags read through `IFeatureFlagService`, cached five minutes. **A flag exists only when something reads it** — see the note below.                                                                                                                                  |
 
 ---
+
+**A flag exists only when something reads it.** This was written as three flags —
+`bkash.enabled`, `reviews.enabled`, `consultation.deposit.required` — and the
+first two were built, seeded with descriptions promising behaviour, and read by
+nothing at all. A row in `feature_flags` reads as a switch somebody can throw,
+so a switch that switches nothing is worse than no switch: the next person who
+needs one wires it up beside the real gate and the shop ends up with two answers
+to the same question.
+
+`bkash.enabled` was the clearest case. Whether bKash is offered is
+`PaymentMethodConfig.IsEnabled` — a per-method switch on a screen the shop
+already uses, backed by a resolver that refuses any code with no provider
+registered in DI. A second switch for that decision could only ever disagree
+with it. `reviews.enabled` was seeded for a Phase 6 feature that does not exist;
+it comes back with reviews, wired on the day it is written.
+
+Both rows are removed by migration, because the seeder only inserts what is
+missing and would otherwise leave them behind on every existing database.
+
+That leaves `consultations.enabled`, which now does what its description says:
+it hides the booking pages, refuses new bookings by every route into the API,
+and leaves the diary alone. The shop has one consultant, and travel, illness or
+a month of full days are all reasons to stop taking bookings without deleting
+the services and availability rules behind them. Existing bookings are
+untouched and staff can still manage every one of them — turning off new work
+must not lock the shop out of the work it already has.
+
+The storefront reads `GET /api/features` so it can leave out what is switched
+off rather than showing a link that fails when somebody follows it. The server
+still refuses the work itself; the endpoint is so the shop looks deliberate,
+not so the rule is enforced there.
 
 ## 8. API surface (outline)
 

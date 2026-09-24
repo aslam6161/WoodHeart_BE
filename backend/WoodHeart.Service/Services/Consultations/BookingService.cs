@@ -50,6 +50,7 @@ public class BookingService(
     INumberSequenceService numbers,
     INotificationQueue notifications,
     IStoreSettingService settings,
+    IFeatureFlagService features,
     ICurrentUserService currentUser,
     IDateTimeProvider clock,
     IUnitOfWork unitOfWork,
@@ -73,6 +74,13 @@ public class BookingService(
             {
                 return Ok(existing);
             }
+        }
+
+        if (!await features.IsEnabledAsync(FeatureFlags.ConsultationsEnabled, cancellationToken))
+        {
+            return Fail(
+                ConsultationErrors.NotOffered,
+                "We are not taking consultation bookings at the moment. Please telephone us.");
         }
 
         if (!PhoneNumber.TryParse(dto.ContactPhone, out var phone) || phone is null)
