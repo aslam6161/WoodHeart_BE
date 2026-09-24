@@ -267,7 +267,8 @@ public static class Seed
             "booking.status_changed",
             "booking.reminder",
             "quotation.sent",
-            "quotation.converted"
+            "quotation.converted",
+            "quotation.answered"
         ];
 
         var existing = await context.NotificationTemplates

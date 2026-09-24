@@ -114,6 +114,13 @@ public static class NotificationCatalog
             NotificationAudience.Customer,
             SupportsBangla: true),
 
+        new(NotificationTemplates.QuotationAnswered,
+            "Quotation answered",
+            "When a customer accepts or declines a quotation. Goes to the shop, "
+            + "and carries the reason they gave for saying no.",
+            NotificationAudience.Shop,
+            SupportsBangla: false),
+
         new(NotificationTemplates.StockLow,
             "Low stock digest",
             "Each morning, to the shop, when anything is at or below its reorder "
@@ -285,6 +292,22 @@ public static class NotificationCatalog
                 validUntil = "8 October",
                 lineCount = 4,
                 orderNumber = "WH-2609-00043"
+            }),
+
+            // Declined rather than accepted: it is the longer of the two,
+            // being the one that carries a reason, so it is the one whose part
+            // count on the screen is worth looking at.
+            NotificationTemplates.QuotationAnswered => Json(new
+            {
+                quotationNumber = "WHQ-2609-00008",
+                answer = "Declined",
+                contactName = name,
+                customerPhone = SamplePhone,
+                grandTotal = 245000m,
+                currency = GlobalConstants.Currency,
+                reason = "Found the same thing cheaper at another shop in Gulshan.",
+                recipientPhone = SamplePhone,
+                recipientEmail = SampleEmail
             }),
 
             NotificationTemplates.StockLow => Json(new
