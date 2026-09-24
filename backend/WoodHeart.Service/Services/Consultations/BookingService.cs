@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Consultations;
@@ -49,6 +49,7 @@ public class BookingService(
     IAvailabilityService availability,
     INumberSequenceService numbers,
     INotificationQueue notifications,
+    IStoreSettingService settings,
     ICurrentUserService currentUser,
     IDateTimeProvider clock,
     IUnitOfWork unitOfWork,
@@ -148,6 +149,10 @@ public class BookingService(
 
             await bookings.InsertAsync(booking, ct);
             await QueueAsync(booking, service, "booking.requested", at: null, ct);
+
+            // The customer has just been told the shop will confirm shortly.
+            // This is what makes that true.
+            await QueueShopAlertAsync(booking, service, ct);
 
             await unitOfWork.SaveChangesAsync(ct);
 
@@ -555,6 +560,48 @@ public class BookingService(
                 })
             },
             ct);
+
+    /// <summary>
+    /// Tells the shop a consultation is waiting to be confirmed.
+    /// </summary>
+    /// <remarks>
+    /// Skipped when the shop has set neither a telephone number nor an email
+    /// address: the dispatcher would suppress it, and a suppressed row per
+    /// booking is a queue nobody can read rather than a message anybody wanted.
+    /// </remarks>
+    private async Task QueueShopAlertAsync(
+        Booking booking, ConsultationService? service, CancellationToken ct)
+    {
+        var phone = (await settings.GetStringAsync(SettingKeys.StorePhone, ct))?.Trim();
+        var email = (await settings.GetStringAsync(SettingKeys.StoreEmail, ct))?.Trim();
+
+        if (string.IsNullOrEmpty(phone) && string.IsNullOrEmpty(email))
+        {
+            return;
+        }
+
+        await notifications.EnqueueAsync(
+            new NotificationRequest
+            {
+                Type = NotificationTemplates.BookingReceived,
+                IdempotencyKey = $"booking.received:{booking.BookingNumber}",
+                Payload = JsonSerializer.Serialize(new
+                {
+                    bookingNumber = booking.BookingNumber,
+                    contactName = booking.ContactName,
+
+                    // The customer's, not the recipient's. See the order alert.
+                    customerPhone = booking.ContactPhone,
+                    serviceName = service?.Name.En ?? string.Empty,
+                    scheduledAt = booking.ScheduledAtUtc
+                        .ToOffset(SlotGenerator.DhakaOffset)
+                        .ToString("dddd d MMMM, h:mm tt", System.Globalization.CultureInfo.InvariantCulture),
+                    recipientPhone = phone,
+                    recipientEmail = email
+                })
+            },
+            ct);
+    }
 
     /// <summary>
     /// Whether this caller may see this booking.
