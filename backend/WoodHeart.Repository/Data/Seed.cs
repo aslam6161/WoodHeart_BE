@@ -259,6 +259,7 @@ public static class Seed
         [
             "order.placed",
             "order.status_changed",
+            "payment.status_changed",
             "order.received",
             "stock.low",
             "booking.requested",

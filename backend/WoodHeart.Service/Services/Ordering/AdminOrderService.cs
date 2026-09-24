@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
@@ -16,6 +16,7 @@ using WoodHeart.Service.Interfaces.Common;
 using WoodHeart.Service.Interfaces.Notifications;
 using WoodHeart.Service.Interfaces.Inventory;
 using WoodHeart.Service.Interfaces.Ordering;
+using WoodHeart.Service.Services.Notifications;
 using WoodHeart.Service.Mapping.Ordering;
 
 namespace WoodHeart.Service.Services.Ordering;
@@ -289,6 +290,12 @@ public class AdminOrderService(
             Describe($"Payment {from} → {dto.Status}", dto.Note));
 
         orders.Update(order);
+
+        // Staged before the save, so the receipt and the claim that the money
+        // arrived commit together. Most orders here are cash handed to a rider,
+        // and this message is the only record either side has of that.
+        await QueuePaymentReceiptAsync(order, dto.Status, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         OrderLog.PaymentRecorded(logger, order.OrderNumber, from.ToString(), dto.Status.ToString(), actor);
@@ -535,6 +542,37 @@ public class AdminOrderService(
                     grandTotal = order.GrandTotal.Amount,
                     currency = order.Currency,
                     paymentStatus = order.PaymentStatus.ToString()
+                })
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// The receipt for money in or money back.
+    /// </summary>
+    /// <remarks>
+    /// Keyed on the order and the status it reached, so the delivery worker
+    /// retrying cannot bill the shop twice at the gateway — and so an order
+    /// that is paid and later refunded gets two messages rather than one
+    /// swallowed as a duplicate.
+    /// </remarks>
+    private async Task QueuePaymentReceiptAsync(
+        Order order, PaymentStatus status, CancellationToken cancellationToken) =>
+        await notifications.EnqueueAsync(
+            new NotificationRequest
+            {
+                Type = NotificationTemplates.PaymentStatusChanged,
+                IdempotencyKey = $"payment.status:{order.OrderNumber}:{status}",
+                Payload = JsonSerializer.Serialize(new
+                {
+                    orderNumber = order.OrderNumber,
+                    status = status.ToString(),
+                    contactName = order.ContactName,
+                    contactPhone = order.ContactPhone,
+                    contactEmail = order.ContactEmail,
+                    language = order.CustomerLanguage,
+                    grandTotal = order.GrandTotal.Amount,
+                    currency = order.Currency,
+                    paymentMethod = order.PaymentMethodCode
                 })
             },
             cancellationToken);

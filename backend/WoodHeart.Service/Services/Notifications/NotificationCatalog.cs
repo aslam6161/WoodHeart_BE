@@ -62,6 +62,13 @@ public static class NotificationCatalog
             NotificationAudience.Customer,
             SupportsBangla: true),
 
+        new(NotificationTemplates.PaymentStatusChanged,
+            "Payment receipt",
+            "When the shop records money received or refunded. Most orders here "
+            + "are cash at the door, so this is the only receipt either side has.",
+            NotificationAudience.Customer,
+            SupportsBangla: true),
+
         new(NotificationTemplates.OrderReceived,
             "New order, to the shop",
             "As soon as a customer places an order, to whoever runs the shop.",
@@ -177,6 +184,21 @@ public static class NotificationCatalog
                 grandTotal = 24500m,
                 currency = GlobalConstants.Currency,
                 paymentStatus = "Unpaid"
+            }),
+
+            // Paid rather than a refund: it is the message this template
+            // sends on nearly every order, and the one whose length matters.
+            NotificationTemplates.PaymentStatusChanged => Json(new
+            {
+                orderNumber = "WH-2609-00042",
+                contactName = name,
+                contactPhone = SamplePhone,
+                contactEmail = SampleEmail,
+                language,
+                grandTotal = 24500m,
+                currency = GlobalConstants.Currency,
+                status = "Paid",
+                paymentMethod = PaymentMethodCodes.CashOnDelivery
             }),
 
             NotificationTemplates.OrderReceived => Json(new

@@ -53,6 +53,15 @@ public static class NotificationTemplates
     public const string OrderPlaced = "order.placed";
     public const string OrderStatusChanged = "order.status_changed";
 
+    /// <summary>A receipt: money in, or money back.</summary>
+    /// <remarks>
+    /// Most orders here are cash handed to a rider at the door. The customer
+    /// has no receipt and no statement to check against, so the only record
+    /// either side has that the money changed hands is the one the shop sends
+    /// — which is as much the shop's protection as the customer's.
+    /// </remarks>
+    public const string PaymentStatusChanged = "payment.status_changed";
+
     /// <summary>To the shop, not a customer: the lines at or below their reorder level.</summary>
     public const string StockLow = "stock.low";
 
@@ -96,6 +105,7 @@ public static class NotificationTemplates
     [
         OrderPlaced,
         OrderStatusChanged,
+        PaymentStatusChanged,
         OrderReceived,
         StockLow,
         BookingRequested,
@@ -115,6 +125,7 @@ public static class NotificationTemplates
         {
             OrderPlaced => RenderOrderPlaced(root, shopPhone.Trim()),
             OrderStatusChanged => RenderStatusChanged(root, shopPhone.Trim()),
+            PaymentStatusChanged => RenderPaymentChanged(root, shopPhone.Trim()),
             OrderReceived => RenderOrderReceived(root),
             BookingReceived => RenderBookingReceived(root),
             StockLow => RenderStockLow(root, shopPhone.Trim()),
@@ -253,6 +264,102 @@ public static class NotificationTemplates
             heading: bangla ? $"অর্ডার {Escape(number)}" : $"Order {Escape(number)}",
             greeting: bangla ? $"প্রিয় {Escape(name)}," : $"Dear {Escape(name)},",
             lines: [line!, bangla ? $"সর্বমোট <strong>{total}</strong>।" : $"Total <strong>{total}</strong>."],
+            shopPhone: shopPhone,
+            bangla: bangla);
+
+        return new RenderedNotification(
+            sms, subject, body, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
+    }
+
+    // -------------------------------------------------------------------------
+    // payment.status_changed
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// "We have your money", or "you have it back".
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Two of the five statuses say nothing, and both silences are
+    /// deliberate.</b> <c>Failed</c> belongs to a gateway that is not built
+    /// yet; telling somebody their payment failed when nothing tried to take
+    /// it would be a lie. <c>Unpaid</c> is where an order starts, so a message
+    /// there would announce the absence of an event.
+    /// </para>
+    /// <para>
+    /// <b>The figure is only named when it is the whole order.</b> A part
+    /// refund is recorded with its amount in the shop's own note and the
+    /// application does not carry it here, so the message says that money has
+    /// gone back and asks the customer to call rather than quoting a number it
+    /// would be guessing at. A wrong figure on a refund is worse than no
+    /// figure.
+    /// </para>
+    /// </remarks>
+    private static RenderedNotification? RenderPaymentChanged(JsonElement root, string shopPhone)
+    {
+        var number = String_(root, "orderNumber");
+        var name = String_(root, "contactName");
+        var total = Taka(Decimal_(root, "grandTotal"));
+        var status = String_(root, "status");
+        var bangla = IsBangla(root);
+
+        var (sms, subject, line) = status switch
+        {
+            "Paid" => (
+                bangla
+                    ? $"WoodHeart: অর্ডার {number} এর {total} আমরা পেয়েছি। ধন্যবাদ। {shopPhone}"
+                    : $"WoodHeart: we have received {total} for order {number}. Thank you. {shopPhone}",
+                bangla ? $"অর্ডার {number} এর পেমেন্ট পেয়েছি" : $"Payment received for order {number}",
+                bangla
+                    ? "আপনার পেমেন্ট সম্পূর্ণভাবে পাওয়া গেছে।"
+                    : "Your payment has been received in full."),
+
+            "AdvancePaid" => (
+                bangla
+                    ? $"WoodHeart: অর্ডার {number} এর অগ্রিম পেয়েছি। বাকিটা ডেলিভারিতে। {shopPhone}"
+                    : $"WoodHeart: we have your advance for order {number}. The balance is due on delivery. {shopPhone}",
+                bangla ? $"অর্ডার {number} এর অগ্রিম পেয়েছি" : $"Advance received for order {number}",
+                bangla
+                    ? "বাকি টাকা ডেলিভারির সময় পরিশোধ করবেন।"
+                    : "The balance is payable when the order is delivered."),
+
+            "Refunded" => (
+                bangla
+                    ? $"WoodHeart: অর্ডার {number} এর {total} ফেরত দেওয়া হয়েছে। {shopPhone}"
+                    : $"WoodHeart: {total} has been refunded for order {number}. {shopPhone}",
+                bangla ? $"অর্ডার {number} ফেরত" : $"Refund for order {number}",
+                bangla
+                    ? "সম্পূর্ণ টাকা ফেরত দেওয়া হয়েছে।"
+                    : "Your payment has been refunded in full."),
+
+            "PartiallyRefunded" => (
+                bangla
+                    ? $"WoodHeart: অর্ডার {number} এর কিছু টাকা ফেরত দেওয়া হয়েছে। প্রশ্ন থাকলে কল করুন {shopPhone}"
+                    : $"WoodHeart: part of your payment for order {number} has been refunded. Please call {shopPhone} with any question.",
+                bangla ? $"অর্ডার {number} আংশিক ফেরত" : $"Part refund for order {number}",
+                bangla
+                    ? "আপনার পেমেন্টের একটি অংশ ফেরত দেওয়া হয়েছে।"
+                    : "Part of your payment has been refunded."),
+
+            // Unpaid is where an order starts, and Failed belongs to a gateway
+            // nobody has written. Neither is news.
+            _ => (null, null, null)
+        };
+
+        if (sms is null)
+        {
+            return new RenderedNotification(
+                null, null, null, String_(root, "contactPhone"), NullIfBlank(String_(root, "contactEmail")));
+        }
+
+        var body = Email(
+            heading: bangla ? $"অর্ডার {Escape(number)}" : $"Order {Escape(number)}",
+            greeting: bangla ? $"প্রিয় {Escape(name)}," : $"Dear {Escape(name)},",
+            lines:
+            [
+                line!,
+                bangla ? $"অর্ডারের মোট <strong>{total}</strong>।" : $"Order total <strong>{total}</strong>."
+            ],
             shopPhone: shopPhone,
             bangla: bangla);
 
