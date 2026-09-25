@@ -1,4 +1,4 @@
-namespace WoodHeart.Domain.Enums.Ordering;
+﻿namespace WoodHeart.Domain.Enums.Ordering;
 
 /// <summary>
 /// Where an order is being delivered to, which is what sets the delivery charge.
@@ -34,6 +34,16 @@ public enum DeliveryZone
 /// behind an order, and abandoned-cart recovery (Phase 5) needs the abandoned
 /// ones to still exist.
 /// </remarks>
+/// <summary>Which way the money went.</summary>
+public enum PaymentDirection
+{
+    /// <summary>The shop took money.</summary>
+    Received = 0,
+
+    /// <summary>The shop gave it back.</summary>
+    Refunded = 1
+}
+
 public enum CartStatus
 {
     /// <summary>Being filled. The only status that accepts changes.</summary>

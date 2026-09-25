@@ -1,4 +1,4 @@
-using WoodHeart.Domain.Constants;
+﻿using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Consultations;
 using WoodHeart.Domain.Entity.Consultations;
 using WoodHeart.Domain.Helpers;
@@ -24,11 +24,31 @@ public class AvailabilityService(
     IConsultantRepository consultants,
     IBookingRepository bookings,
     ICurrentUserService currentUser,
+    IFeatureFlagService features,
     IDateTimeProvider clock) : IAvailabilityService
 {
+    /// <summary>
+    /// Whether the shop is taking consultations at all.
+    /// </summary>
+    /// <remarks>
+    /// Checked here rather than in the controller, because the rule is "the
+    /// shop does not do this at the moment" and not "this page is hidden". A
+    /// guest with yesterday's link, a stale tab and a client that never asked
+    /// all arrive at the service, and only the service is in a position to
+    /// refuse them all the same way.
+    /// </remarks>
+    private async Task<bool> OfferedAsync(CancellationToken cancellationToken) =>
+        await features.IsEnabledAsync(FeatureFlags.ConsultationsEnabled, cancellationToken);
+
     public async Task<GeneralResponse<IReadOnlyList<ConsultationServiceDto>>> GetServicesAsync(
         CancellationToken cancellationToken = default)
     {
+        if (!await OfferedAsync(cancellationToken))
+        {
+            return GeneralResponse<IReadOnlyList<ConsultationServiceDto>>.Fail(
+                ConsultationErrors.NotOffered, "We are not taking consultation bookings at the moment. Please telephone us.");
+        }
+
         var rows = await services.GetActiveAsync(cancellationToken);
 
         return GeneralResponse<IReadOnlyList<ConsultationServiceDto>>.Success(
@@ -38,6 +58,12 @@ public class AvailabilityService(
     public async Task<GeneralResponse<ConsultationServiceDto>> GetServiceBySlugAsync(
         string slug, CancellationToken cancellationToken = default)
     {
+        if (!await OfferedAsync(cancellationToken))
+        {
+            return GeneralResponse<ConsultationServiceDto>.Fail(
+                ConsultationErrors.NotOffered, "We are not taking consultation bookings at the moment. Please telephone us.");
+        }
+
         var service = await services.GetBySlugAsync(slug, cancellationToken);
 
         return service is null || !service.IsActive
@@ -50,6 +76,12 @@ public class AvailabilityService(
     public async Task<GeneralResponse<IReadOnlyList<ConsultantDto>>> GetConsultantsAsync(
         long? serviceId = null, CancellationToken cancellationToken = default)
     {
+        if (!await OfferedAsync(cancellationToken))
+        {
+            return GeneralResponse<IReadOnlyList<ConsultantDto>>.Fail(
+                ConsultationErrors.NotOffered, "We are not taking consultation bookings at the moment. Please telephone us.");
+        }
+
         var rows = await consultants.GetActiveAsync(serviceId, cancellationToken);
 
         return GeneralResponse<IReadOnlyList<ConsultantDto>>.Success(
@@ -60,6 +92,12 @@ public class AvailabilityService(
         AvailabilityQueryDto query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
+
+        if (!await OfferedAsync(cancellationToken))
+        {
+            return GeneralResponse<AvailabilityDto>.Fail(
+                ConsultationErrors.NotOffered, "We are not taking consultation bookings at the moment. Please telephone us.");
+        }
 
         var service = await services.GetByIdAsync(query.ServiceId, cancellationToken);
 

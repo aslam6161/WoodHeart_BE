@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WoodHeart.Repository;
@@ -11,9 +12,11 @@ using WoodHeart.Repository;
 namespace WoodHeart.Repository.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20260924205027_RemoveUnreadFeatureFlags")]
+    partial class RemoveUnreadFeatureFlags
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2948,89 +2951,6 @@ namespace WoodHeart.Repository.Migrations
                     b.ToTable("order_lines", (string)null);
                 });
 
-            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.OrderPayment", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("ActorName")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("actor_name");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("amount");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<long?>("CreatedBy")
-                        .HasColumnType("bigint")
-                        .HasColumnName("created_by");
-
-                    b.Property<string>("Direction")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("direction");
-
-                    b.Property<string>("MethodCode")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("method_code");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("note");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("occurred_at");
-
-                    b.Property<long>("OrderId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("order_id");
-
-                    b.Property<string>("Reference")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("reference");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<long?>("UpdatedBy")
-                        .HasColumnType("bigint")
-                        .HasColumnName("updated_by");
-
-                    b.Property<uint>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
-                    b.HasKey("Id")
-                        .HasName("pk_order_payments");
-
-                    b.HasIndex("OccurredAt")
-                        .HasDatabaseName("ix_order_payments_occurred");
-
-                    b.HasIndex("OrderId", "OccurredAt")
-                        .HasDatabaseName("ix_order_payments_order_occurred");
-
-                    b.ToTable("order_payments", (string)null);
-                });
-
             modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.OrderTimelineEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -3973,7 +3893,7 @@ namespace WoodHeart.Repository.Migrations
 
                             b1.HasKey("BookingId");
 
-                            b1.ToTable("bookings", (string)null);
+                            b1.ToTable("bookings");
 
                             b1.WithOwner()
                                 .HasForeignKey("BookingId")
@@ -4189,7 +4109,7 @@ namespace WoodHeart.Repository.Migrations
 
                             b1.HasKey("OrderId");
 
-                            b1.ToTable("orders", (string)null);
+                            b1.ToTable("orders");
 
                             b1.WithOwner()
                                 .HasForeignKey("OrderId")
@@ -4240,18 +4160,6 @@ namespace WoodHeart.Repository.Migrations
                     b.Navigation("Order");
 
                     b.Navigation("ProductVariant");
-                });
-
-            modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.OrderPayment", b =>
-                {
-                    b.HasOne("WoodHeart.Domain.Entity.Ordering.Order", "Order")
-                        .WithMany("Payments")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_order_payments_orders_order_id");
-
-                    b.Navigation("Order");
                 });
 
             modelBuilder.Entity("WoodHeart.Domain.Entity.Ordering.OrderTimelineEntry", b =>
@@ -4389,7 +4297,7 @@ namespace WoodHeart.Repository.Migrations
 
                             b1.HasKey("QuotationId");
 
-                            b1.ToTable("quotations", (string)null);
+                            b1.ToTable("quotations");
 
                             b1.WithOwner()
                                 .HasForeignKey("QuotationId")
@@ -4494,8 +4402,6 @@ namespace WoodHeart.Repository.Migrations
                     b.Navigation("Discounts");
 
                     b.Navigation("Lines");
-
-                    b.Navigation("Payments");
 
                     b.Navigation("Timeline");
                 });

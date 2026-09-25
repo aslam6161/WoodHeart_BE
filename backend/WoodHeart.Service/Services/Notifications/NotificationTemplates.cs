@@ -349,6 +349,12 @@ public static class NotificationTemplates
         var status = String_(root, "status");
         var bangla = IsBangla(root);
 
+        // What the ledger says, rather than what the order is worth. On a part
+        // payment or a part refund those are different numbers, and quoting the
+        // wrong one tells somebody they paid five times what they did.
+        var paid = Taka(Decimal_(root, "amountPaid"));
+        var owed = Taka(Decimal_(root, "amountOutstanding"));
+
         var (sms, subject, line) = status switch
         {
             "Paid" => (
@@ -360,10 +366,13 @@ public static class NotificationTemplates
                     ? "আপনার পেমেন্ট সম্পূর্ণভাবে পাওয়া গেছে।"
                     : "Your payment has been received in full."),
 
+            // The figure the application could not previously hold. Until the
+            // ledger existed this message could only say that an advance had
+            // arrived, which is the half of it the customer already knew.
             "AdvancePaid" => (
                 bangla
-                    ? $"WoodHeart: অর্ডার {number} এর অগ্রিম পেয়েছি। বাকিটা ডেলিভারিতে। {shopPhone}"
-                    : $"WoodHeart: we have your advance for order {number}. The balance is due on delivery. {shopPhone}",
+                    ? $"WoodHeart: অর্ডার {number} এর অগ্রিম {paid} পেয়েছি। বাকি {owed} ডেলিভারিতে। {shopPhone}"
+                    : $"WoodHeart: we have your advance of {paid} for order {number}. {owed} is due on delivery. {shopPhone}",
                 bangla ? $"অর্ডার {number} এর অগ্রিম পেয়েছি" : $"Advance received for order {number}",
                 bangla
                     ? "বাকি টাকা ডেলিভারির সময় পরিশোধ করবেন।"
@@ -378,10 +387,12 @@ public static class NotificationTemplates
                     ? "সম্পূর্ণ টাকা ফেরত দেওয়া হয়েছে।"
                     : "Your payment has been refunded in full."),
 
+            // Also a real figure now: what is left with the shop after the
+            // part refund, which is the number the customer wants.
             "PartiallyRefunded" => (
                 bangla
-                    ? $"WoodHeart: অর্ডার {number} এর কিছু টাকা ফেরত দেওয়া হয়েছে। প্রশ্ন থাকলে কল করুন {shopPhone}"
-                    : $"WoodHeart: part of your payment for order {number} has been refunded. Please call {shopPhone} with any question.",
+                    ? $"WoodHeart: অর্ডার {number} এর কিছু টাকা ফেরত দেওয়া হয়েছে। আমাদের কাছে আছে {paid}। {shopPhone}"
+                    : $"WoodHeart: part of your payment for order {number} has been refunded. {paid} remains with us. {shopPhone}",
                 bangla ? $"অর্ডার {number} আংশিক ফেরত" : $"Part refund for order {number}",
                 bangla
                     ? "আপনার পেমেন্টের একটি অংশ ফেরত দেওয়া হয়েছে।"

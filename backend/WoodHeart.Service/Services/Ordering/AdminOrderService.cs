@@ -164,6 +164,28 @@ public class AdminOrderService(
         order.Status = dto.Status;
 
         ApplyConsequences(order, dto.Status);
+
+        // ApplyConsequences moves the payment status; the money it stands for
+        // is written down here, where the clock and the actor are. A rider
+        // handing cash over and a shop sending it back are the two commonest
+        // things that happen to money in this shop, and neither of them goes
+        // through the payment card.
+        if (order.PaymentStatus != paymentBefore)
+        {
+            if (order.PaymentStatus == PaymentStatus.Paid)
+            {
+                AddPayment(
+                    order, PaymentDirection.Received, order.AmountOutstanding, actor,
+                    note: "Collected on delivery.");
+            }
+            else if (order.PaymentStatus == PaymentStatus.Refunded)
+            {
+                AddPayment(
+                    order, PaymentDirection.Refunded, order.AmountPaid, actor,
+                    note: $"Returned with order {order.OrderNumber}.");
+            }
+        }
+
         Record(order, from, dto.Status, actor, dto.Note?.Trim());
 
         // The shelf moves with the order: shipping books the sale, a
@@ -222,7 +244,12 @@ public class AdminOrderService(
             case OrderStatus.Delivered:
                 order.FulfilmentStatus = FulfilmentStatus.Fulfilled;
 
-                if (order.PaymentStatus == PaymentStatus.Unpaid
+                // AdvancePaid as well as Unpaid. A made-to-order wardrobe is
+                // taken with something down and the rest at the door, which is
+                // the flow the shop uses for its largest sales — and until the
+                // ledger made the balance visible, such an order quietly stayed
+                // AdvancePaid for ever after the rider had been paid in full.
+                if (order.PaymentStatus is PaymentStatus.Unpaid or PaymentStatus.AdvancePaid
                     && string.Equals(
                         order.PaymentMethodCode,
                         PaymentMethodCodes.CashOnDelivery,
@@ -289,7 +316,31 @@ public class AdminOrderService(
         var actor = await ActorNameAsync();
         var from = order.PaymentStatus;
 
+        var amount = AmountFor(order, dto);
+
+        if (amount is null)
+        {
+            return GeneralResponse<AdminOrderDetailDto>.Fail(
+                OrderingErrors.PaymentAmountInvalid,
+                dto.Status == PaymentStatus.Refunded || dto.Status == PaymentStatus.PartiallyRefunded
+                    ? $"That is more than has been taken for this order ({order.AmountPaid})."
+                    : $"That is more than is outstanding on this order ({order.AmountOutstanding}).");
+        }
+
         order.PaymentStatus = dto.Status;
+
+        if (amount.Amount > 0m)
+        {
+            AddPayment(
+                order,
+                dto.Status is PaymentStatus.Refunded or PaymentStatus.PartiallyRefunded
+                    ? PaymentDirection.Refunded
+                    : PaymentDirection.Received,
+                amount,
+                actor,
+                dto.Reference,
+                dto.Note);
+        }
 
         // Same status on both ends: the order has not moved as a piece of work,
         // only the money under it. The timeline is the only append-only record
@@ -565,6 +616,80 @@ public class AdminOrderService(
             cancellationToken);
 
     /// <summary>
+    /// How much this entry is for, or null when the figure is impossible.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The common cases have one right answer and making somebody type it
+    /// invites a typo: marking an order Paid means whatever is outstanding,
+    /// and Refunded means everything taken so far. An advance is the case that
+    /// has to be said, and the case the application could not previously hold.
+    /// </para>
+    /// <para>
+    /// A figure larger than the order, or than was ever taken, is refused.
+    /// <c>Unpaid</c> and <c>Failed</c> move no money at all and get a zero,
+    /// which the caller writes no row for — a ledger of things that did not
+    /// happen is not a ledger.
+    /// </para>
+    /// </remarks>
+    private static Money? AmountFor(Order order, RecordPaymentDto dto)
+    {
+        var zero = Money.From(0m, order.Currency);
+
+        var ceiling = dto.Status switch
+        {
+            PaymentStatus.Refunded or PaymentStatus.PartiallyRefunded => order.AmountPaid,
+            PaymentStatus.Unpaid or PaymentStatus.Failed => zero,
+            _ => order.AmountOutstanding
+        };
+
+        if (ceiling.Amount <= 0m)
+        {
+            return zero;
+        }
+
+        if (dto.Amount is not { } given)
+        {
+            // An advance with no figure and none asked for cannot be guessed
+            // at: the whole balance would be wrong by definition.
+            return dto.Status == PaymentStatus.AdvancePaid
+                ? order.RequiredAdvanceAmount is { } required && required.Amount <= ceiling.Amount
+                    ? required
+                    : null
+                : ceiling;
+        }
+
+        return given > ceiling.Amount ? null : Money.From(given, order.Currency);
+    }
+
+    /// <summary>
+    /// Writes one line of the ledger.
+    /// </summary>
+    /// <remarks>
+    /// Append-only, like the timeline. <c>PaymentStatus</c> says where the
+    /// money stands; this says what happened to get there, and it is the only
+    /// one of the two that survives somebody pressing a button twice.
+    /// </remarks>
+    private void AddPayment(
+        Order order,
+        PaymentDirection direction,
+        Money amount,
+        string actor,
+        string? reference = null,
+        string? note = null) =>
+        order.Payments.Add(new OrderPayment
+        {
+            OrderId = order.Id,
+            Direction = direction,
+            Amount = amount,
+            MethodCode = order.PaymentMethodCode,
+            Reference = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim(),
+            ActorName = actor,
+            Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
+            OccurredAt = clock.UtcNow
+        });
+
+    /// <summary>
     /// The receipt for money in or money back.
     /// </summary>
     /// <remarks>
@@ -590,7 +715,12 @@ public class AdminOrderService(
                     language = order.CustomerLanguage,
                     grandTotal = order.GrandTotal.Amount,
                     currency = order.Currency,
-                    paymentMethod = order.PaymentMethodCode
+                    paymentMethod = order.PaymentMethodCode,
+
+                    // From the ledger, so an advance and a part refund can
+                    // name real figures instead of talking around them.
+                    amountPaid = order.AmountPaid.Amount,
+                    amountOutstanding = order.AmountOutstanding.Amount
                 })
             },
             cancellationToken);

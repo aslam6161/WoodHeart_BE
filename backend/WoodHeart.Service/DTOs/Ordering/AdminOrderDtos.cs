@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using WoodHeart.Domain.Enums.Ordering;
 
 namespace WoodHeart.Service.DTOs.Ordering;
@@ -86,6 +86,23 @@ public class AdminOrderDetailDto
     public IReadOnlyList<OrderStatus> AllowedStatusTransitions { get; init; } = [];
 
     public IReadOnlyList<PaymentStatus> AllowedPaymentTransitions { get; init; } = [];
+
+    /// <summary>
+    /// Every sum that changed hands over this order, in the order it moved.
+    /// </summary>
+    /// <remarks>
+    /// The payment status says where the money stands; this says what happened
+    /// to get there. Staff asking "when did we take that, and who from" have
+    /// nowhere else to look, and on a shop whose takings are mostly cash the
+    /// alternative is somebody's memory.
+    /// </remarks>
+    public IReadOnlyList<OrderPaymentDto> Payments { get; init; } = [];
+
+    /// <summary>Taken less given back.</summary>
+    public decimal AmountPaid { get; init; }
+
+    /// <summary>Still owed. Never negative — an overpayment is not a debt.</summary>
+    public decimal AmountOutstanding { get; init; }
 
     /// <summary>Whether the delivery charge may still be edited on this order.</summary>
     public bool CanEditDeliveryFee { get; init; }
@@ -207,9 +224,51 @@ public class RecordPaymentDto
     [Required]
     public PaymentStatus Status { get; init; }
 
+    /// <summary>
+    /// How much changed hands. Left out, the obvious figure is used.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Optional because the common case has one right answer and making
+    /// somebody type it invites a typo: marking a cash order Paid means the
+    /// whole balance, and Refunded means everything taken so far. An advance
+    /// is the case that needs saying, which is the case that never could be.
+    /// </para>
+    /// <para>
+    /// More than the balance is refused rather than recorded. A shop that can
+    /// book a payment larger than the order can book one twice as large, and
+    /// the first anybody knows of it is the month-end figure.
+    /// </para>
+    /// </remarks>
+    [Range(0.01, 99_999_999)]
+    public decimal? Amount { get; init; }
+
+    /// <summary>A bKash transaction id, a bank slip number, the rider's name.</summary>
+    [MaxLength(200)]
+    public string? Reference { get; init; }
+
     /// <summary>A receipt number, a bKash transaction id, "cash to Rakib".</summary>
     [MaxLength(500)]
     public string? Note { get; init; }
+}
+
+/// <summary>One sum that changed hands, for the order screen.</summary>
+public class OrderPaymentDto
+{
+    public PaymentDirection Direction { get; init; }
+
+    public decimal Amount { get; init; }
+
+    public string MethodCode { get; init; } = string.Empty;
+
+    /// <summary>A bKash transaction id, a bank slip number, the rider's name.</summary>
+    public string? Reference { get; init; }
+
+    public string ActorName { get; init; } = string.Empty;
+
+    public string? Note { get; init; }
+
+    public DateTimeOffset OccurredAt { get; init; }
 }
 
 /// <summary>Where the goods got to, which is not where the order got to.</summary>

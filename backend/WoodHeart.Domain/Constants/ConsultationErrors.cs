@@ -1,4 +1,4 @@
-namespace WoodHeart.Domain.Constants;
+﻿namespace WoodHeart.Domain.Constants;
 
 /// <summary>
 /// Stable error codes for consultations and bookings.
@@ -12,6 +12,17 @@ public static class ConsultationErrors
     private const string Prefix = "consultations.";
 
     // --- Booking --------------------------------------------------------------
+
+    /// <summary>
+    /// The shop has stopped taking consultations for the time being.
+    /// </summary>
+    /// <remarks>
+    /// A conflict rather than a not-found: the services still exist and the
+    /// shop means to offer them again, and telling somebody their consultation
+    /// does not exist when it is simply paused sends them to a competitor
+    /// instead of back next week.
+    /// </remarks>
+    public const string NotOffered = Prefix + "not_offered.conflict";
 
     public const string ServiceNotFound = Prefix + "service.not_found";
 

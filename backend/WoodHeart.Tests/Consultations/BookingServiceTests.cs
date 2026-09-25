@@ -43,6 +43,7 @@ public class BookingServiceTests
     /// telephone number nor an email address has nobody to tell.
     /// </remarks>
     private readonly IStoreSettingService _settings = Substitute.For<IStoreSettingService>();
+    private readonly IFeatureFlagService _features = Substitute.For<IFeatureFlagService>();
     private readonly ICurrentUserService _currentUser = Substitute.For<ICurrentUserService>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly FakeClock _clock = new(new DateTimeOffset(2026, 9, 20, 6, 0, 0, TimeSpan.Zero));
@@ -79,14 +80,33 @@ public class BookingServiceTests
             .Returns(call =>
                 call.Arg<Func<CancellationToken, Task<GeneralResponse<BookingDto>>>>()(CancellationToken.None));
 
+        // The shop is open for consultations unless a test says otherwise.
+        _features.IsEnabledAsync(FeatureFlags.ConsultationsEnabled, Arg.Any<CancellationToken>())
+            .Returns(true);
+
         _service = new BookingService(
             _bookings, _services, _availability, _numbers, _notifications, _settings,
-            _currentUser, _clock, _unitOfWork, NullLogger<BookingService>.Instance);
+            _features, _currentUser, _clock, _unitOfWork, NullLogger<BookingService>.Instance);
     }
 
     // -------------------------------------------------------------------------
     // Booking
     // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_paused_shop_takes_no_new_bookings()
+    {
+        // Hidden on the storefront is not the same as refused. A stale tab, an
+        // old link and a client that never asked all arrive here.
+        _features.IsEnabledAsync(FeatureFlags.ConsultationsEnabled, Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var result = await _service.CreateAsync(Request(), idempotencyKey: null);
+
+        result.IsSuccess.ShouldBeFalse();
+        result.ErrorCode.ShouldBe(ConsultationErrors.NotOffered);
+        _inserted.ShouldBeEmpty();
+    }
 
     [Fact]
     public async Task A_guest_can_book_and_everything_about_it_is_frozen()

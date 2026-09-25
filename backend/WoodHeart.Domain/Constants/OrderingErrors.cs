@@ -1,4 +1,4 @@
-namespace WoodHeart.Domain.Constants;
+﻿namespace WoodHeart.Domain.Constants;
 
 /// <summary>
 /// Stable error codes for the cart and, later, orders.
@@ -93,6 +93,14 @@ public static class OrderingErrors
 
     /// <summary>The move is not one <c>PaymentStatusMachine</c> allows from here.</summary>
     public const string PaymentTransitionInvalid = Prefix + "order.payment_transition_invalid.conflict";
+
+    /// <summary>More money than the order is worth, or than was ever taken.</summary>
+    /// <remarks>
+    /// Refused rather than recorded. A shop that can book a payment larger
+    /// than the order can book one twice as large, and the first anybody knows
+    /// of it is a month-end figure that will not reconcile.
+    /// </remarks>
+    public const string PaymentAmountInvalid = Prefix + "order.payment_amount_invalid";
 
     /// <summary>
     /// The total can no longer be edited, because money has already changed
