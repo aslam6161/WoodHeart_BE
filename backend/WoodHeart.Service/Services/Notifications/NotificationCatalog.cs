@@ -212,7 +212,9 @@ public static class NotificationCatalog
                 grandTotal = 24500m,
                 currency = GlobalConstants.Currency,
                 status = "Paid",
-                paymentMethod = PaymentMethodCodes.CashOnDelivery
+                paymentMethod = PaymentMethodCodes.CashOnDelivery,
+                amountPaid = 24500m,
+                amountOutstanding = 0m
             }),
 
             NotificationTemplates.OrderReceived => Json(new

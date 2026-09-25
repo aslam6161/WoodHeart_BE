@@ -1,4 +1,4 @@
-using WoodHeart.Domain.Entity.Ordering;
+﻿using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Enums.Ordering;
 using WoodHeart.Domain.Ordering;
 using WoodHeart.Service.DTOs.Ordering;
@@ -69,6 +69,23 @@ public static class AdminOrderMapper
             // that renders is a button that works.
             AllowedStatusTransitions = OrderStatusMachine.NextFrom(order.Status),
             AllowedPaymentTransitions = PaymentStatusMachine.NextFrom(order.PaymentStatus),
+
+            Payments =
+            [
+                .. order.Payments.Select(payment => new OrderPaymentDto
+                {
+                    Direction = payment.Direction,
+                    Amount = payment.Amount.Amount,
+                    MethodCode = payment.MethodCode,
+                    Reference = payment.Reference,
+                    ActorName = payment.ActorName,
+                    Note = payment.Note,
+                    OccurredAt = payment.OccurredAt
+                })
+            ],
+
+            AmountPaid = order.AmountPaid.Amount,
+            AmountOutstanding = order.AmountOutstanding.Amount,
             CanEditDeliveryFee = CanEditDeliveryFee(order),
 
             CustomerId = order.CustomerId,

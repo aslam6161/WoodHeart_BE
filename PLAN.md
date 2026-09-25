@@ -328,6 +328,10 @@ Pending → Confirmed → Processing → ReadyToShip → Shipped → Delivered �
    └──────── Cancelled ─────┘                              Returned → Refunded
 ```
 
+**A payment ledger sits beside the payment status.** `OrderPayment` records every sum that changed hands — amount, direction, method, reference, who, when — appended rather than edited, like the timeline. This was not in the original model and it should have been: the status is one word for something that can happen several times, and an advance then the balance at the door then half of it back the following week is three events and one word. `Order.RequiredAdvanceAmount` said what was asked for and `PaymentStatus.AdvancePaid` said something arrived, and between them they never said how much — the customer's receipt had to be written around that, and said so.
+
+It matters most here because the takings are mostly cash handed to a rider. There is no gateway statement to reconcile against and no card slip, so if the application does not write down how much arrived and who took it, the answer to "I paid you on the twelfth" is somebody's memory. `AmountPaid` and `AmountOutstanding` are computed from the rows rather than stored, because a stored total is a number that can disagree with its own history.
+
 Payment status is **separate and orthogonal**: `Unpaid | AdvancePaid | Paid | PartiallyRefunded | Refunded | Failed`. A COD order is `Confirmed` + `Unpaid` for its entire life until delivery. Conflating the two axes is a classic modelling mistake that makes COD reporting impossible.
 
 Every transition writes an `OrderTimelineEntry` (who, when, from, to, note). Admins will ask "who cancelled this order", and there has to be an answer.

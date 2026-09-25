@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.ValueObjects;
@@ -190,6 +190,36 @@ public class OrderLineConfiguration : IEntityTypeConfiguration<OrderLine>
             .HasFilter("product_variant_id IS NOT NULL")
             .HasDatabaseName("ix_order_lines_variant");
         builder.HasIndex(x => x.ProductId).HasDatabaseName("ix_order_lines_product");
+    }
+}
+
+public class OrderPaymentConfiguration : IEntityTypeConfiguration<OrderPayment>
+{
+    public void Configure(EntityTypeBuilder<OrderPayment> builder)
+    {
+        builder.ToTable("order_payments");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Amount)
+            .HasConversion(ValueObjectConverters.Money, ValueObjectConverters.MoneyComparer)
+            .HasColumnType("numeric(18,2)")
+            .IsRequired();
+
+        builder.Property(x => x.Direction).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.MethodCode).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Reference).HasMaxLength(200);
+        builder.Property(x => x.ActorName).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.Note).HasMaxLength(1000);
+
+        // The order detail page reads the whole ledger in order, every time.
+        builder.HasIndex(x => new { x.OrderId, x.OccurredAt })
+            .HasDatabaseName("ix_order_payments_order_occurred");
+
+        // "What did we take last week" is the question a shop asks of this
+        // table, and it asks it across every order rather than within one.
+        builder.HasIndex(x => x.OccurredAt)
+            .HasDatabaseName("ix_order_payments_occurred");
     }
 }
 

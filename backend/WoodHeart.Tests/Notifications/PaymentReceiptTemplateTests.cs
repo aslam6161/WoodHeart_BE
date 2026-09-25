@@ -39,7 +39,9 @@ public class PaymentReceiptTemplateTests
             language,
             grandTotal = 24500m,
             currency = "BDT",
-            paymentMethod = "cod"
+            paymentMethod = "cod",
+            amountPaid = 10000m,
+            amountOutstanding = 14500m
         });
 
     private static RenderedNotification Render(string status, string language = "en") =>
@@ -64,15 +66,22 @@ public class PaymentReceiptTemplateTests
     }
 
     [Fact]
-    public void An_advance_says_what_is_still_owed_rather_than_a_figure()
+    public void An_advance_names_what_arrived_and_what_is_left()
     {
-        // The application does not carry how much the advance was, so it says
-        // the thing it does know: the rest is due at the door.
+        // This message used to say only that an advance had arrived, because
+        // the application had nowhere to record how much. The ledger is what
+        // changed: PaymentStatus.AdvancePaid said something came, and
+        // Order.RequiredAdvanceAmount said what was asked for, and between
+        // them they never said what was actually taken.
         var rendered = Render("AdvancePaid");
 
         var text = rendered.SmsText!;
 
-        text.ShouldContain("balance is due on delivery");
+        text.ShouldContain("BDT 10,000");
+        text.ShouldContain("BDT 14,500");
+
+        // Not the order total. Quoting that would tell somebody who paid a
+        // tenth of it that the whole thing is settled.
         text.ShouldNotContain("BDT 24,500");
     }
 
@@ -92,16 +101,17 @@ public class PaymentReceiptTemplateTests
     }
 
     [Fact]
-    public void A_part_refund_names_no_figure_and_asks_them_to_call()
+    public void A_part_refund_says_what_the_shop_still_holds()
     {
-        // The amount lives in the shop's own note, and quoting the order total
-        // here would tell somebody they had been refunded five times what they
-        // were.
+        // Still not the order total — quoting that would tell somebody they
+        // had been refunded five times what they were. What it can say now is
+        // the figure the customer actually wants: what is left with the shop.
         var rendered = Render("PartiallyRefunded");
 
         var text = rendered.SmsText!;
 
         text.ShouldNotContain("BDT 24,500");
+        text.ShouldContain("BDT 10,000");
         text.ShouldContain("part of your payment");
         text.ShouldContain(ShopPhone);
     }

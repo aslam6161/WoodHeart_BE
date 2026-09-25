@@ -278,6 +278,141 @@ public class AdminOrderServiceTests
     }
 
     [Fact]
+    public async Task Recording_it_writes_down_how_much_and_against_what()
+    {
+        var order = GivenAnOrder(OrderStatus.Confirmed);
+
+        await CreateService().RecordPaymentAsync(
+            OrderNumber,
+            new RecordPaymentDto
+            {
+                Status = PaymentStatus.Paid,
+                Reference = "bKash TrxID 8HG23K",
+                Note = "Taken over the phone."
+            });
+
+        var payment = order.Payments.ShouldHaveSingleItem();
+
+        // No figure was given, so the obvious one is used: marking an order
+        // paid means the balance, and making somebody retype it invites a typo.
+        payment.Amount.Amount.ShouldBe(15_250m);
+        payment.Direction.ShouldBe(PaymentDirection.Received);
+        payment.Reference.ShouldBe("bKash TrxID 8HG23K");
+        payment.ActorName.ShouldNotBeNullOrWhiteSpace();
+
+        order.AmountOutstanding.Amount.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task An_advance_records_the_figure_it_is_given()
+    {
+        // The case the application could not hold at all. PaymentStatus said
+        // an advance had arrived; nothing said how much.
+        var order = GivenAnOrder(OrderStatus.Confirmed);
+
+        await CreateService().RecordPaymentAsync(
+            OrderNumber,
+            new RecordPaymentDto { Status = PaymentStatus.AdvancePaid, Amount = 5_000m });
+
+        order.Payments.ShouldHaveSingleItem().Amount.Amount.ShouldBe(5_000m);
+        order.AmountPaid.Amount.ShouldBe(5_000m);
+        order.AmountOutstanding.Amount.ShouldBe(10_250m);
+    }
+
+    [Fact]
+    public async Task More_than_the_order_is_worth_is_refused()
+    {
+        // A shop that can book a payment larger than the order can book one
+        // twice as large, and the first anybody knows of it is a month-end
+        // figure that will not reconcile.
+        var order = GivenAnOrder(OrderStatus.Confirmed);
+
+        var result = await CreateService().RecordPaymentAsync(
+            OrderNumber,
+            new RecordPaymentDto { Status = PaymentStatus.AdvancePaid, Amount = 20_000m });
+
+        result.IsSuccess.ShouldBeFalse();
+        result.ErrorCode.ShouldBe(OrderingErrors.PaymentAmountInvalid);
+        order.Payments.ShouldBeEmpty();
+        order.PaymentStatus.ShouldBe(PaymentStatus.Unpaid);
+    }
+
+    [Fact]
+    public async Task And_so_is_refunding_more_than_was_ever_taken()
+    {
+        var order = GivenAnOrder(OrderStatus.Confirmed);
+
+        order.PaymentStatus = PaymentStatus.Paid;
+        order.Payments.Add(new OrderPayment
+        {
+            Direction = PaymentDirection.Received,
+            Amount = Money.Taka(15_250m),
+            MethodCode = PaymentMethodCodes.CashOnDelivery,
+            ActorName = "Rakib (admin)",
+            OccurredAt = _clock.UtcNow
+        });
+
+        var result = await CreateService().RecordPaymentAsync(
+            OrderNumber,
+            new RecordPaymentDto { Status = PaymentStatus.PartiallyRefunded, Amount = 20_000m });
+
+        result.ErrorCode.ShouldBe(OrderingErrors.PaymentAmountInvalid);
+        order.Payments.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Delivering_a_cash_order_writes_the_cash_down()
+    {
+        // How nearly every order here is paid, and it never goes through the
+        // payment card at all.
+        var order = GivenAnOrder(OrderStatus.Shipped);
+
+        await CreateService().ChangeStatusAsync(
+            OrderNumber, new ChangeOrderStatusDto { Status = OrderStatus.Delivered });
+
+        var payment = order.Payments.ShouldHaveSingleItem();
+
+        payment.Direction.ShouldBe(PaymentDirection.Received);
+        payment.Amount.Amount.ShouldBe(15_250m);
+        payment.Note.ShouldNotBeNull();
+        payment.Note.ShouldContain("delivery");
+
+        order.AmountOutstanding.Amount.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task Delivering_an_order_with_an_advance_on_it_collects_only_the_balance()
+    {
+        // Found end to end rather than here: ApplyConsequences only ever moved
+        // Unpaid to Paid, so a made-to-order sale taken with something down and
+        // the rest at the door stayed AdvancePaid for ever after the rider had
+        // been paid in full. The largest sales this shop makes are exactly that
+        // shape.
+        var order = GivenAnOrder(OrderStatus.Shipped);
+
+        order.PaymentStatus = PaymentStatus.AdvancePaid;
+        order.Payments.Add(new OrderPayment
+        {
+            Direction = PaymentDirection.Received,
+            Amount = Money.Taka(5_000m),
+            MethodCode = PaymentMethodCodes.CashOnDelivery,
+            ActorName = "Rakib (admin)",
+            OccurredAt = _clock.UtcNow
+        });
+
+        await CreateService().ChangeStatusAsync(
+            OrderNumber, new ChangeOrderStatusDto { Status = OrderStatus.Delivered });
+
+        order.PaymentStatus.ShouldBe(PaymentStatus.Paid);
+
+        // The balance, not the whole order again.
+        order.Payments.Count.ShouldBe(2);
+        order.Payments.Last().Amount.Amount.ShouldBe(10_250m);
+        order.AmountPaid.Amount.ShouldBe(15_250m);
+        order.AmountOutstanding.Amount.ShouldBe(0m);
+    }
+
+    [Fact]
     public async Task And_the_customer_is_sent_a_receipt_for_it()
     {
         // Most orders here are cash handed to a rider at the door. The customer

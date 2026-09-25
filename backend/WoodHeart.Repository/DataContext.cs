@@ -87,6 +87,8 @@ public class DataContext(
 
     public DbSet<OrderTimelineEntry> OrderTimelineEntries => Set<OrderTimelineEntry>();
 
+    public DbSet<OrderPayment> OrderPayments => Set<OrderPayment>();
+
     public DbSet<CartCoupon> CartCoupons => Set<CartCoupon>();
 
     public DbSet<OrderDiscount> OrderDiscounts => Set<OrderDiscount>();
