@@ -24,7 +24,7 @@ public class StorefrontServiceTests
 
     public StorefrontServiceTests()
     {
-        _categories.GetProductCountsAsync(Arg.Any<CancellationToken>())
+        _categories.GetProductCountsAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<long, int>());
         _categories.GetAncestorsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns([]);
@@ -148,6 +148,21 @@ public class StorefrontServiceTests
 
         await _categories.Received(1).GetTreeAsync(false, Arg.Any<CancellationToken>());
         await _categories.DidNotReceive().GetTreeAsync(true, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task The_public_tree_counts_only_products_a_customer_can_buy()
+    {
+        // The number beside a category is a promise about what clicking it
+        // returns. Counting drafts breaks that promise quietly: the category
+        // says "1", the listing filters to active products, and the customer
+        // lands on an empty shelf with no explanation.
+        await CreateService().GetCategoryTreeAsync();
+
+        await _categories.Received(1).GetProductCountsAsync(
+            true, Arg.Any<CancellationToken>());
+        await _categories.DidNotReceive().GetProductCountsAsync(
+            false, Arg.Any<CancellationToken>());
     }
 
     // -------------------------------------------------------------------------
