@@ -1,7 +1,9 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Helpers;
 using WoodHeart.Domain.Settings;
+using WoodHeart.Service.Infrastructure.Consultations;
+using System.Net.Http.Headers;
 using WoodHeart.Presentation.Middleware;
 using WoodHeart.Repository.Interfaces.Catalog;
 using WoodHeart.Repository.Interfaces.Common;
@@ -71,6 +73,7 @@ public static class ApplicationServiceExtensions
         builder.Services.AddSystemServices();
         builder.Services.AddMediaSettings(builder.Configuration);
         builder.Services.AddNotificationSettings(builder.Configuration);
+        builder.Services.AddDesignAssistant(builder.Configuration);
         builder.Services.AddBusinessServices();
         builder.Services.AddWebServices();
 
@@ -210,6 +213,55 @@ public static class ApplicationServiceExtensions
     /// waiting for configuration; an unsigned token is a security hole.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Registers the design assistant, or the one that politely declines.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same shape as SMS, with one difference that matters. A logging SMS
+    /// sender reports success because the order behind it is real either way;
+    /// an adviser with no model must <i>not</i> pretend, because the answer is
+    /// the whole deliverable and inventing one would be lying to a customer.
+    /// So the fallback declines, and the storefront asks first and does not
+    /// offer the box.
+    /// </para>
+    /// <para>
+    /// A missing key does not stop the API booting, for the same reason a
+    /// missing Cloudinary account does not: a shop with no design assistant is
+    /// a shop, and a fresh clone has to run.
+    /// </para>
+    /// </remarks>
+    private static IServiceCollection AddDesignAssistant(
+        this IServiceCollection services, ConfigurationManager configuration)
+    {
+        services.Configure<DesignAssistantSettings>(
+            configuration.GetSection(DesignAssistantSettings.SectionName));
+
+        var assistant = configuration.GetSection(DesignAssistantSettings.SectionName)
+            .Get<DesignAssistantSettings>() ?? new DesignAssistantSettings();
+
+        if (assistant.IsConfigured)
+        {
+            // Through IHttpClientFactory, so the handler is pooled and its
+            // lifetime managed. The key is attached here rather than per call:
+            // one place to look for it, and no chance of a request going out
+            // without it.
+            services.AddHttpClient<IDesignAssistant, GroqDesignAssistant>(client =>
+            {
+                client.BaseAddress = new Uri(assistant.BaseUrl);
+                client.Timeout = TimeSpan.FromSeconds(assistant.TimeoutSeconds);
+                client.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", assistant.ApiKey);
+            });
+        }
+        else
+        {
+            services.AddScoped<IDesignAssistant, UnavailableDesignAssistant>();
+        }
+
+        return services;
+    }
+
     private static IServiceCollection AddNotificationSettings(
         this IServiceCollection services, ConfigurationManager configuration)
     {
@@ -264,6 +316,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IAvailabilityService, AvailabilityService>();
         services.AddScoped<IBookingService, BookingService>();
+        services.AddScoped<IDesignAdviceService, DesignAdviceService>();
         services.AddScoped<IConsultationAdminService, ConsultationAdminService>();
         services.AddScoped<IDiscountRepository, DiscountRepository>();
         services.AddScoped<IPromotionUsageRepository, PromotionUsageRepository>();

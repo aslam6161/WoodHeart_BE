@@ -1,4 +1,4 @@
-﻿namespace WoodHeart.Domain.Constants;
+namespace WoodHeart.Domain.Constants;
 
 /// <summary>
 /// Stable error codes for consultations and bookings.
@@ -23,6 +23,28 @@ public static class ConsultationErrors
     /// instead of back next week.
     /// </remarks>
     public const string NotOffered = Prefix + "not_offered.conflict";
+
+    // --- Design assistant -----------------------------------------------------
+
+    /// <summary>
+    /// No model is configured, or the shop has switched the adviser off.
+    /// </summary>
+    /// <remarks>
+    /// A conflict, not a not-found: the consultation page exists and the
+    /// designer can still be booked. Only the instant answer is missing.
+    /// </remarks>
+    public const string AdviceUnavailable = Prefix + "advice_unavailable.conflict";
+
+    /// <summary>
+    /// The model was asked and did not answer — timed out, refused, or
+    /// unreachable.
+    /// </summary>
+    /// <remarks>
+    /// An <c>external.</c> code, which the controller maps to 502. The shop did
+    /// its part; somebody else's service did not, and a customer should be told
+    /// to try again rather than told they did something wrong.
+    /// </remarks>
+    public const string AdviceFailed = "external." + Prefix + "advice_failed";
 
     public const string ServiceNotFound = Prefix + "service.not_found";
 

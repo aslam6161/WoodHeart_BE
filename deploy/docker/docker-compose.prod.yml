@@ -1,4 +1,4 @@
-﻿# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Production stack. Deployed to /opt/woodheart by .github/workflows/cd.yml and
 # started there — never run this file locally. Use docker-compose.yml for that.
 #
@@ -65,6 +65,14 @@ services:
       # between environments means a staging tidy-up destroys live product
       # photography.
       Cloudinary__Folder: ${CLOUDINARY_FOLDER:-woodheart}
+      # The design assistant. Leave the key empty and the feature is simply
+      # off: the consultation page renders without it and bookings are
+      # unaffected. Set it and every question a customer types is forwarded to
+      # a metered third party, which is why it is opt-in per environment.
+      DesignAssistant__ApiKey: ${DESIGN_ASSISTANT_API_KEY:-}
+      # Named here because a hosted model is retired on the provider's
+      # schedule. When that happens this is a redeploy, not a release.
+      DesignAssistant__Model: ${DESIGN_ASSISTANT_MODEL:-llama-3.3-70b-versatile}
       TZ: Asia/Dhaka
     ports:
       - "127.0.0.1:8080:8080"
