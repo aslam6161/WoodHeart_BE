@@ -246,17 +246,22 @@ public static class ApplicationServiceExtensions
             // lifetime managed. The key is attached here rather than per call:
             // one place to look for it, and no chance of a request going out
             // without it.
-            services.AddHttpClient<IDesignAssistant, GroqDesignAssistant>(client =>
+            services.AddHttpClient<GroqDesignAssistant>(client =>
             {
                 client.BaseAddress = new Uri(assistant.BaseUrl);
                 client.Timeout = TimeSpan.FromSeconds(assistant.TimeoutSeconds);
                 client.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", assistant.ApiKey);
             });
+            services.AddScoped<IDesignAssistant>(provider =>
+                provider.GetRequiredService<GroqDesignAssistant>());
+            services.AddScoped<IShopAssistant>(provider =>
+                provider.GetRequiredService<GroqDesignAssistant>());
         }
         else
         {
             services.AddScoped<IDesignAssistant, UnavailableDesignAssistant>();
+            services.AddScoped<IShopAssistant, UnavailableDesignAssistant>();
         }
 
         return services;
@@ -317,6 +322,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IAvailabilityService, AvailabilityService>();
         services.AddScoped<IBookingService, BookingService>();
         services.AddScoped<IDesignAdviceService, DesignAdviceService>();
+        services.AddScoped<IShopChatService, ShopChatService>();
         services.AddScoped<IConsultationAdminService, ConsultationAdminService>();
         services.AddScoped<IDiscountRepository, DiscountRepository>();
         services.AddScoped<IPromotionUsageRepository, PromotionUsageRepository>();

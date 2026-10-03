@@ -22,7 +22,7 @@ namespace WoodHeart.Service.Infrastructure.Consultations;
 /// fabricating one would be lying to a customer. So it declines, the endpoint
 /// reports the feature as unavailable, and the storefront does not offer it.
 /// </remarks>
-public class UnavailableDesignAssistant : IDesignAssistant
+public class UnavailableDesignAssistant : IDesignAssistant, IShopAssistant
 {
     public bool IsAvailable => false;
 
@@ -33,6 +33,16 @@ public class UnavailableDesignAssistant : IDesignAssistant
         Task.FromResult(GeneralResponse<DesignAnswer>.Fail(
             ConsultationErrors.AdviceUnavailable,
             "The design assistant is not available just now."));
+
+    public Task<GeneralResponse<ShopAnswer>> ChatAsync(
+        string question,
+        IReadOnlyList<ChatTurn> history,
+        ShopFacts facts,
+        IReadOnlyList<CataloguePiece> catalogue,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(GeneralResponse<ShopAnswer>.Fail(
+            ConsultationErrors.AdviceUnavailable,
+            "The assistant is not available just now."));
 }
 
 /// <summary>
@@ -61,7 +71,7 @@ public class UnavailableDesignAssistant : IDesignAssistant
 public class GroqDesignAssistant(
     HttpClient client,
     IOptions<DesignAssistantSettings> options,
-    ILogger<GroqDesignAssistant> logger) : IDesignAssistant
+    ILogger<GroqDesignAssistant> logger) : IDesignAssistant, IShopAssistant
 {
     private readonly DesignAssistantSettings settings = options.Value;
 
@@ -83,16 +93,40 @@ public class GroqDesignAssistant(
                 "The design assistant is not available just now.");
         }
 
-        var request = new ChatRequest(
-            settings.Model,
+        var sent = await SendAsync(
             [
                 new ChatMessage("system", SystemPrompt(catalogue)),
                 new ChatMessage("user", question)
             ],
+            cancellationToken);
+
+        return sent.IsSuccess && sent.Data is { } content
+            ? Parse(content)
+            : GeneralResponse<DesignAnswer>.Fail(
+                sent.ErrorCode ?? ConsultationErrors.AdviceFailed, sent.Message);
+    }
+
+    /// <summary>
+    /// One exchange with the model, with every way it can go wrong already
+    /// turned into an answer.
+    /// </summary>
+    /// <remarks>
+    /// Shared by both briefs. The failure handling here — a retired model, a
+    /// spent quota, a rate limit, a timeout — is the same conversation with the
+    /// same provider whichever question was asked, and it was all learned the
+    /// hard way from one live run. Duplicating it per brief would mean fixing
+    /// each one twice.
+    /// </remarks>
+    private async Task<GeneralResponse<string>> SendAsync(
+        IReadOnlyList<ChatMessage> messages, CancellationToken cancellationToken)
+    {
+        var request = new ChatRequest(
+            settings.Model,
+            messages,
             settings.MaxReplyTokens,
-            // Low, not zero. This is advice about furnishing a room, where two
-            // sensible answers exist; but a shop's recommendations should not
-            // change character between two customers asking the same thing.
+            // Low, not zero. These are questions with more than one sensible
+            // answer, but a shop's answers should not change character between
+            // two customers asking the same thing.
             0.3,
             new ResponseFormat("json_object"));
 
@@ -114,9 +148,9 @@ public class GroqDesignAssistant(
                 {
                     AssistantLog.RateLimited(logger, settings.Model);
 
-                    return GeneralResponse<DesignAnswer>.Fail(
+                    return GeneralResponse<string>.Fail(
                         ConsultationErrors.AdviceBusy,
-                        "The designer is answering someone else. Try again in a moment.");
+                        "The assistant is answering someone else. Try again in a moment.");
                 }
 
                 // Logged at Warning with the status and the provider's message,
@@ -125,9 +159,9 @@ public class GroqDesignAssistant(
                 // actually happen. The key itself is not in either.
                 AssistantLog.CallFailed(logger, (int)response.StatusCode, settings.Model, Trim(detail));
 
-                return GeneralResponse<DesignAnswer>.Fail(
+                return GeneralResponse<string>.Fail(
                     ConsultationErrors.AdviceFailed,
-                    "The design assistant could not answer just now.");
+                    "The assistant could not answer just now.");
             }
 
             var body = await response.Content.ReadFromJsonAsync<ChatResponse>(Json, cancellationToken);
@@ -137,12 +171,12 @@ public class GroqDesignAssistant(
             {
                 AssistantLog.EmptyReply(logger, settings.Model);
 
-                return GeneralResponse<DesignAnswer>.Fail(
+                return GeneralResponse<string>.Fail(
                     ConsultationErrors.AdviceFailed,
-                    "The design assistant could not answer just now.");
+                    "The assistant could not answer just now.");
             }
 
-            return Parse(content);
+            return GeneralResponse<string>.Success(content);
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -151,19 +185,214 @@ public class GroqDesignAssistant(
             // a different sentence than one who navigated away.
             AssistantLog.TimedOut(logger, settings.TimeoutSeconds, settings.Model);
 
-            return GeneralResponse<DesignAnswer>.Fail(
+            return GeneralResponse<string>.Fail(
                 ConsultationErrors.AdviceFailed,
-                "The design assistant took too long to answer. Please try again.");
+                "The assistant took too long to answer. Please try again.");
         }
         catch (HttpRequestException exception)
         {
             AssistantLog.Unreachable(logger, exception.Message);
 
-            return GeneralResponse<DesignAnswer>.Fail(
+            return GeneralResponse<string>.Fail(
                 ConsultationErrors.AdviceFailed,
-                "The design assistant could not be reached just now.");
+                "The assistant could not be reached just now.");
         }
     }
+
+    // -------------------------------------------------------------------------
+    // The shop assistant: the chat window on every page
+    // -------------------------------------------------------------------------
+
+    public async Task<GeneralResponse<ShopAnswer>> ChatAsync(
+        string question,
+        IReadOnlyList<ChatTurn> history,
+        ShopFacts facts,
+        IReadOnlyList<CataloguePiece> catalogue,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+        ArgumentNullException.ThrowIfNull(facts);
+        ArgumentNullException.ThrowIfNull(catalogue);
+
+        if (!IsAvailable)
+        {
+            return GeneralResponse<ShopAnswer>.Fail(
+                ConsultationErrors.AdviceUnavailable,
+                "The assistant is not available just now.");
+        }
+
+        // The brief, then what was already said, then the new question. The
+        // history arrives as alternating turns rather than one blob so the
+        // model can tell what it said from what the customer said — which is
+        // the whole reason "what about the other one?" works.
+        var messages = new List<ChatMessage> { new("system", ShopPrompt(facts, catalogue)) };
+
+        messages.AddRange(history.Select(turn =>
+            new ChatMessage(turn.FromCustomer ? "user" : "assistant", turn.Text)));
+
+        messages.Add(new ChatMessage("user", question));
+
+        var sent = await SendAsync(messages, cancellationToken);
+
+        return sent.IsSuccess && sent.Data is { } content
+            ? ParseShop(content)
+            : GeneralResponse<ShopAnswer>.Fail(
+                sent.ErrorCode ?? ConsultationErrors.AdviceFailed, sent.Message);
+    }
+
+    /// <summary>
+    /// Reads the chat answer, and never lets a bad list cost the customer the
+    /// sentence.
+    /// </summary>
+    /// <remarks>
+    /// The prose is the answer; the pieces and the buttons are extras. A model
+    /// that returns a malformed action array has still answered the question,
+    /// and throwing that away to protect a button nobody can see is the wrong
+    /// trade. Whatever does arrive is checked against the closed list in
+    /// <see cref="ActionKinds"/> by the service above.
+    /// </remarks>
+    private static GeneralResponse<ShopAnswer> ParseShop(string content)
+    {
+        try
+        {
+            var answer = JsonSerializer.Deserialize<ModelShopAnswer>(content, Json);
+
+            if (answer is not null && !string.IsNullOrWhiteSpace(answer.Reply))
+            {
+                var actions = (answer.Actions ?? [])
+                    .Where(action => !string.IsNullOrWhiteSpace(action.Kind))
+                    .Select(action => new ProposedAction(
+                        action.Kind!.Trim(),
+                        string.IsNullOrWhiteSpace(action.Label) ? string.Empty : action.Label.Trim(),
+                        string.IsNullOrWhiteSpace(action.Slug) ? null : action.Slug.Trim()))
+                    .ToList();
+
+                return GeneralResponse<ShopAnswer>.Success(
+                    new ShopAnswer(answer.Reply.Trim(), answer.Slugs ?? [], actions));
+            }
+
+            return GeneralResponse<ShopAnswer>.Success(new ShopAnswer(Salvage(content), [], []));
+        }
+        catch (JsonException)
+        {
+            return GeneralResponse<ShopAnswer>.Success(new ShopAnswer(Salvage(content), [], []));
+        }
+    }
+
+    /// <summary>
+    /// The brief for the chat window: what the shop is, and what it will say
+    /// about itself.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The facts are the shop's own settings, so a delivery charge quoted here
+    /// is the charge checkout applies. That is the same bargain as the
+    /// catalogue: the model decides what to say, the database decides what is
+    /// true.
+    /// </para>
+    /// <para>
+    /// What it must not do is the longer half. It cannot look anybody's order
+    /// up — it has no access to one and is told to send them to the tracking
+    /// page instead — and it cannot put anything in a basket. The buttons it
+    /// proposes are run by the storefront's own code after a customer presses
+    /// them.
+    /// </para>
+    /// </remarks>
+    private static string ShopPrompt(ShopFacts facts, IReadOnlyList<CataloguePiece> catalogue)
+    {
+        var lines = catalogue.Select(piece => string.Create(
+            CultureInfo.InvariantCulture,
+            $"- slug: {piece.Slug} | {piece.Name} | {piece.Category} | from Tk {piece.FromPrice:0} | {piece.MadeTo}"));
+
+        var payment = facts.PaymentMethods.Count > 0
+            ? string.Join(", ", facts.PaymentMethods)
+            : "cash on delivery";
+
+        // Zero is "nobody has set this yet", not "free".
+        //
+        // The delivery settings ship as placeholders — the real figures are a
+        // business question the shop has not answered — and asked about
+        // delivery to Sylhet against a zero, the model cheerfully replied that
+        // it was free. That is a price the shop would have had to honour. A
+        // charge of zero is reported as unquoted, which is the truth: delivery
+        // is priced per product and worked out at checkout.
+        var delivery = facts.DeliveryInsideDhaka > 0 || facts.DeliveryOutsideDhaka > 0
+            ? $"Delivery is Tk {Taka(facts.DeliveryInsideDhaka)} inside Dhaka and Tk "
+              + $"{Taka(facts.DeliveryOutsideDhaka)} elsewhere, charged per piece for bulky items."
+            : "Delivery is priced per piece and worked out at checkout once an address is "
+              + "entered. Never say delivery is free, and never quote a delivery figure.";
+
+        if (facts.FreeDeliveryThreshold > 0)
+        {
+            delivery += $" Delivery is free over Tk {Taka(facts.FreeDeliveryThreshold)}.";
+        }
+
+        return $$"""
+            You are the assistant on {{facts.StoreName}}'s website — a furniture
+            maker and interior design studio in Bangladesh. You answer customers'
+            questions about the shop and help them find what they want.
+
+            WHAT IS TRUE ABOUT THIS SHOP
+            {{delivery}}
+            Payment: {{payment}}. {{facts.Payment}}
+            How long it takes: {{facts.LeadTime}}
+            Returns: {{facts.Returns}}
+            Guarantee: {{facts.Warranty}}
+            Reaching a person: {{facts.Contact}}{{Contact(facts)}}
+            Design consultations: {{(facts.ConsultationsOffered ? "the shop takes bookings for these" : "not being booked at the moment")}}.
+
+            WHAT THE WORKSHOP SELLS
+            These are the only products that exist. Never name one that is not here.
+            {{string.Join('\n', lines)}}
+
+            WHAT YOU CANNOT DO
+            You cannot look up anybody's order, basket or account, and you must never
+            guess at one. Asked where an order is, say it can be tracked with the
+            order number and offer the track_order button.
+            You cannot add anything to a basket yourself. You offer a button and the
+            customer presses it.
+            If you do not know something, say so and offer the shop's phone number.
+            Never invent a price, a date, a policy or a product.
+
+            LANGUAGE
+            Reply in the same language the customer wrote in. English question,
+            English reply. Bangla question, Bangla reply.
+
+            HOW TO ANSWER
+            - Short. Two paragraphs at most, usually one. No markdown, no lists.
+            - Answer the question first, then offer at most two buttons.
+
+            BUTTONS YOU MAY OFFER
+            view_product      - needs the slug. Opens the product page.
+            add_to_basket     - needs the slug. Only for a piece the customer has
+                                clearly chosen.
+            view_basket       - shows what they have already put in it.
+            checkout          - only when they say they want to buy now.
+            track_order       - for any question about where an order is.
+            book_consultation - for a room, a whole flat, or anything needing a
+                                designer to measure it.
+
+            REPLY FORMAT
+            Return only this JSON object:
+            {"reply": "your answer", "slugs": ["slug-of-each-product-you-mentioned"], "actions": [{"kind": "view_product", "label": "See the Four-Door Wardrobe", "slug": "four-door-wardrobe"}]}
+            Use empty arrays when there is nothing to put in them. Copy slugs exactly
+            from the list. Keep the reply short enough to finish the JSON.
+            """;
+    }
+
+    /// <summary>A whole number of taka, in a culture a model will read the same way.</summary>
+    private static string Taka(decimal amount) =>
+        amount.ToString("0", CultureInfo.InvariantCulture);
+
+    private static string Contact(ShopFacts facts) =>
+        string.IsNullOrWhiteSpace(facts.Phone) ? string.Empty : $" The shop's number is {facts.Phone}.";
+
+    private record ModelShopAnswer(
+        string? Reply,
+        IReadOnlyList<string>? Slugs,
+        IReadOnlyList<ModelAction>? Actions);
+
+    private record ModelAction(string? Kind, string? Label, string? Slug);
 
     /// <summary>
     /// Reads the model's JSON, and tolerates it not being the shape we asked for.
@@ -243,7 +472,7 @@ public class GroqDesignAssistant(
         }
     }
 
-    /// <summary>
+    /// <summary>
     /// The brief, and the catalogue it is allowed to recommend from.
     /// </summary>
     /// <remarks>

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Constants;
 using WoodHeart.Domain.Entity.Common;
@@ -103,6 +103,30 @@ public static class Seed
             // The shop's own particulars, as they go on an invoice. Blank on
             // purpose: the invoice prints only what is set, and a made-up
             // address or BIN would be worse than none.
+            // What the assistant answers "how long", "can I return it" and "do
+            // you take bKash" with. Written as sentences because that is how
+            // they are read out — and editable, because a shop that changes its
+            // returns window should not need a developer.
+            (SettingKeys.FaqLeadTime, "Made-to-order pieces take about 21 working days. "
+                + "Anything in stock is delivered within 3 to 5 days inside Dhaka.",
+                SettingValueType.String, "FAQ",
+                "How long an order takes. Quoted by the assistant and anywhere lead time is shown."),
+            (SettingKeys.FaqReturns, "Tell us within 3 days of delivery if a piece arrives damaged "
+                + "or is not what you ordered and we will collect and replace it. "
+                + "Made-to-order pieces cannot be returned for a change of mind.",
+                SettingValueType.String, "FAQ",
+                "The returns policy, in the words a customer should hear."),
+            (SettingKeys.FaqWarranty, "One year against manufacturing defects in the frame and joinery. "
+                + "Fabric, foam and fittings are not covered by it.",
+                SettingValueType.String, "FAQ", "What the workshop guarantees."),
+            (SettingKeys.FaqPayment, "Cash on delivery across Bangladesh. "
+                + "For made-to-order work we ask for part payment before the workshop starts.",
+                SettingValueType.String, "FAQ",
+                "Anything about paying the enabled payment methods do not say themselves."),
+            (SettingKeys.FaqContact, "The showroom answers between 10am and 8pm, Saturday to Thursday. "
+                + "Messages left outside those hours are answered the next morning.",
+                SettingValueType.String, "FAQ", "Opening hours and how quickly somebody replies."),
+
             (SettingKeys.StoreName, "WoodHeart", SettingValueType.String, "Store",
                 "The trading name printed at the top of every invoice."),
             (SettingKeys.StoreAddress, "", SettingValueType.String, "Store",
@@ -154,7 +178,15 @@ public static class Seed
             // is the only payment method until an admin flips this.
             (FeatureFlags.ConsultationsEnabled, true,
                 "Take consultation bookings. Off hides the booking pages and refuses new "
-                + "bookings; existing ones are unaffected and staff can still manage them.")
+                + "bookings; existing ones are unaffected and staff can still manage them."),
+
+            // On, but it needs a model key as well — with none the window does
+            // not appear whatever this says. Two switches because they fail for
+            // different reasons: this one is the shop's decision, the key is the
+            // provider's.
+            (FeatureFlags.ShopAssistantEnabled, true,
+                "Show the chat window on the storefront. Off hides it entirely. It also needs "
+                + "a model key configured; with none it stays hidden regardless.")
         };
 
         var existing = await context.FeatureFlags

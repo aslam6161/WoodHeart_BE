@@ -1,4 +1,4 @@
-﻿namespace WoodHeart.Domain.Constants;
+namespace WoodHeart.Domain.Constants;
 
 /// <summary>Values that appear in more than one layer and must not drift.</summary>
 public static class GlobalConstants
@@ -122,6 +122,28 @@ public static class SettingKeys
     /// <summary>Whether the morning low-stock message to the shop is sent at all.</summary>
     public const string LowStockDigest = "inventory.low_stock_digest";
 
+    // --- What the shop tells customers ----------------------------------------
+    //
+    // Settings rather than copy in a component, because the assistant answers
+    // from them and so does the storefront. One source means a returns window
+    // the shop changes is changed everywhere it is quoted, including by the
+    // thing that answers questions at midnight.
+
+    /// <summary>How long a made-to-order piece takes, in the shop's own words.</summary>
+    public const string FaqLeadTime = "faq.lead_time";
+
+    /// <summary>The returns policy, in a sentence or two.</summary>
+    public const string FaqReturns = "faq.returns";
+
+    /// <summary>What the workshop guarantees, and for how long.</summary>
+    public const string FaqWarranty = "faq.warranty";
+
+    /// <summary>Anything about paying that the enabled methods do not say themselves.</summary>
+    public const string FaqPayment = "faq.payment";
+
+    /// <summary>Opening hours, and how quickly somebody replies.</summary>
+    public const string FaqContact = "faq.contact";
+
     public const string StorePhone = "store.phone";
     public const string StoreEmail = "store.email";
 
@@ -187,5 +209,18 @@ public static class FeatureFlags
     /// them, because turning off new work must not lock the shop out of the
     /// work it already has.
     /// </remarks>
-    public const string ConsultationsEnabled = "consultations.enabled";
+    public const string ConsultationsEnabled = "consultations.enabled";
+
+    /// <summary>
+    /// Whether the chat window appears on the storefront.
+    /// </summary>
+    /// <remarks>
+    /// Its own switch, separate from consultations, because the two fail for
+    /// different reasons. A shop too busy to take design bookings still wants
+    /// its questions answered; a shop whose model quota has run out wants the
+    /// window gone without closing its diary. The switch only hides it — a
+    /// missing key does that too, and neither touches anything a customer has
+    /// already put in a basket.
+    /// </remarks>
+    public const string ShopAssistantEnabled = "assistant.enabled";
 }

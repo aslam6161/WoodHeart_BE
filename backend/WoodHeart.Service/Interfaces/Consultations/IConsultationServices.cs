@@ -164,3 +164,20 @@ public interface IDesignAdviceService
     Task<GeneralResponse<DesignAdviceDto>> AskAsync(
         DesignAdviceRequestDto dto, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// The chat window on every storefront page.
+/// </summary>
+/// <remarks>
+/// Separate from <see cref="IDesignAdviceService"/> because it answers a
+/// different kind of question — delivery, payment, returns, where an order is —
+/// and because the two have their own switches. A shop too busy to take design
+/// bookings still wants its questions answered.
+/// </remarks>
+public interface IShopChatService
+{
+    Task<GeneralResponse<bool>> IsOfferedAsync(CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<ShopChatReplyDto>> ChatAsync(
+        ShopChatRequestDto dto, CancellationToken cancellationToken = default);
+}

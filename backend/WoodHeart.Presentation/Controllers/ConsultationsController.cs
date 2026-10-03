@@ -30,8 +30,35 @@ namespace WoodHeart.Presentation.Controllers;
 public class ConsultationsController(
     IAvailabilityService availability,
     IBookingService bookings,
-    IDesignAdviceService advice) : BaseApiController
+    IDesignAdviceService advice,
+    IShopChatService chat) : BaseApiController
 {
+    /// <summary>Whether the storefront should show its chat window.</summary>
+    [HttpGet("assistant/offered")]
+    public async Task<IActionResult> AssistantOffered(CancellationToken cancellationToken) =>
+        HandleResult(await chat.IsOfferedAsync(cancellationToken));
+
+    /// <summary>
+    /// A question about the shop, answered from the shop's own settings and
+    /// catalogue.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The tight rate-limit bucket, like the design assistant and for the same
+    /// reason: anonymous, and every call spends a metered quota.
+    /// </para>
+    /// <para>
+    /// The conversation arrives with the question rather than being kept here.
+    /// Nothing about a chat over a wardrobe is worth a server-side session, and
+    /// what is not stored cannot be leaked to the next person on that device.
+    /// </para>
+    /// </remarks>
+    [HttpPost("assistant/chat")]
+    [EnableRateLimiting(RateLimitPolicies.Sensitive)]
+    public async Task<IActionResult> AssistantChat(
+        ShopChatRequestDto dto, CancellationToken cancellationToken) =>
+        HandleResult(await chat.ChatAsync(dto, cancellationToken));
+
     /// <summary>Whether the design assistant can answer at all.</summary>
     /// <remarks>
     /// Asked before the storefront renders the box, so a shop with no model
