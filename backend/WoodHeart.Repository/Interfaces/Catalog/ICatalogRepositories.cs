@@ -101,6 +101,19 @@ public interface IProductRepository : IRepository<Product>
     /// A product with everything the detail page needs — category, brand,
     /// variants and media — in one round trip.
     /// </summary>
+    /// <summary>
+    /// The products whose text comes closest to a search that found nothing.
+    /// </summary>
+    /// <remarks>
+    /// Trigram word similarity, not another <c>ILIKE</c>: this is asked only
+    /// when exact matching has already failed, so the question is no longer
+    /// "which products contain this" but "which products nearly do". Scored
+    /// against the best-matching run inside the text, so a one-word query is
+    /// not drowned by a long description.
+    /// </remarks>
+    Task<IReadOnlyList<Product>> SuggestAsync(
+        string search, int limit, CancellationToken cancellationToken = default);
+
     Task<Product?> GetBySlugWithDetailsAsync(
         string slug, CancellationToken cancellationToken = default);
 
