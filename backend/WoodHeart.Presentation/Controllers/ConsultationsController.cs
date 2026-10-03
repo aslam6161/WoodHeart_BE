@@ -28,8 +28,39 @@ namespace WoodHeart.Presentation.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Public)]
 [Route("api/consultations")]
 public class ConsultationsController(
-    IAvailabilityService availability, IBookingService bookings) : BaseApiController
+    IAvailabilityService availability,
+    IBookingService bookings,
+    IDesignAdviceService advice) : BaseApiController
 {
+    /// <summary>Whether the design assistant can answer at all.</summary>
+    /// <remarks>
+    /// Asked before the storefront renders the box, so a shop with no model
+    /// configured shows a consultation page without a dead control on it.
+    /// </remarks>
+    [HttpGet("advice/offered")]
+    public async Task<IActionResult> AdviceOffered(CancellationToken cancellationToken) =>
+        HandleResult(await advice.IsOfferedAsync(cancellationToken));
+
+    /// <summary>A design question, answered from the shop's own catalogue.</summary>
+    /// <remarks>
+    /// <para>
+    /// The tight rate-limit bucket, not the generous one this controller uses
+    /// elsewhere. Every call here spends somebody's quota at a third party, and
+    /// the endpoint is anonymous — which is the combination that pays for a
+    /// script to sit on it.
+    /// </para>
+    /// <para>
+    /// A POST, although it reads nothing, because the question is the
+    /// customer's own sentence: in a query string it would be in the access
+    /// log, the browser history and any proxy on the way.
+    /// </para>
+    /// </remarks>
+    [HttpPost("advice")]
+    [EnableRateLimiting(RateLimitPolicies.Sensitive)]
+    public async Task<IActionResult> Advice(
+        DesignAdviceRequestDto dto, CancellationToken cancellationToken) =>
+        HandleResult(await advice.AskAsync(dto, cancellationToken));
+
     /// <summary>Everything the shop offers an hour of.</summary>
     [HttpGet("services")]
     public async Task<IActionResult> Services(CancellationToken cancellationToken) =>

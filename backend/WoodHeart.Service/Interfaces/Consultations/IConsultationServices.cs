@@ -145,3 +145,22 @@ public interface IConsultationAdminService
     Task<GeneralResponse<ConsultantScheduleDto>> SaveScheduleAsync(
         long consultantId, SaveScheduleDto dto, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// The design assistant on the consultation page.
+/// </summary>
+public interface IDesignAdviceService
+{
+    /// <summary>
+    /// Whether to offer it at all.
+    /// </summary>
+    /// <remarks>
+    /// Asked by the storefront before it renders anything, so a shop with no
+    /// model configured shows a consultation page with no dead box on it,
+    /// rather than one that fails when somebody types into it.
+    /// </remarks>
+    Task<GeneralResponse<bool>> IsOfferedAsync(CancellationToken cancellationToken = default);
+
+    Task<GeneralResponse<DesignAdviceDto>> AskAsync(
+        DesignAdviceRequestDto dto, CancellationToken cancellationToken = default);
+}
