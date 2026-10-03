@@ -141,6 +141,17 @@ public interface IStorefrontService
     Task<GeneralResponse<PagedList<StorefrontProductDto>>> SearchAsync(
         ProductQuery query, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The nearest products to a search that returned nothing.
+    /// </summary>
+    /// <remarks>
+    /// A separate call rather than a flag on the search response: it is only
+    /// ever made when a listing has come back empty, so folding it into every
+    /// search would do the work for the ninety-nine times nobody needs it.
+    /// </remarks>
+    Task<GeneralResponse<IReadOnlyList<StorefrontProductDto>>> SuggestAsync(
+        string search, CancellationToken cancellationToken = default);
+
     Task<GeneralResponse<StorefrontProductDetailDto>> GetProductAsync(
         string slug, CancellationToken cancellationToken = default);
 

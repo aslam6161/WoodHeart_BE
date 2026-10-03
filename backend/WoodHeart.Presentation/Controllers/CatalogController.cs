@@ -59,6 +59,19 @@ public class CatalogController(IStorefrontService storefront) : BaseApiControlle
     }
 
     /// <summary>
+    /// The nearest products to a search that found nothing.
+    /// </summary>
+    /// <remarks>
+    /// Called by the listing only when it has come back empty, so that a
+    /// customer who typed "wardorbe" is offered the wardrobe instead of a page
+    /// saying the shop has none.
+    /// </remarks>
+    [HttpGet("products/suggestions")]
+    public async Task<IActionResult> GetSuggestions(
+        [FromQuery] string? search, CancellationToken cancellationToken) =>
+        HandleResult(await storefront.SuggestAsync(search ?? string.Empty, cancellationToken));
+
+    /// <summary>
     /// One product page, addressed by slug.
     /// </summary>
     /// <remarks>
