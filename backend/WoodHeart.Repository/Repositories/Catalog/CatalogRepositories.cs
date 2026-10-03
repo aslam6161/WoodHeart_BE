@@ -148,11 +148,22 @@ public class CategoryRepository(DataContext context)
             .MaxAsync(cancellationToken) ?? -1;
 
     public async Task<IReadOnlyDictionary<long, int>> GetProductCountsAsync(
-        CancellationToken cancellationToken = default) =>
-        await Context.Products.AsNoTracking()
+        bool activeOnly = false, CancellationToken cancellationToken = default)
+    {
+        var products = Context.Products.AsNoTracking();
+
+        // The same predicate the public listing applies, so the number beside a
+        // category is the number of products clicking it returns.
+        if (activeOnly)
+        {
+            products = products.Where(p => p.Status == ProductStatus.Active);
+        }
+
+        return await products
             .GroupBy(p => p.CategoryId)
             .Select(g => new { CategoryId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.CategoryId, x => x.Count, cancellationToken);
+    }
 }
 
 public class BrandRepository(DataContext context)
