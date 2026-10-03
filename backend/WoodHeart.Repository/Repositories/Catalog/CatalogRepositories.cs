@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WoodHeart.Domain.Entity.Catalog;
 using WoodHeart.Domain.Enums.Catalog;
+using WoodHeart.Domain.Helpers;
 using WoodHeart.Repository.Interfaces.Catalog;
 using WoodHeart.Domain.ValueObjects;
 using WoodHeart.Repository.Queries;
@@ -147,11 +148,22 @@ public class CategoryRepository(DataContext context)
             .MaxAsync(cancellationToken) ?? -1;
 
     public async Task<IReadOnlyDictionary<long, int>> GetProductCountsAsync(
-        CancellationToken cancellationToken = default) =>
-        await Context.Products.AsNoTracking()
+        bool activeOnly = false, CancellationToken cancellationToken = default)
+    {
+        var products = Context.Products.AsNoTracking();
+
+        // The same predicate the public listing applies, so the number beside a
+        // category is the number of products clicking it returns.
+        if (activeOnly)
+        {
+            products = products.Where(p => p.Status == ProductStatus.Active);
+        }
+
+        return await products
             .GroupBy(p => p.CategoryId)
             .Select(g => new { CategoryId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.CategoryId, x => x.Count, cancellationToken);
+    }
 }
 
 public class BrandRepository(DataContext context)
@@ -213,6 +225,32 @@ public class BrandRepository(DataContext context)
 public class ProductRepository(DataContext context)
     : Repository<Product>(context), IProductRepository
 {
+    public async Task<IReadOnlyList<Product>> SuggestAsync(
+        string search, int limit, CancellationToken cancellationToken = default)
+    {
+        var term = search.Trim().ToLowerInvariant();
+
+        if (term.Length == 0)
+        {
+            return [];
+        }
+
+        // 0.3 is loose enough to forgive a transposed letter — "wardorbe" —
+        // and tight enough that an unrelated word suggests nothing rather than
+        // whatever happens to be nearest. A suggestion that is plainly not what
+        // was asked for reads as a broken search, where nothing at all reads as
+        // an honest "we do not have that".
+        const double Floor = 0.3;
+
+        return await Set.AsNoTracking()
+            .Include(p => p.Media.Where(m => m.IsPrimary && !m.IsDeleted))
+            .Where(p => p.Status == ProductStatus.Active)
+            .Where(p => EF.Functions.TrigramsWordSimilarity(term, p.SearchText) > Floor)
+            .OrderByDescending(p => EF.Functions.TrigramsWordSimilarity(term, p.SearchText))
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<Product?> GetBySlugWithDetailsAsync(
         string slug, CancellationToken cancellationToken = default)
     {
@@ -326,20 +364,27 @@ public class ProductRepository(DataContext context)
             products = products.Where(p => p.IsFeatured == featured);
         }
 
-        if (!string.IsNullOrWhiteSpace(query.Search))
+        // Every word must match, and each word brings its synonyms with it.
+        //
+        // ILike, not ToLower().Contains(): ILike maps to Postgres ILIKE, which
+        // the pg_trgm GIN index can serve even with a parameterised pattern,
+        // and which is correct for Bangla. Lower-casing both sides forces a
+        // sequential scan and mangles scripts that have no case.
+        //
+        // SearchText, not Name. Name is a LocalizedText stored as jsonb, and EF
+        // cannot build a predicate inside a value-converted property:
+        // EF.Property<string>(p, "Name") compiles and throws
+        // InvalidCastException the first time it runs. SearchText is the
+        // denormalised column DataContext maintains for exactly this.
+        foreach (var alternatives in SearchTerms.Expand(query.Search))
         {
-            var term = $"%{query.Search.Trim()}%";
+            // A local array, so EF sends one parameter and matches against its
+            // elements rather than baking the words into the SQL text — which
+            // would give every distinct search its own query plan.
+            var patterns = alternatives.Select(word => $"%{word}%").ToArray();
 
-            // ILike, not ToLower().Contains(): ILike maps to Postgres ILIKE,
-            // which is index-assisted with pg_trgm and correct for Bangla.
-            // Lower-casing both sides forces a sequential scan and mangles
-            // scripts that have no case.
-            // SearchText, not Name. Name is a LocalizedText stored as jsonb, and
-            // EF cannot build a predicate inside a value-converted property:
-            // EF.Property<string>(p, "Name") compiles and throws
-            // InvalidCastException the first time it runs. SearchText is the
-            // denormalised column DataContext maintains for exactly this.
-            products = products.Where(p => EF.Functions.ILike(p.SearchText, term));
+            products = products.Where(
+                p => patterns.Any(pattern => EF.Functions.ILike(p.SearchText, pattern)));
         }
 
         // Compares the converted decimal column, so this stays SQL. Money

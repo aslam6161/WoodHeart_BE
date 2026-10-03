@@ -59,11 +59,20 @@ public interface ICategoryRepository : IRepository<Category>
 
     /// <summary>Live product counts keyed by category id.</summary>
     /// <remarks>
+    /// <para>
     /// One grouped query for the whole tree. Counting per node would be a query
     /// per category on a page that renders every category — the textbook N+1.
+    /// </para>
+    /// <para>
+    /// <paramref name="activeOnly"/> is what a storefront caller must pass. The
+    /// public listing returns active products only, so a count that includes
+    /// drafts sends a customer to a category that says "1" and shows nothing.
+    /// An admin wants the opposite — the draft is the thing they are looking
+    /// for — which is why this is a parameter rather than a rule.
+    /// </para>
     /// </remarks>
     Task<IReadOnlyDictionary<long, int>> GetProductCountsAsync(
-        CancellationToken cancellationToken = default);
+        bool activeOnly = false, CancellationToken cancellationToken = default);
 }
 
 public interface IBrandRepository : IRepository<Brand>
@@ -101,6 +110,19 @@ public interface IProductRepository : IRepository<Product>
     /// A product with everything the detail page needs — category, brand,
     /// variants and media — in one round trip.
     /// </summary>
+    /// <summary>
+    /// The products whose text comes closest to a search that found nothing.
+    /// </summary>
+    /// <remarks>
+    /// Trigram word similarity, not another <c>ILIKE</c>: this is asked only
+    /// when exact matching has already failed, so the question is no longer
+    /// "which products contain this" but "which products nearly do". Scored
+    /// against the best-matching run inside the text, so a one-word query is
+    /// not drowned by a long description.
+    /// </remarks>
+    Task<IReadOnlyList<Product>> SuggestAsync(
+        string search, int limit, CancellationToken cancellationToken = default);
+
     Task<Product?> GetBySlugWithDetailsAsync(
         string slug, CancellationToken cancellationToken = default);
 
