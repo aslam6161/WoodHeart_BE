@@ -72,7 +72,7 @@ services:
       DesignAssistant__ApiKey: ${DESIGN_ASSISTANT_API_KEY:-}
       # Named here because a hosted model is retired on the provider's
       # schedule. When that happens this is a redeploy, not a release.
-      DesignAssistant__Model: ${DESIGN_ASSISTANT_MODEL:-llama-3.3-70b-versatile}
+      DesignAssistant__Model: ${DESIGN_ASSISTANT_MODEL:-openai/gpt-oss-20b}
       TZ: Asia/Dhaka
     ports:
       - "127.0.0.1:8080:8080"

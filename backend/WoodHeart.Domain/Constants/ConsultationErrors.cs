@@ -46,6 +46,17 @@ public static class ConsultationErrors
     /// </remarks>
     public const string AdviceFailed = "external." + Prefix + "advice_failed";
 
+    /// <summary>
+    /// The model provider is rate-limiting us.
+    /// </summary>
+    /// <remarks>
+    /// A conflict rather than an <c>external.</c> failure, because nothing is
+    /// broken and the fix is to ask again in a moment. The free tier allows a
+    /// few thousand tokens a minute and the whole catalogue goes with every
+    /// question, so a busy evening reaches this honestly.
+    /// </remarks>
+    public const string AdviceBusy = Prefix + "advice_busy.conflict";
+
     public const string ServiceNotFound = Prefix + "service.not_found";
 
     public const string ConsultantNotFound = Prefix + "consultant.not_found";

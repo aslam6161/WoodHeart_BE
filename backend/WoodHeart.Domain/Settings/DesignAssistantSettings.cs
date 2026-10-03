@@ -37,7 +37,7 @@ public class DesignAssistantSettings
     /// message naming the model, and fixing it is a configuration change rather
     /// than a deployment.
     /// </remarks>
-    public string Model { get; set; } = "llama-3.3-70b-versatile";
+    public string Model { get; set; } = "openai/gpt-oss-20b";
 
     public string ApiKey { get; set; } = string.Empty;
 
@@ -58,7 +58,7 @@ public class DesignAssistantSettings
     /// not to write an essay about it — and the pieces themselves are rendered
     /// by the storefront from the database, not described in the prose.
     /// </remarks>
-    public int MaxReplyTokens { get; set; } = 700;
+    public int MaxReplyTokens { get; set; } = 1200;
 
     /// <summary>
     /// How many products are put in front of the model.
