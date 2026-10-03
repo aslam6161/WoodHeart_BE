@@ -39,7 +39,11 @@ public class CategoryService(
         // One grouped query for every category, not one per node. The
         // aggregation lives in the repository so this service holds no EF
         // dependency and can be tested against a substitute.
-        var counts = await categories.GetProductCountsAsync(cancellationToken);
+        // Everything, drafts included: this is the admin's tree, and a draft
+        // sitting in a category is precisely what they are looking for. The
+        // storefront asks the same repository for active products only.
+        var counts = await categories.GetProductCountsAsync(
+            activeOnly: false, cancellationToken);
 
         var dtos = flat.Select(c =>
         {

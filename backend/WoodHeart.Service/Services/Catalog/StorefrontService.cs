@@ -43,7 +43,10 @@ public class StorefrontService(
         // includeInactive: false is not negotiable here. An inactive category is
         // one an admin has taken off the site.
         var flat = await categories.GetTreeAsync(includeInactive: false, cancellationToken);
-        var counts = await categories.GetProductCountsAsync(cancellationToken);
+        // activeOnly, for the same reason the tree is: a customer is being told
+        // what they can buy. A draft counted here is a category that advertises
+        // stock and opens empty.
+        var counts = await categories.GetProductCountsAsync(activeOnly: true, cancellationToken);
 
         var dtos = flat.Select(c =>
         {
@@ -68,6 +71,24 @@ public class StorefrontService(
             page.PageSize);
 
         return GeneralResponse<PagedList<StorefrontProductDto>>.Success(mapped);
+    }
+
+    public async Task<GeneralResponse<IReadOnlyList<StorefrontProductDto>>> SuggestAsync(
+        string search, CancellationToken cancellationToken = default)
+    {
+        // Four. A row of suggestions is a hint, and a screen of them is a
+        // second set of search results nobody asked for.
+        const int Limit = 4;
+
+        // Corrected first: the words in the database are the catalogue's own,
+        // so "almri" has to become "wardrobe" before similarity has anything to
+        // score against.
+        var term = SearchTerms.Correct(search);
+
+        var near = await products.SuggestAsync(term, Limit, cancellationToken);
+
+        return GeneralResponse<IReadOnlyList<StorefrontProductDto>>.Success(
+            near.Select(CatalogMapper.ToStorefront).ToList());
     }
 
     public async Task<GeneralResponse<StorefrontProductDetailDto>> GetProductAsync(
