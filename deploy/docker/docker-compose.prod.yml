@@ -1,4 +1,4 @@
-# -----------------------------------------------------------------------------
+﻿# -----------------------------------------------------------------------------
 # Production stack. Deployed to /opt/woodheart by .github/workflows/cd.yml and
 # started there — never run this file locally. Use docker-compose.yml for that.
 #
@@ -50,6 +50,21 @@ services:
       # is the point — a weak signing key means anyone can mint an Admin token.
       Jwt__SigningKey: ${JWT_SIGNING_KEY:?JWT_SIGNING_KEY must be set}
       Cors__AllowedOrigins__0: ${PUBLIC_WEB_URL:-https://woodheart.com.bd}
+      # Product photography. Unlike the signing key, a missing credential here
+      # does not stop the API booting — the storefront works without ever
+      # touching Cloudinary — so these are not marked required. What they buy
+      # is the ability to upload at all: without them every upload is refused
+      # with a message saying why.
+      Cloudinary__CloudName: ${CLOUDINARY_CLOUD_NAME}
+      Cloudinary__ApiKey: ${CLOUDINARY_API_KEY}
+      # Anyone holding this can upload to, transform and permanently destroy
+      # every asset in the account, which is why it reaches the container as an
+      # environment variable and appears in no appsettings file.
+      Cloudinary__ApiSecret: ${CLOUDINARY_API_SECRET}
+      # Separate from the folder used in development. Sharing one folder
+      # between environments means a staging tidy-up destroys live product
+      # photography.
+      Cloudinary__Folder: ${CLOUDINARY_FOLDER:-woodheart}
       TZ: Asia/Dhaka
     ports:
       - "127.0.0.1:8080:8080"
@@ -78,6 +93,12 @@ services:
       # in production.
       API_URL_SSR: http://api:8080
       API_URL_BROWSER: ${PUBLIC_API_URL:-https://api.woodheart.com.bd}
+      # The same cloud name the API uploads to, and the only one of the three
+      # this container gets. It is the host of every image URL on every page,
+      # so it is not a secret; the key and the secret never leave the API.
+      # Absent, the storefront renders placeholder tiles rather than broken
+      # images — quiet enough that it needs saying here.
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       TZ: Asia/Dhaka
     ports:
       - "127.0.0.1:4000:4000"
