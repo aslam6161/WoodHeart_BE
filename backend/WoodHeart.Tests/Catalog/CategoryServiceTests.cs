@@ -45,7 +45,7 @@ public class CategoryServiceTests
             .Returns(call => call.Arg<Func<CancellationToken, Task<GeneralResponse<CategoryDto>>>>()(
                 CancellationToken.None));
 
-        _categories.GetProductCountsAsync(Arg.Any<CancellationToken>())
+        _categories.GetProductCountsAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<long, int>());
     }
 
@@ -336,7 +336,7 @@ public class CategoryServiceTests
             NewCategory(1, "living-room", "/1/", sortOrder: 0),
             NewCategory(2, "bedroom", "/2/", sortOrder: 1)
         ]);
-        _categories.GetProductCountsAsync(Arg.Any<CancellationToken>())
+        _categories.GetProductCountsAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<long, int> { [1] = 12 });
 
         var result = await CreateService().GetTreeAsync();
@@ -345,7 +345,13 @@ public class CategoryServiceTests
         result.Data[1].ProductCount.ShouldBe(0);
 
         // One grouped call, not one per category.
-        await _categories.Received(1).GetProductCountsAsync(Arg.Any<CancellationToken>());
+        await _categories.Received(1).GetProductCountsAsync(
+            Arg.Any<bool>(), Arg.Any<CancellationToken>());
+
+        // The admin's tree counts drafts too: an unpublished product sitting in
+        // a category is the thing an admin opened this screen to find.
+        await _categories.Received(1).GetProductCountsAsync(
+            false, Arg.Any<CancellationToken>());
     }
 
     // -------------------------------------------------------------------------

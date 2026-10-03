@@ -43,7 +43,10 @@ public class StorefrontService(
         // includeInactive: false is not negotiable here. An inactive category is
         // one an admin has taken off the site.
         var flat = await categories.GetTreeAsync(includeInactive: false, cancellationToken);
-        var counts = await categories.GetProductCountsAsync(cancellationToken);
+        // activeOnly, for the same reason the tree is: a customer is being told
+        // what they can buy. A draft counted here is a category that advertises
+        // stock and opens empty.
+        var counts = await categories.GetProductCountsAsync(activeOnly: true, cancellationToken);
 
         var dtos = flat.Select(c =>
         {
