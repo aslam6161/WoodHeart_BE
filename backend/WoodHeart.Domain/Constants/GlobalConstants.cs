@@ -125,6 +125,17 @@ public static class SettingKeys
     public const string StorePhone = "store.phone";
     public const string StoreEmail = "store.email";
 
+    /// <summary>
+    /// When the shop is open, and how quickly somebody replies.
+    /// </summary>
+    /// <remarks>
+    /// Prose rather than a structured timetable. Opening hours here are a
+    /// sentence a shopkeeper writes — "closed Fridays, back on Saturday" — and
+    /// a grid of seven rows with open and close times cannot say that, while
+    /// forcing somebody to encode Eid into it every year.
+    /// </remarks>
+    public const string StoreHours = "store.hours";
+
     /// <summary>The trading name printed at the top of an invoice.</summary>
     /// <remarks>
     /// A setting rather than a constant because it is the one string that has
