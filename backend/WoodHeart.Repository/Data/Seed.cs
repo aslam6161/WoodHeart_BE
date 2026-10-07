@@ -111,6 +111,12 @@ public static class Seed
                 "The number customers ring. Printed on invoices."),
             (SettingKeys.StoreEmail, "", SettingValueType.String, "Store",
                 "The shop's email, printed on invoices when set."),
+            // Unlike the address, this one ships with a sentence in it: a
+            // contact page with no hours on it invites "are you open now?",
+            // which is the enquiry the page exists to prevent.
+            (SettingKeys.StoreHours, "Saturday to Thursday, 10am to 8pm. We usually reply the same day.",
+                SettingValueType.String, "Store",
+                "Opening hours and how quickly somebody replies. Shown on the contact page."),
             (SettingKeys.StoreBin, "", SettingValueType.String, "Store",
                 "Business Identification Number from the NBR. Printed on invoices only when set.")
         };

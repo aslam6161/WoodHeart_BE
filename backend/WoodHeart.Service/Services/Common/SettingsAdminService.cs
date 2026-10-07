@@ -49,7 +49,7 @@ public class SettingsAdminService(
     private static readonly string[] KeyOrder =
     [
         SettingKeys.StoreName, SettingKeys.StoreAddress, SettingKeys.StorePhone,
-        SettingKeys.StoreEmail, SettingKeys.StoreBin,
+        SettingKeys.StoreEmail, SettingKeys.StoreHours, SettingKeys.StoreBin,
         SettingKeys.VatRate, SettingKeys.PricesIncludeVat, SettingKeys.VatOnDelivery,
         SettingKeys.DeliveryChargeInsideDhaka, SettingKeys.DeliveryChargeOutsideDhaka,
         SettingKeys.FreeDeliveryThreshold,

@@ -54,6 +54,10 @@ using WoodHeart.Repository.Repositories.Notifications;
 using WoodHeart.Repository.Repositories.Quotations;
 using WoodHeart.Service.Interfaces.Quotations;
 using WoodHeart.Service.Services.Quotations;
+using WoodHeart.Repository.Interfaces.Support;
+using WoodHeart.Repository.Repositories.Support;
+using WoodHeart.Service.Interfaces.Support;
+using WoodHeart.Service.Services.Support;
 namespace WoodHeart.Presentation.Extensions;
 
 /// <summary>
@@ -330,6 +334,9 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IBookingReminders, BookingReminderJob>();
         services.AddScoped<IQuotationRepository, QuotationRepository>();
         services.AddScoped<IQuotationService, QuotationService>();
+        services.AddScoped<IContactMessageRepository, ContactMessageRepository>();
+        services.AddScoped<IContactService, ContactService>();
+        services.AddScoped<IContactAdminService, ContactAdminService>();
 
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBrandService, BrandService>();

@@ -18,6 +18,7 @@ using WoodHeart.Domain.Entity.Ordering;
 using WoodHeart.Domain.Entity.Payments;
 using WoodHeart.Domain.Entity.Promotions;
 using WoodHeart.Domain.Entity.Quotations;
+using WoodHeart.Domain.Entity.Support;
 using WoodHeart.Domain.Helpers;
 
 namespace WoodHeart.Repository;
@@ -130,6 +131,10 @@ public class DataContext(
     public DbSet<Quotation> Quotations => Set<Quotation>();
 
     public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
+
+    // --- Support ------------------------------------------------------------
+
+    public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
